@@ -46,7 +46,7 @@ bool caseLibre(const Jeu& jeu, int colonne, int ligne) {
 
 void ecrireJournal(Jeu& jeu, const std::string& message) {
     jeu.journal.push_back(message);
-    if (jeu.journal.size() > 4) {
+    if (jeu.journal.size() > 3) {
         jeu.journal.erase(jeu.journal.begin());
     }
 }
@@ -66,6 +66,8 @@ void mettreAJourTextes(Jeu& jeu, float secondes) {
     while (!jeu.textes.empty() && jeu.textes.front().tempsRestant <= 0) {
         jeu.textes.erase(jeu.textes.begin());
     }
+
+    jeu.tempsBanniere = jeu.tempsBanniere - secondes;
 
     // Le clignotement rouge des pions touches s'eteint peu a peu
     jeu.aylis.flash = jeu.aylis.flash - secondes;
@@ -224,6 +226,21 @@ std::string nomAction(Action action) {
         case Action::Eclair: return "Eclair";
         case Action::Bouclier: return "Bouclier";
         case Action::Speciale: return "SPECIAL";
+    }
+    return "";
+}
+
+std::string descriptionAction(Action action) {
+    switch (action) {
+        case Action::Attaque: return "Un coup avec ton arme. Ne rate jamais.";
+        case Action::AttaqueLourde: return "Degats x1.8, mais rate 4 fois sur 10.";
+        case Action::Garde: return "Petits degats, et tu encaisses 2 fois moins jusqu'a ton prochain tour.";
+        case Action::Potion: return "Rend 15 pv. Clique sur AYLIS (ou ENTREE).";
+        case Action::BouleDeFeu: return "Degats x1.5 sans defense, sur la cible ET ses voisins. Fait bruler 2 tours.";
+        case Action::Soin: return "Rend 20 pv et guerit poison, brulure et saignement.";
+        case Action::Eclair: return "Degats normaux, et la cible est paralysee : elle passe son prochain tour.";
+        case Action::Bouclier: return "Une barriere qui absorbe les 15 prochains points de degats.";
+        case Action::Speciale: return "Quand la rage est pleine : degats x2.2, ne rate jamais.";
     }
     return "";
 }
@@ -491,6 +508,8 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
 
 void commencerTourAylis(Jeu& jeu) {
     jeu.tour = jeu.tour + 1;
+    jeu.banniere = "TOUR " + std::to_string(jeu.tour);
+    jeu.tempsBanniere = 1.2f;
     jeu.enGarde = false;
     jeu.phase = Phase::Deplacement;
     subirEtats(jeu, jeu.aylis);
@@ -625,6 +644,8 @@ void preparerCombat(Jeu& jeu) {
     jeu.enGarde = false;
     jeu.actionChoisie = Action::Attaque;
     jeu.phase = Phase::Deplacement;
+    jeu.banniere = jeu.nomDuLieu;
+    jeu.tempsBanniere = 2.0f;
     ecrireJournal(jeu, "Combat " + std::to_string(jeu.combat + 1) + "/" + std::to_string(nombreDeCombats())
                        + " : " + jeu.nomDuLieu);
 }

@@ -376,6 +376,62 @@ const std::vector<std::string> DESSIN_ROCHER = {
     ".....kkkkkk.....",
 };
 
+// ----- Les icones des actions -----
+const std::vector<std::vector<std::string>> DESSINS_ICONES = {
+    {   // 1. Attaque : une epee
+        "................", "............kk..", "...........kgk..", "..........kgk...",
+        ".........kgk....", "........kgk.....", ".......kgk......", "..k...kgk.......",
+        "..kk.kgk........", "...kykk.........", "...kyk..........", "..kykyk.........",
+        ".knk..kk........", "kk..............",
+    },
+    {   // 2. Attaque lourde : un marteau
+        "................", "..kkkkkkk.......", ".kGggggggk......", ".kGggggggk......",
+        ".kGGgggGGk......", "..kkkkkkkk......", ".....knk........", ".....knk........",
+        ".....knk........", ".....knk........", ".....knk........", ".....knk........",
+        ".....kNk........", ".....kkk........",
+    },
+    {   // 3. Garde : un bouclier
+        "................", "..kkkkkkkkkk....", "..kgggggggGk....", "..kgbbbbbbGk....",
+        "..kgbbyybbGk....", "..kgbyyyybGk....", "..kgbbyybbGk....", "..kgbbbbbbGk....",
+        "...kgbbbbGk.....", "...kgbbbbGk.....", "....kgbbGk......", ".....kggk.......",
+        "......kk........",
+    },
+    {   // 4. Potion : une fiole rouge
+        "................", "......kkk.......", "......knk.......", "......kwk.......",
+        ".....kwwwk......", "....kwrrrwk.....", "...kwrrrrrwk....", "...kwrwrrrwk....",
+        "...kwrrrrrwk....", "...kwrrrrrwk....", "....kwrrrwk.....", ".....kkkkk......",
+    },
+    {   // 5. Boule de feu : une flamme
+        "................", ".......o........", "......oo........", "......oYo.......",
+        ".....oYYo..o....", "....oYYYo.oo....", "....oYwYYoYo....", "...oYYwwYYYo....",
+        "...oYwwwwYYo....", "...oYYwwYYYo....", "....oYYYYYo.....", ".....ooooo......",
+    },
+    {   // 6. Soin : un coeur vert
+        "................", "................", "...kkk...kkk....", "..kvlvk.kvvvk...",
+        ".kvlwlvkvvvvvk..", ".kvlvvvvvvvvvk..", ".kvvvvvvvvvvVk..", "..kvvvvvvvvVk...",
+        "...kvvvvvvVk....", "....kvvvvVk.....", ".....kvvVk......", "......kVk.......",
+        ".......k........",
+    },
+    {   // 7. Eclair : un eclair jaune
+        "................", "........kkkk....", ".......kYYYk....", "......kYYYk.....",
+        ".....kYYYk......", "....kYYYYkkk....", "...kYYYYYYYk....", "....kkkYYYk.....",
+        "......kYYk......", ".....kYYk.......", "....kYYk........", "....kYk.........",
+        "....kk..........",
+    },
+    {   // 8. Bouclier magique : une bulle bleue
+        "................", ".....kkkkk......", "...kkbbbbbkk....", "..kbbwwbbbbbk...",
+        "..kbwwbbbbbbk...", ".kbbwbbbbbbbbk..", ".kbbbbbbbbbbbk..", ".kbbbbbbbbbbbk..",
+        ".kbbbbbbbbbbBk..", "..kbbbbbbbbBk...", "..kBbbbbbbBBk...", "...kkBBBBBkk....",
+        ".....kkkkk......",
+    },
+    {   // 9. Attaque speciale : une etoile de rage
+        "................", ".......k........", "......kok.......", "......kok.......",
+        ".kkkkkoYokkkkk..", "..kooYYwYYook...", "...kooYYYook....", "....koYYYok.....",
+        "....koYkYok.....", "...koYk.kYok....", "...kok...kok....", "..kok.....kok...",
+        "..kk.......kk...",
+    },
+};
+
 // ===================== Charger et decharger =====================
 
 void chargerSprites() {
@@ -419,6 +475,10 @@ void chargerSprites() {
     lesSprites.obstacle[2][1] = creerTexture(DESSIN_ROCHER, aucune);
     lesSprites.decor[2][0] = creerTexture(DESSIN_CAILLOUX, aucune);
     lesSprites.decor[2][1] = creerTexture(DESSIN_NEIGE, aucune);
+
+    for (int i = 0; i < 9; i++) {
+        lesSprites.icones[i] = creerTexture(DESSINS_ICONES[i], aucune);
+    }
 }
 
 void dechargerSprites() {
@@ -429,6 +489,9 @@ void dechargerSprites() {
     };
     for (const Texture2D& texture : textures) {
         UnloadTexture(texture);
+    }
+    for (const Texture2D& icone : lesSprites.icones) {
+        UnloadTexture(icone);
     }
     for (int lieu = 0; lieu < 3; lieu++) {
         for (int variante = 0; variante < 2; variante++) {

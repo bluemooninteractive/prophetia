@@ -22,6 +22,9 @@ struct Sprites {
     Texture2D obstacle[3][2];       // arbres, tonneaux et tentes, rochers
     Texture2D decor[3][2];          // herbe et fleurs, os, cailloux et neige
     Texture2D feu[2];               // le feu de camp : 2 images qui alternent
+
+    // Les icones des 9 actions, dans l'ordre de la barre d'actions
+    Texture2D icones[9];
 };
 
 const int TAILLE_SPRITE = 16;       // chaque dessin fait 16 x 16 pixels, affiche 4 fois plus grand

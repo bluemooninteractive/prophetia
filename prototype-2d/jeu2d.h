@@ -87,6 +87,8 @@ struct Jeu {
     int tour = 1;
     std::vector<std::string> journal;
     std::vector<TexteFlottant> textes;
+    std::string banniere;               // le grand titre anime au milieu ("TOUR 3", le nom du lieu...)
+    float tempsBanniere = 0.0f;         // combien de temps il reste affiche, en secondes
 };
 
 // ===================== regles.cpp : les regles du jeu =====================
@@ -103,6 +105,7 @@ std::vector<int> casesAtteignables(const Jeu& jeu);
 
 // Les actions
 std::string nomAction(Action action);
+std::string descriptionAction(Action action);           // pour la bulle d'aide au survol
 int porteeAction(const Jeu& jeu, Action action);        // 0 = sur soi-meme
 int coutMana(Action action);
 bool actionDisponible(const Jeu& jeu, Action action);   // assez de mana, de rage, de potions, sort connu...
