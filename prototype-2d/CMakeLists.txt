@@ -14,10 +14,20 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(raylib)
 
-add_executable(prophetia_2d main.cpp)
+# Le prototype REUTILISE du code du jeu console (le dossier du dessus) :
+# les structures de types.h, la classe Jauge, et les methodes de Combattant (dans outils.cpp).
+add_executable(prophetia_2d
+    main.cpp
+    regles.cpp
+    dessin.cpp
+    ../outils.cpp
+    ../couleurs.cpp
+    ../jauge.cpp
+)
+target_include_directories(prophetia_2d PRIVATE ..)
 target_link_libraries(prophetia_2d raylib)
 
-# Sous Windows : le jeu fonctionne sans les DLL du compilateur
+# Sous Windows : le jeu fonctionne sans les DLL du compilateur (sauf libwinpthread, copiee a cote)
 if (MINGW)
     target_link_options(prophetia_2d PRIVATE -static-libgcc -static-libstdc++)
 endif()
