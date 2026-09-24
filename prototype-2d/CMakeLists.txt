@@ -22,6 +22,7 @@ add_executable(vesperance_2d
     route.cpp
     haltes.cpp
     memoire.cpp
+    seuil.cpp
     dessin.cpp
     sprites.cpp
     animations.cpp

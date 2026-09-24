@@ -75,15 +75,49 @@ void commandesJoueur(Jeu& jeu, int colonneSouris, int ligneSouris) {
     deplacerAylis(jeu, colonneSouris, ligneSouris);
 }
 
+// Les commandes au Seuil : parler aux echos, acheter des ameliorations, franchir le portail
+void commandesSeuil(Jeu& jeu, Vector2 souris) {
+    bool clic = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+    if (jeu.interlocuteur < 0) {
+        for (int personnage = 0; personnage < 3; personnage++) {
+            if ((clic && CheckCollisionPointRec(souris, rectangleEcho(personnage)))
+                || IsKeyPressed(KEY_ONE + personnage) || IsKeyPressed(KEY_KP_1 + personnage)) {
+                parlerA(jeu, personnage);
+                return;
+            }
+        }
+        if ((clic && CheckCollisionPointRec(souris, rectanglePortail())) || IsKeyPressed(KEY_ENTER)) {
+            jeu.phase = Phase::ChoixVoie;       // AYLIS franchit le portail : une nouvelle vision commence
+        }
+        return;
+    }
+    // Pendant une discussion
+    for (int choix = 0; choix < 2; choix++) {
+        if ((clic && CheckCollisionPointRec(souris, rectangleAmelioration(choix)))
+            || IsKeyPressed(KEY_ONE + choix) || IsKeyPressed(KEY_KP_1 + choix)) {
+            acheterAmelioration(jeu, choix);
+            return;
+        }
+    }
+    bool clicDehors = clic && !CheckCollisionPointRec(souris, {70, 150, LARGEUR_FENETRE - 140.0f, 460});
+    if (IsKeyPressed(KEY_ESCAPE) || IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_BACKSPACE) || clicDehors) {
+        parlerA(jeu, -1);
+    }
+}
+
 int main() {
     // Sur les ecrans "agrandis" par Windows (125%, 150%, 200%...), le jeu occupe bien toute la fenetre
     SetConfigFlags(FLAG_WINDOW_HIGHDPI);
     InitWindow(LARGEUR_FENETRE, HAUTEUR_FENETRE, "VESPERANCE - prototype 2D");
     SetTargetFPS(60);
+    SetExitKey(KEY_NULL);   // ECHAP ne ferme plus le jeu (il sert a fermer une discussion au Seuil)
     chargerSprites();       // fabrique les dessins (il faut que la fenetre soit ouverte)
 
     Jeu jeu;
     chargerMemoire(jeu.memoire);     // les souvenirs des courses precedentes
+    if (jeu.memoire.visions + jeu.memoire.victoires > 0) {
+        entrerAuSeuil(jeu);         // AYLIS a deja vecu des visions : on commence au Seuil
+    }
 
     while (!WindowShouldClose()) {
         float secondes = GetFrameTime();    // le temps ecoule depuis l'image precedente
@@ -152,13 +186,15 @@ int main() {
                 finirRencontre(jeu);
             }
         } else if (jeu.phase == Phase::Victoire && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_R)) && !animationsEnCours(jeu)) {
-            jeu.phase = Phase::ChoixVoie;
+            entrerAuSeuil(jeu);
         } else if (jeu.phase == Phase::Reveil && (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
             if (jeu.fondu < DUREE_TEXTE_REVEIL) {
                 jeu.fondu = DUREE_TEXTE_REVEIL;     // un premier appui affiche tout le texte d'un coup
             } else {
-                jeu.phase = Phase::ChoixVoie;
+                entrerAuSeuil(jeu);                 // entre deux visions : le Seuil
             }
+        } else if (jeu.phase == Phase::Seuil) {
+            commandesSeuil(jeu, souris);
         }
 
         // 2. Mettre le jeu a jour
@@ -191,6 +227,7 @@ int main() {
         EndDrawing();
     }
 
+    dechargerLumiere();
     dechargerSprites();
     CloseWindow();
     return 0;

@@ -6,23 +6,38 @@
 #include <fstream>
 #include <string>
 #include <cstdlib>
+#include <vector>
 #include "jeu2d.h"
 
 const std::string fichierMemoire = "vesperance_memoire.txt";
-const std::string enteteMemoire = "VESPERANCE-MEMOIRE-1";
+const std::string enteteMemoire = "VESPERANCE-MEMOIRE-2";
+const std::string enteteAncienne = "VESPERANCE-MEMOIRE-1";    // la version d'avant le Seuil : on sait encore la lire
 
 // ===================== Le fichier =====================
+
+// Toutes les valeurs de la memoire, dans l'ordre du fichier.
+// Un pointeur (int*) permet a la meme liste de servir pour lire ET pour ecrire.
+std::vector<int*> valeursDeLaMemoire(Memoire& m) {
+    std::vector<int*> valeurs = {&m.visions, &m.victoires, &m.meilleureSalle, &m.ashkaAffrontee,
+                                 &m.fragments, &m.fragmentsTotal,
+                                 // a partir d'ici : la version 2 (le Seuil)
+                                 &m.passagesAuSeuil, &m.voyageurAide, &m.voyageurDepouille,
+                                 &m.deserteurEpargne, &m.deserteurDepouille};
+    for (int i = 0; i < NOMBRE_AMELIORATIONS; i++) {
+        valeurs.push_back(&m.ameliorations[i]);
+    }
+    return valeurs;
+}
 
 void chargerMemoire(Memoire& memoire) {
     memoire = Memoire();    // on repart de zero si le fichier n'existe pas
     std::ifstream fichier(fichierMemoire);
     std::string ligne;
-    if (!fichier || !std::getline(fichier, ligne) || ligne != enteteMemoire) {
+    if (!fichier || !std::getline(fichier, ligne) || (ligne != enteteMemoire && ligne != enteteAncienne)) {
         return;
     }
-    int* valeurs[] = {&memoire.visions, &memoire.victoires, &memoire.meilleureSalle,
-                      &memoire.ashkaAffrontee, &memoire.fragments, &memoire.fragmentsTotal};
-    for (int* valeur : valeurs) {
+    // Une vieille memoire s'arrete apres les 6 premieres valeurs : le reste reste a zero
+    for (int* valeur : valeursDeLaMemoire(memoire)) {
         if (std::getline(fichier, ligne)) {
             *valeur = std::atoi(ligne.c_str());
         }
@@ -34,9 +49,11 @@ void enregistrerMemoire(const Memoire& memoire) {
     if (!fichier) {
         return;
     }
+    Memoire copie = memoire;    // valeursDeLaMemoire a besoin d'une memoire modifiable
     fichier << enteteMemoire << "\n";
-    fichier << memoire.visions << "\n" << memoire.victoires << "\n" << memoire.meilleureSalle << "\n";
-    fichier << memoire.ashkaAffrontee << "\n" << memoire.fragments << "\n" << memoire.fragmentsTotal << "\n";
+    for (int* valeur : valeursDeLaMemoire(copie)) {
+        fichier << *valeur << "\n";
+    }
 }
 
 // ===================== La fin d'une course =====================

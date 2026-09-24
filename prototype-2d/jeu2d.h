@@ -127,6 +127,7 @@ enum class Phase {
     Victoire,
     Defaite,        // AYLIS tombe : l'ecran se teinte de violet, la vision se brise...
     Reveil,         // ... et AYLIS se reveille, avec le souvenir de la vision
+    Seuil,          // le monde entre les visions : on y depense les fragments de prophetie
 };
 
 // ===================== La memoire (memoire.cpp) =====================
@@ -137,9 +138,18 @@ struct Memoire {
     int victoires = 0;          // le nombre de fois ou Ashka a ete vaincue
     int meilleureSalle = 0;     // la salle la plus lointaine jamais atteinte
     int ashkaAffrontee = 0;     // combien de fois AYLIS a affronte Ashka
-    int fragments = 0;          // les fragments de prophetie a depenser (au refuge, bientot)
+    int fragments = 0;          // les fragments de prophetie a depenser au Seuil
     int fragmentsTotal = 0;     // tous ceux gagnes depuis le debut
+    int passagesAuSeuil = 0;    // le nombre de visites au Seuil (le monde entre les visions)
+    int ameliorations[6] = {0, 0, 0, 0, 0, 0};  // le rang de chaque amelioration achetee au Seuil
+    // Les choix des rencontres : le Seuil s'en souvient
+    int voyageurAide = 0;
+    int voyageurDepouille = 0;
+    int deserteurEpargne = 0;
+    int deserteurDepouille = 0;
 };
+
+const int NOMBRE_AMELIORATIONS = 6;
 
 // ===================== La route (route.cpp) =====================
 
@@ -221,6 +231,7 @@ struct Jeu {
     std::vector<Rune> runes;            // les runes qu'AYLIS possede
     int feuColonne = -1;                // la case du feu de camp (dans le camp haschen)
     int feuLigne = -1;
+    std::vector<std::pair<int, int>> lumieres;  // les cases des sources de lumiere (champignons, braseros, cristaux)
 
     // Les effets des runes
     int deplacement = DEPLACEMENT_AYLIS;    // cases par tour (la rune du Vent l'augmente)
@@ -240,6 +251,8 @@ struct Jeu {
     std::string derniereBlessure;       // qui a porte le dernier coup a AYLIS (pour le texte du reveil)
     int elitesVaincues = 0;             // pendant cette course
     int fragmentsGagnes = 0;            // pendant cette course
+    int interlocuteur = -1;             // au Seuil : le personnage a qui AYLIS parle (-1 = personne)
+    std::string messageSeuil;           // au Seuil : ce qui vient de se passer (achat, pas assez de fragments...)
     float fondu = 0.0f;                 // le fondu violet quand la vision se brise, puis le texte du reveil
     std::string messageRoute;          // ce qui vient de se passer sur la route (affiche sur les ecrans de choix)
     std::string nomDuLieu;
@@ -333,6 +346,7 @@ void mettreAJourTextes(Jeu& jeu, float secondes);
 // ===================== dessin.cpp : l'affichage =====================
 
 void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris);
+void dechargerLumiere();                                // a appeler avant CloseWindow
 
 // Les boutons de la barre d'actions : leur rectangle a l'ecran
 Rectangle rectangleBouton(int numero);
@@ -340,4 +354,21 @@ const std::vector<Action>& actionsDeLaBarre();
 Rectangle rectangleCarteVoie(int voie);                 // les 3 cartes de l'ecran de depart
 Rectangle rectangleCarteChoix(int numero, int nombre);  // les cartes des salles et des runes
 Rectangle rectangleCarteReponse(int numero);            // les 2 choix d'une rencontre
+Rectangle rectangleEcho(int personnage);                 // au Seuil : pour cliquer sur Maren, Durgan ou Silas
+Rectangle rectanglePortail();
+Rectangle rectangleAmelioration(int choix);             // les 2 ameliorations de la discussion
 Rectangle rectangleBoutonRoute();                       // "reprendre la route" (boutique, rencontre)
+
+// ===================== seuil.cpp : le monde entre les visions =====================
+
+std::string nomAmelioration(int numero);
+std::string descriptionAmelioration(int numero);
+int rangMaxAmelioration(int numero);
+int coutAmelioration(const Memoire& memoire, int numero);   // 0 = rang maximum atteint
+void acheterAmelioration(Jeu& jeu, int choix);              // choix 0 ou 1, chez le personnage a qui AYLIS parle
+void appliquerAmeliorations(Jeu& jeu);                      // au depart d'une course
+void entrerAuSeuil(Jeu& jeu);
+void parlerA(Jeu& jeu, int personnage);                     // 0 = Maren, 1 = Durgan, 2 = Silas, -1 = personne
+std::string paroleAuSeuil(const Memoire& m, int personnage);
+std::string murmureDuSeuil(const Memoire& m);
+Vector2 positionAuSeuil(int personnage);                    // 0 a 2 = les echos, 3 = AYLIS, 4 = le portail

@@ -219,6 +219,7 @@ void repondreRencontre(Jeu& jeu, int reponse) {
     if (jeu.rencontre == 0) {
         if (reponse == 0) {
             changerHonneur(jeu, 1);
+            jeu.memoire.voyageurAide = jeu.memoire.voyageurAide + 1;     // le Seuil s'en souviendra
             if (aylis.potions > 0) {
                 aylis.potions = aylis.potions - 1;
                 resultat = "Le voyageur reprend des couleurs. Il tend une pierre gravee : \"Elle t'attendait, je crois.\"";
@@ -228,6 +229,7 @@ void repondreRencontre(Jeu& jeu, int reponse) {
             }
         } else {
             changerHonneur(jeu, -1);
+            jeu.memoire.voyageurDepouille = jeu.memoire.voyageurDepouille + 1;
             gagnerOr(jeu, 35);
             resultat = "35 pieces d'or... et un regard qu'AYLIS n'oubliera pas de sitot.";
         }
@@ -258,10 +260,12 @@ void repondreRencontre(Jeu& jeu, int reponse) {
     } else if (jeu.rencontre == 3) {
         if (reponse == 0) {
             changerHonneur(jeu, 1);
+            jeu.memoire.deserteurEpargne = jeu.memoire.deserteurEpargne + 1;
             gagnerOr(jeu, 15);
             resultat = "Il glisse 15 pieces dans la main d'AYLIS : \"Ashka a peur de la prophetie... elle a peur de toi.\"";
         } else {
             changerHonneur(jeu, -1);
+            jeu.memoire.deserteurDepouille = jeu.memoire.deserteurDepouille + 1;
             gagnerOr(jeu, 30);
             resultat = "30 pieces d'or. Le Haschen s'enfuit en pleurant vers le camp.";
         }

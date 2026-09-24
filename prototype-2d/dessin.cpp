@@ -260,32 +260,290 @@ void dessinerPion(const Pion& pion, bool estAylis, int colonneAylis) {
             dessinerSprite(s.couronne, ecran, versLaGauche, WHITE);
         }
     }
-    dessinerBarreDeVie(pion);
-    dessinerEtats(pion);
 }
 
-// L'ambiance du lieu, par-dessus l'arene : brume en foret, lueur du feu au camp, neige sur le col
-void dessinerAmbiance(int lieu) {
-    float temps = GetTime();
+// ===================== La lumiere =====================
+//
+// L'astuce qui donne toute l'ambiance : on dessine d'abord une "carte de lumiere", une image a part
+// (une RenderTexture) remplie d'une couleur sombre, sur laquelle on ajoute des taches de lumiere
+// (AYLIS, les feux, les champignons, les cristaux...). Ensuite on la pose par-dessus l'arene en mode
+// "multiplication" : ou la carte est sombre l'arene devient sombre, ou elle est claire l'arene reste eclairee.
+
+RenderTexture2D carteLumiere;
+bool carteLumiereCreee = false;
+
+// La couleur de la penombre de chaque lieu : nuit bleutee en foret, braise au camp, glace sur le col
+const Color PENOMBRE[3] = {{42, 54, 84, 255}, {74, 48, 62, 255}, {56, 60, 100, 255}};
+// La couleur des sources de lumiere de chaque lieu
+const Color LUEUR[3] = {{90, 230, 240, 255}, {255, 150, 60, 255}, {190, 120, 255, 255}};
+
+// Une tache de lumiere ronde, forte au centre et qui s'efface vers le bord
+void tacheDeLumiere(float x, float y, float rayon, Color couleur, float force) {
+    DrawCircleGradient(x, y, rayon, Fade(couleur, force), Fade(couleur, 0.0f));
+}
+
+// Un petit tremblement, comme une flamme (chaque source a son propre rythme)
+float vacillement(float vitesse, float decalage) {
+    float t = GetTime() * vitesse + decalage;
+    return 0.85f + 0.1f * std::sin(t) + 0.05f * std::sin(t * 2.7f);
+}
+
+Vector2 centreDeCase(int colonne, int ligne) {
+    return {colonne * TAILLE_CASE + TAILLE_CASE / 2.0f, ligne * TAILLE_CASE + TAILLE_CASE / 2.0f};
+}
+
+// A appeler AVANT BeginMode2D : on dessine dans la carte de lumiere, pas sur l'ecran
+void preparerLumiere(const Jeu& jeu) {
+    if (!carteLumiereCreee) {
+        carteLumiere = LoadRenderTexture(LARGEUR_FENETRE, HAUTEUR_ARENE);
+        SetTextureFilter(carteLumiere.texture, TEXTURE_FILTER_BILINEAR);
+        carteLumiereCreee = true;
+    }
+    int lieu = jeu.lieu;
+    BeginTextureMode(carteLumiere);
+    ClearBackground(PENOMBRE[lieu]);
+    BeginBlendMode(BLEND_ADDITIVE);     // les lumieres s'ajoutent les unes aux autres
+
+    // Sur le col, un clair de lune qui tombe d'en haut
+    if (lieu == 2) {
+        tacheDeLumiere(LARGEUR_FENETRE / 2.0f, -120, 620, Color{150, 170, 255, 255}, 0.35f);
+    }
+    // En foret, les rayons de lune qui percent les arbres
     if (lieu == 0) {
-        for (int i = 0; i < 6; i++) {
-            float x = std::fmod(temps * (12 + i * 3) + i * 170, LARGEUR_FENETRE + 300) - 150;
-            float y = 60 + i * 85 + std::sin(temps * 0.5 + i) * 20;
-            DrawEllipse(x, y, 160, 40, Fade(WHITE, 0.045f));
-        }
-    } else if (lieu == 1) {
-        float pulsation = 0.05f + 0.02f * std::sin(temps * 6);
-        DrawRectangle(0, 0, LARGEUR_FENETRE, HAUTEUR_ARENE, Fade(ORANGE, pulsation));
-    } else {
-        for (int i = 0; i < 70; i++) {
-            float x = std::fmod(i * 97.0f + temps * (10 + i % 5 * 4), (float)LARGEUR_FENETRE);
-            float y = std::fmod(i * 53.0f + temps * (35 + i % 7 * 6), (float)HAUTEUR_ARENE);
-            DrawRectangle(x, y, i % 3 == 0 ? 3 : 2, i % 3 == 0 ? 3 : 2, Fade(WHITE, 0.8f));
+        for (int i = 0; i < 3; i++) {
+            float x = 180.0f + i * 290 + std::sin(GetTime() * 0.3f + i) * 20;
+            tacheDeLumiere(x, 250 + i * 60.0f, 170, Color{170, 220, 200, 255}, 0.18f);
         }
     }
-    // Les bords de l'arene un peu plus sombres : l'oeil se concentre sur le centre
-    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, 50, Fade(BLACK, 0.4f), BLANK);
-    DrawRectangleGradientV(0, HAUTEUR_ARENE - 50, LARGEUR_FENETRE, 50, BLANK, Fade(BLACK, 0.4f));
+
+    // AYLIS porte la lumiere : un grand halo chaud, et un coeur violet (la prophetie)
+    if (jeu.aylis.stats.estDebout()) {
+        Vector2 a = positionAffichee(jeu.aylis);
+        tacheDeLumiere(a.x, a.y, 250, Color{255, 236, 210, 255}, 0.75f);
+        tacheDeLumiere(a.x, a.y + 10, 90, Color{190, 130, 255, 255}, 0.45f);
+    }
+    // Les Haschen : juste assez de lumiere pour deviner leurs silhouettes
+    for (const Pion& h : jeu.haschen) {
+        if (h.stats.estDebout()) {
+            Vector2 p = positionAffichee(h);
+            tacheDeLumiere(p.x, p.y, 95, Color{255, 190, 170, 255}, h.stats.estBoss ? 0.5f : 0.35f);
+        }
+    }
+    // Les sources de lumiere du lieu
+    for (int i = 0; i < (int)jeu.lumieres.size(); i++) {
+        Vector2 p = centreDeCase(jeu.lumieres[i].first, jeu.lumieres[i].second);
+        float force = lieu == 1 ? vacillement(9, i * 2.1f) : 0.8f + 0.2f * std::sin(GetTime() * 1.5f + i);
+        tacheDeLumiere(p.x, p.y, 200, LUEUR[lieu], 0.8f * force);
+    }
+    // Le grand feu du camp
+    if (jeu.feuColonne >= 0) {
+        Vector2 p = centreDeCase(jeu.feuColonne, jeu.feuLigne);
+        tacheDeLumiere(p.x, p.y, 330 * vacillement(7, 0), Color{255, 140, 50, 255}, 0.95f);
+    }
+    // Les projectiles magiques eclairent leur chemin
+    for (const Projectile& p : jeu.projectiles) {
+        float t = p.duree > 0 ? p.temps / p.duree : 1;
+        float x = p.departX + (p.arriveeX - p.departX) * t;
+        float y = p.departY + (p.arriveeY - p.departY) * t;
+        if (p.sorte == SorteProjectile::BouleDeFeu) {
+            tacheDeLumiere(x, y, 190, Color{255, 140, 40, 255}, 0.9f);
+        } else if (p.sorte == SorteProjectile::Orbe) {
+            tacheDeLumiere(x, y, 120, Color{190, 130, 255, 255}, 0.7f);
+        }
+    }
+    // Les eclairs illuminent tout
+    for (const EffetEclair& e : jeu.eclairs) {
+        tacheDeLumiere(e.x, e.y, 420, Color{210, 230, 255, 255}, e.vie * 3);
+    }
+    EndBlendMode();
+    EndTextureMode();
+}
+
+// Pose la carte de lumiere sur l'arene (a appeler DANS BeginMode2D, pour qu'elle tremble avec l'arene)
+void appliquerLumiere() {
+    if (!carteLumiereCreee) {
+        return;
+    }
+    BeginBlendMode(BLEND_MULTIPLIED);
+    // Une RenderTexture est rangee "a l'envers" : une hauteur negative la remet a l'endroit
+    Rectangle source = {0, 0, (float)LARGEUR_FENETRE, -(float)HAUTEUR_ARENE};
+    DrawTextureRec(carteLumiere.texture, source, {0, 0}, WHITE);
+    EndBlendMode();
+}
+
+void dechargerLumiere() {
+    if (carteLumiereCreee) {
+        UnloadRenderTexture(carteLumiere);
+        carteLumiereCreee = false;
+    }
+}
+
+// ===================== L'ambiance magique =====================
+
+// Un nombre "au hasard" mais toujours le meme pour un meme numero (pour placer lucioles, braises...)
+float hasardFixe(int numero) {
+    float valeur = std::sin(numero * 12.9898f) * 43758.5453f;
+    return valeur - std::floor(valeur);     // la partie apres la virgule : entre 0 et 1
+}
+
+// Le cercle de runes de la prophetie, au sol sous AYLIS : il tourne doucement
+void dessinerCercleDeRunes(const Jeu& jeu) {
+    if (!jeu.aylis.stats.estDebout()) {
+        return;
+    }
+    Vector2 a = positionAffichee(jeu.aylis);
+    float cx = a.x;
+    float cy = a.y + TAILLE_CASE / 2.0f - 8;
+    float temps = GetTime();
+    Color violet = {190, 130, 255, 255};
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int anneau = 0; anneau < 2; anneau++) {
+        float rayon = 36.0f - anneau * 10;
+        float sens = anneau == 0 ? 0.4f : -0.7f;
+        // Un anneau = une ellipse (le sol est vu de biais) faite de petits traits
+        for (int i = 0; i < 24; i++) {
+            float angle = i * 2 * PI / 24 + temps * sens;
+            float angle2 = angle + (i % 3 == 0 ? 0.18f : 0.1f);
+            DrawLineEx({cx + std::cos(angle) * rayon, cy + std::sin(angle) * rayon * 0.42f},
+                       {cx + std::cos(angle2) * rayon, cy + std::sin(angle2) * rayon * 0.42f}, 2,
+                       Fade(violet, 0.55f - anneau * 0.15f));
+        }
+    }
+    // Quatre runes qui brillent sur l'anneau exterieur
+    for (int i = 0; i < 4; i++) {
+        float angle = i * PI / 2 + temps * 0.4f;
+        DrawCircle(cx + std::cos(angle) * 36, cy + std::sin(angle) * 36 * 0.42f, 2.5f, Fade(WHITE, 0.8f));
+    }
+    EndBlendMode();
+}
+
+// Les sources de lumiere : leurs dessins avec le decor (avant la penombre),
+// puis leur halo par-dessus la penombre (halo = true) : c'est ce qui les fait briller
+void dessinerSourcesDeLumiere(const Jeu& jeu, bool halo) {
+    const Sprites& s = sprites();
+    int lieu = jeu.lieu;
+    Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
+    if (halo) {
+        BeginBlendMode(BLEND_ADDITIVE);
+    }
+    for (int i = 0; i < (int)jeu.lumieres.size(); i++) {
+        Vector2 p = centreDeCase(jeu.lumieres[i].first, jeu.lumieres[i].second);
+        if (halo) {
+            float pulsation = 0.28f + 0.08f * std::sin(GetTime() * 2 + i);
+            DrawCircleGradient(p.x, p.y + 4, 40, Fade(LUEUR[lieu], pulsation), Fade(LUEUR[lieu], 0.0f));
+        } else {
+            DrawTexturePro(s.lumineux[lieu], source, {p.x - 32, p.y - 32, 64, 64}, {0, 0}, 0, WHITE);
+        }
+    }
+    if (jeu.feuColonne >= 0) {
+        Vector2 p = centreDeCase(jeu.feuColonne, jeu.feuLigne);
+        if (halo) {
+            DrawCircleGradient(p.x, p.y, 60 * vacillement(8, 1), Fade(ORANGE, 0.45f), Fade(ORANGE, 0.0f));
+        } else {
+            int image = (int)(GetTime() * 5) % 2;
+            DrawTexturePro(s.feu[image], source, {p.x - 36, p.y - 36, 72, 72}, {0, 0}, 0, WHITE);
+        }
+    }
+    if (halo) {
+        EndBlendMode();
+    }
+}
+
+void dessinerAmbiance(const Jeu& jeu) {
+    int lieu = jeu.lieu;
+    float temps = GetTime();
+    BeginBlendMode(BLEND_ADDITIVE);
+
+    if (lieu == 0) {
+        // Des rayons de lune, en biais, qui ondulent doucement
+        for (int i = 0; i < 3; i++) {
+            float x = 120.0f + i * 290 + std::sin(temps * 0.3f + i) * 20;
+            float force = 0.022f + 0.012f * std::sin(temps * 0.7f + i * 2);
+            Vector2 haut1 = {x, 0};
+            Vector2 haut2 = {x + 70, 0};
+            Vector2 bas1 = {x + 150, (float)HAUTEUR_ARENE};
+            Vector2 bas2 = {x + 290, (float)HAUTEUR_ARENE};
+            Color couleur = Fade(Color{200, 240, 220, 255}, force);
+            DrawTriangle(haut1, bas1, bas2, couleur);
+            DrawTriangle(haut1, bas2, haut2, couleur);
+        }
+        // Des lucioles qui errent et clignotent
+        for (int i = 0; i < 28; i++) {
+            float x = hasardFixe(i) * LARGEUR_FENETRE + std::sin(temps * 0.6f + i) * 40;
+            float y = hasardFixe(i + 100) * HAUTEUR_ARENE + std::cos(temps * 0.45f + i * 1.3f) * 30;
+            float eclat = std::fmax(0.0f, std::sin(temps * 2.2f + i * 0.9f));
+            DrawCircleGradient(x, y, 9, Fade(Color{200, 255, 120, 255}, 0.35f * eclat), BLANK);
+            DrawCircle(x, y, 1.6f, Fade(Color{235, 255, 170, 255}, eclat));
+        }
+    } else if (lieu == 1) {
+        // Des braises qui montent des feux et des braseros
+        std::vector<Vector2> foyers;
+        for (const auto& l : jeu.lumieres) {
+            foyers.push_back(centreDeCase(l.first, l.second));
+        }
+        if (jeu.feuColonne >= 0) {
+            foyers.push_back(centreDeCase(jeu.feuColonne, jeu.feuLigne));
+        }
+        for (int f = 0; f < (int)foyers.size(); f++) {
+            for (int i = 0; i < 10; i++) {
+                int n = f * 10 + i;
+                float montee = std::fmod(temps * (30 + hasardFixe(n) * 40) + hasardFixe(n + 50) * 200, 160.0f);
+                float x = foyers[f].x + std::sin(temps * 2 + n) * 10 + (hasardFixe(n + 7) - 0.5f) * 30;
+                float y = foyers[f].y - 10 - montee;
+                float vie = 1.0f - montee / 160.0f;
+                DrawCircle(x, y, 1.5f + vie, Fade(Color{255, 170, 70, 255}, vie));
+            }
+        }
+    } else {
+        // Une aurore violette et verte, qui ondule tout en haut
+        for (int x = 0; x < LARGEUR_FENETRE; x = x + 6) {
+            float onde = std::sin(x * 0.012f + temps * 0.6f) * 0.5f + 0.5f;
+            float hauteur = 70 + 50 * std::sin(x * 0.02f + temps * 0.4f);
+            Color couleur = onde > 0.5f ? Color{140, 90, 255, 255} : Color{80, 230, 170, 255};
+            DrawRectangleGradientV(x, 0, 6, hauteur, Fade(couleur, 0.10f * onde + 0.03f), BLANK);
+        }
+        // Des volutes violettes qui tournent autour des cristaux
+        for (int f = 0; f < (int)jeu.lumieres.size(); f++) {
+            Vector2 c = centreDeCase(jeu.lumieres[f].first, jeu.lumieres[f].second);
+            for (int i = 0; i < 6; i++) {
+                float angle = temps * (0.8f + i * 0.1f) + i * PI / 3 + f;
+                float x = c.x + std::cos(angle) * (22 + i * 3);
+                float y = c.y - 4 + std::sin(angle) * 10 - i * 3;
+                DrawCircle(x, y, 1.8f, Fade(Color{220, 180, 255, 255}, 0.8f));
+            }
+        }
+    }
+
+    // Partout : une poussiere de prophetie, quelques grains violets qui flottent
+    for (int i = 0; i < 18; i++) {
+        float x = std::fmod(hasardFixe(i + 300) * LARGEUR_FENETRE + temps * (6 + i % 4 * 3), (float)LARGEUR_FENETRE);
+        float y = std::fmod(hasardFixe(i + 400) * HAUTEUR_ARENE - temps * (8 + i % 3 * 4) + HAUTEUR_ARENE * 4,
+                            (float)HAUTEUR_ARENE);
+        float eclat = 0.4f + 0.4f * std::sin(temps * 1.7f + i);
+        DrawCircle(x, y, 1.5f, Fade(Color{200, 160, 255, 255}, eclat));
+    }
+    EndBlendMode();
+
+    // Une brume basse qui glisse au ras du sol (et plus epaisse en foret)
+    for (int i = 0; i < 7; i++) {
+        float x = std::fmod(temps * (10 + i * 3) + i * 170, LARGEUR_FENETRE + 400.0f) - 200;
+        float y = 90 + i * 75 + std::sin(temps * 0.5f + i) * 20;
+        DrawEllipse(x, y, 190, 36, Fade(lieu == 0 ? Color{190, 220, 230, 255} : Color{200, 190, 220, 255},
+                                        lieu == 0 ? 0.06f : 0.035f));
+    }
+    // Le neige sur le col
+    if (lieu == 2) {
+        for (int i = 0; i < 60; i++) {
+            float x = std::fmod(i * 97.0f + temps * (10 + i % 5 * 4), (float)LARGEUR_FENETRE);
+            float y = std::fmod(i * 53.0f + temps * (35 + i % 7 * 6), (float)HAUTEUR_ARENE);
+            DrawRectangle(x, y, i % 3 == 0 ? 3 : 2, i % 3 == 0 ? 3 : 2, Fade(WHITE, 0.7f));
+        }
+    }
+    // Un vignettage : les bords s'enfoncent dans le noir, l'oeil reste au centre
+    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, 70, Fade(BLACK, 0.55f), BLANK);
+    DrawRectangleGradientV(0, HAUTEUR_ARENE - 70, LARGEUR_FENETRE, 70, BLANK, Fade(BLACK, 0.55f));
+    DrawRectangleGradientH(0, 0, 70, HAUTEUR_ARENE, Fade(BLACK, 0.5f), BLANK);
+    DrawRectangleGradientH(LARGEUR_FENETRE - 70, 0, 70, HAUTEUR_ARENE, BLANK, Fade(BLACK, 0.5f));
 }
 
 void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
@@ -297,39 +555,77 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     // Le lieu du combat decide des dessins : 0 = foret, 1 = camp, 2 = col
     int lieu = jeu.lieu;
     const Sprites& s = sprites();
+    Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
 
+    // ----- 1. Le decor : le sol, les obstacles, les petits details -----
+    for (int l = 0; l < LIGNES; l++) {
+        for (int c = 0; c < COLONNES; c++) {
+            Rectangle caseEcran = {(float)c * TAILLE_CASE, (float)l * TAILLE_CASE, (float)TAILLE_CASE, (float)TAILLE_CASE};
+            DrawTexturePro(s.sol[lieu][(c + l) % 2], source, caseEcran, {0, 0}, 0, WHITE);
+        }
+    }
+    // De grandes taches sur le sol (mousse, cendre, neige...) : le sol n'est plus un simple damier
+    const Color taches[3][2] = {
+        {{40, 120, 70, 255}, {25, 45, 35, 255}},        // foret : mousse et terre sombre
+        {{60, 50, 50, 255}, {140, 90, 50, 255}},        // camp : cendre et terre battue
+        {{210, 220, 240, 255}, {90, 100, 150, 255}},    // col : neige et glace
+    };
+    for (int i = 0; i < 14; i++) {
+        float x = hasardFixe(i + jeu.salle * 31) * LARGEUR_FENETRE;
+        float y = hasardFixe(i + jeu.salle * 31 + 500) * HAUTEUR_ARENE;
+        float largeur = 60 + hasardFixe(i + 900) * 90;
+        DrawEllipse(x, y, largeur, largeur * 0.55f, Fade(taches[lieu][i % 2], 0.22f));
+        DrawEllipse(x + largeur * 0.3f, y - 6, largeur * 0.5f, largeur * 0.3f, Fade(taches[lieu][i % 2], 0.18f));
+    }
+    for (int l = 0; l < LIGNES; l++) {
+        for (int c = 0; c < COLONNES; c++) {
+            Rectangle caseEcran = {(float)c * TAILLE_CASE, (float)l * TAILLE_CASE, (float)TAILLE_CASE, (float)TAILLE_CASE};
+
+            // Un "hasard" fixe, calcule a partir de la position : les decors restent toujours au meme endroit
+            int hasard = (c * 17 + l * 31 + jeu.salle * 7) % 11;
+            if (estRocher(jeu, c, l)) {
+                if (!(c == jeu.feuColonne && l == jeu.feuLigne)) {     // le feu est dessine plus tard (il brille)
+                    DrawTexturePro(s.obstacle[lieu][hasard % 2], source, caseEcran, {0, 0}, 0, WHITE);
+                }
+            } else if (hasard < 4) {
+                // Quelques decors par terre (ils ne bloquent pas le passage), un peu decales pour faire naturel
+                Rectangle decale = {caseEcran.x + (hasard - 2) * 6.0f, caseEcran.y + (hasard % 2) * 8.0f, 72, 72};
+                DrawTexturePro(s.decor[lieu][hasard % 2], source, decale, {0, 0}, 0, WHITE);
+            }
+        }
+    }
+    dessinerSourcesDeLumiere(jeu, false);
+    dessinerCercleDeRunes(jeu);
+
+    // ----- 2. Les personnages -----
+    for (const Pion& h : jeu.haschen) {
+        if (h.stats.estDebout() || h.disparition > 0) {
+            dessinerPion(h, false, jeu.aylis.colonne);
+        }
+    }
+    bool aylisVisible = jeu.aylis.stats.estDebout() || animationsEnCours(jeu);
+    if (aylisVisible) {
+        dessinerPion(jeu.aylis, true, jeu.aylis.colonne);
+    }
+
+    // ----- 3. La penombre et les lumieres -----
+    appliquerLumiere();
+    dessinerSourcesDeLumiere(jeu, true);
+
+    // ----- 4. Les aides de jeu, par-dessus (elles doivent rester bien lisibles) -----
     for (int l = 0; l < LIGNES; l++) {
         for (int c = 0; c < COLONNES; c++) {
             int x = c * TAILLE_CASE;
             int y = l * TAILLE_CASE;
-            Rectangle caseEcran = {(float)x, (float)y, (float)TAILLE_CASE, (float)TAILLE_CASE};
-            DrawTexturePro(s.sol[lieu][(c + l) % 2], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran, {0, 0}, 0, WHITE);
-
-            // Un "hasard" fixe, calcule a partir de la position : les decors restent toujours au meme endroit
-            int hasard = (c * 17 + l * 31 + jeu.salle * 7) % 11;
-
-            if (estRocher(jeu, c, l)) {
-                // Au milieu du camp, un obstacle est un feu de camp anime (2 images qui alternent)
-                if (c == jeu.feuColonne && l == jeu.feuLigne) {
-                    int image = (int)(GetTime() * 5) % 2;
-                    DrawTexturePro(s.feu[image], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran, {0, 0}, 0, WHITE);
-                } else {
-                    DrawTexturePro(s.obstacle[lieu][hasard % 2], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran,
-                                   {0, 0}, 0, WHITE);
-                }
-                continue;
-            }
-            // Quelques decors par terre (ils ne bloquent pas le passage)
-            if (hasard < 2) {
-                DrawTexturePro(s.decor[lieu][hasard], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran, {0, 0}, 0, WHITE);
-            }
             // La portee de l'action choisie : une teinte rouge tres legere
             if (actionVisee && distanceCases(jeu.aylis.colonne, jeu.aylis.ligne, c, l) <= portee) {
-                DrawRectangle(x, y, TAILLE_CASE, TAILLE_CASE, Fade(RED, 0.07f));
+                DrawRectangle(x, y, TAILLE_CASE, TAILLE_CASE, Fade(RED, 0.06f));
             }
             // Les cases ou AYLIS peut aller
             if (jeu.phase == Phase::Deplacement && pas[l * COLONNES + c] > 0) {
-                DrawRectangle(x + 2, y + 2, TAILLE_CASE - 4, TAILLE_CASE - 4, Fade(SKYBLUE, 0.25f));
+                DrawRectangle(x + 3, y + 3, TAILLE_CASE - 6, TAILLE_CASE - 6, Fade(SKYBLUE, 0.16f));
+                DrawRectangleLinesEx({(float)x + 3, (float)y + 3, TAILLE_CASE - 6.0f, TAILLE_CASE - 6.0f}, 1,
+                                     Fade(SKYBLUE, 0.5f));
             }
         }
     }
@@ -352,25 +648,25 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
             }
         }
     }
-
     if (tourJoueur && estDansArene(colonneSouris, ligneSouris)) {
         DrawRectangleLines(colonneSouris * TAILLE_CASE, ligneSouris * TAILLE_CASE, TAILLE_CASE, TAILLE_CASE, WHITE);
     }
 
-    // Les Haschen debout, et ceux qui sont en train de se dissoudre
-    for (const Pion& h : jeu.haschen) {
-        if (h.stats.estDebout() || h.disparition > 0) {
-            dessinerPion(h, false, jeu.aylis.colonne);
-        }
-    }
-    if (jeu.aylis.stats.estDebout() || animationsEnCours(jeu)) {
-        dessinerPion(jeu.aylis, true, jeu.aylis.colonne);
-    }
-
+    // ----- 5. Les effets qui brillent, l'ambiance, et les infos des pions -----
     dessinerProjectiles(jeu);
     dessinerParticules(jeu);
     dessinerEclairs(jeu);
-    dessinerAmbiance(lieu);
+    dessinerAmbiance(jeu);
+    for (const Pion& h : jeu.haschen) {
+        if (h.stats.estDebout()) {
+            dessinerBarreDeVie(h);
+            dessinerEtats(h);
+        }
+    }
+    if (aylisVisible) {
+        dessinerBarreDeVie(jeu.aylis);
+        dessinerEtats(jeu.aylis);
+    }
 
     // Les chiffres des degats : ils apparaissent avec un petit rebond (plus gros au debut)
     for (const TexteFlottant& t : jeu.textes) {
@@ -386,7 +682,6 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         DrawText(t.texte.c_str(), t.x - (taille - 24), t.y - (taille - 24), taille, Fade(BLACK, transparence * 0.6f));
         DrawText(t.texte.c_str(), t.x - (taille - 24) - 2, t.y - (taille - 24) - 2, taille, Fade(t.couleur, transparence));
     }
-
 }
 
 // ===================== Par-dessus l'arene =====================
@@ -952,6 +1247,405 @@ void dessinerRencontre(const Jeu& jeu) {
     }
 }
 
+// ===================== Le Seuil : le monde entre les visions =====================
+//
+// Une ile qui flotte dans un ciel d'etoiles. Tout y est dessine avec des formes simples (cercles, triangles,
+// degrades) et beaucoup de lumiere "additive" : les couleurs s'ajoutent, ce qui donne cet aspect lumineux.
+
+const Color SEUIL_VIOLET = {190, 140, 255, 255};
+const Color SEUIL_CYAN = {110, 230, 240, 255};
+const Color SEUIL_ROSE = {255, 150, 210, 255};
+
+// Les positions (les pieds) des echos, d'AYLIS et du portail
+Vector2 positionAuSeuil(int personnage) {
+    const Vector2 positions[5] = {{200, 500}, {318, 556}, {566, 552}, {432, 505}, {712, 470}};
+    return positions[personnage];
+}
+
+// Le petit balancement de l'ile, qui flotte
+float balancementIle() {
+    return 5 * std::sin(GetTime() * 0.8f);
+}
+
+// Un eclat de prophetie : un petit losange lumineux (l'icone des fragments)
+void dessinerFragment(float x, float y, float taille) {
+    DrawPoly({x, y}, 4, taille, 0, SEUIL_VIOLET);
+    DrawPoly({x, y - taille * 0.25f}, 4, taille * 0.45f, 0, Fade(WHITE, 0.9f));
+}
+
+// Une petite ile lointaine, avec son arbre lumineux
+void dessinerIlot(float x, float y, float taille, int numero) {
+    float b = 4 * std::sin(GetTime() * 0.6f + numero * 1.7f);
+    y = y + b;
+    DrawTriangle({x - taille, y}, {x, y + taille * 1.3f}, {x + taille, y}, Color{34, 26, 54, 255});
+    DrawEllipse(x, y, taille, taille * 0.28f, Color{44, 58, 78, 255});
+    DrawLine(x + taille * 0.2f, y - 2, x + taille * 0.2f, y - taille * 0.6f, Color{70, 50, 90, 255});
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(x + taille * 0.2f, y - taille * 0.7f, taille * 0.5f, Fade(numero % 2 ? SEUIL_CYAN : SEUIL_ROSE, 0.5f), BLANK);
+    EndBlendMode();
+}
+
+void dessinerCielDuSeuil() {
+    float temps = GetTime();
+    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, HAUTEUR_FENETRE, Color{8, 6, 26, 255}, Color{30, 14, 52, 255});
+
+    BeginBlendMode(BLEND_ADDITIVE);
+    // Les nebuleuses : de grandes taches de couleur qui derivent tres lentement
+    DrawCircleGradient(180 + 20 * std::sin(temps * 0.1f), 150, 260, Fade(Color{120, 60, 200, 255}, 0.28f), BLANK);
+    DrawCircleGradient(700, 230 + 20 * std::sin(temps * 0.13f), 230, Fade(Color{40, 150, 190, 255}, 0.22f), BLANK);
+    DrawCircleGradient(120, 640, 220, Fade(Color{200, 70, 150, 255}, 0.16f), BLANK);
+    DrawCircleGradient(780, 690, 200, Fade(Color{90, 70, 210, 255}, 0.2f), BLANK);
+
+    // Les etoiles, qui scintillent chacune a son rythme
+    for (int i = 0; i < 150; i++) {
+        float x = hasardFixe(i + 1000) * LARGEUR_FENETRE;
+        float y = hasardFixe(i + 2000) * HAUTEUR_FENETRE;
+        float eclat = 0.35f + 0.65f * (0.5f + 0.5f * std::sin(temps * (1 + hasardFixe(i) * 2) + i));
+        float taille = i % 11 == 0 ? 2.2f : 1.1f;
+        DrawCircle(x, y, taille, Fade(WHITE, eclat));
+        if (i % 11 == 0) {  // les plus grosses ont une petite croix de lumiere
+            DrawLine(x - 6 * eclat, y, x + 6 * eclat, y, Fade(SEUIL_CYAN, eclat * 0.6f));
+            DrawLine(x, y - 6 * eclat, x, y + 6 * eclat, Fade(SEUIL_CYAN, eclat * 0.6f));
+        }
+    }
+
+    // Une aurore : un ruban qui ondule en travers du ciel
+    for (int x = 0; x < LARGEUR_FENETRE; x = x + 4) {
+        float y = 170 + 45 * std::sin(x * 0.009f + temps * 0.3f) + 15 * std::sin(x * 0.023f - temps * 0.5f);
+        float force = 0.07f + 0.05f * std::sin(x * 0.015f + temps);
+        Color couleur = x < LARGEUR_FENETRE / 2 ? SEUIL_CYAN : SEUIL_VIOLET;
+        DrawRectangleGradientV(x, y - 90, 4, 90, BLANK, Fade(couleur, force));
+    }
+    EndBlendMode();
+
+    // Des ilots au loin
+    dessinerIlot(80, 290, 34, 0);
+    dessinerIlot(800, 200, 28, 1);
+    dessinerIlot(760, 650, 40, 2);
+    dessinerIlot(60, 700, 26, 3);
+}
+
+// L'ile du Seuil : un dessous de roche qui pend dans le vide, et un dessus couvert de mousse et de fleurs
+void dessinerIleDuSeuil() {
+    float temps = GetTime();
+    float b = balancementIle();
+    float cx = 432;
+    float cy = 490 + b;
+
+    // Des cascades de lumiere qui tombent du bord de l'ile dans le vide
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int i = 0; i < 5; i++) {
+        float x = cx - 250 + i * 125 + 20 * std::sin(i * 3.1f);
+        float largeur = 10 + i % 3 * 6;
+        DrawRectangleGradientV(x, cy + 60, largeur, 220, Fade(SEUIL_CYAN, 0.22f), BLANK);
+        for (int j = 0; j < 4; j++) {   // des gouttes de lumiere qui descendent
+            float y = cy + 60 + std::fmod(temps * 60 + j * 55 + i * 20, 220.0f);
+            DrawCircle(x + largeur / 2, y, 2, Fade(WHITE, 0.7f * (1 - (y - cy - 60) / 220)));
+        }
+    }
+    EndBlendMode();
+
+    // Le dessous de roche : des triangles irreguliers, de plus en plus pointus
+    Color roche = {38, 30, 58, 255};
+    Color rocheSombre = {26, 20, 42, 255};
+    const float pointes[9][2] = {{-360, 40}, {-280, 150}, {-200, 110}, {-120, 230}, {-40, 290},
+                                 {40, 250}, {130, 200}, {220, 140}, {320, 70}};
+    for (int i = 0; i < 9; i++) {
+        float x = cx + pointes[i][0];
+        float gauche = cx + (i == 0 ? -370 : pointes[i - 1][0]);
+        float droite = cx + (i == 8 ? 370 : pointes[i + 1][0]);
+        DrawTriangle({gauche, cy}, {x, cy + pointes[i][1]}, {droite, cy}, i % 2 ? roche : rocheSombre);
+    }
+    // Des racines qui pendent, avec une lueur au bout
+    for (int i = 0; i < 7; i++) {
+        float x = cx - 240 + i * 80;
+        float longueur = 60 + 40 * hasardFixe(i + 70);
+        float balance = 6 * std::sin(temps * 0.9f + i);
+        DrawLineEx({x, cy + 20}, {x + balance, cy + 20 + longueur}, 2, Color{70, 55, 80, 255});
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(x + balance, cy + 22 + longueur, 9, Fade(i % 2 ? SEUIL_CYAN : SEUIL_ROSE, 0.8f), BLANK);
+        EndBlendMode();
+    }
+    // Des cristaux pris dans la roche
+    for (int i = 0; i < 5; i++) {
+        float x = cx - 180 + i * 95;
+        float y = cy + 70 + 60 * hasardFixe(i + 40);
+        DrawPoly({x, y}, 4, 7, 0, Fade(SEUIL_VIOLET, 0.9f));
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(x, y, 22, Fade(SEUIL_VIOLET, 0.35f + 0.15f * std::sin(temps * 2 + i)), BLANK);
+        EndBlendMode();
+    }
+
+    // Le dessus : une grande ellipse de mousse, avec un bord eclaire
+    DrawEllipse(cx, cy + 8, 372, 118, Color{30, 40, 56, 255});
+    DrawEllipse(cx, cy, 370, 112, Color{44, 72, 80, 255});
+    DrawEllipse(cx, cy - 6, 330, 92, Color{52, 86, 90, 255});
+    DrawEllipseLines(cx, cy, 370, 112, Fade(SEUIL_CYAN, 0.35f));
+
+    // Un chemin de dalles lumineuses, d'AYLIS jusqu'au portail
+    Vector2 depart = positionAuSeuil(3);
+    Vector2 portail = positionAuSeuil(4);
+    for (int i = 1; i < 7; i++) {
+        float t = i / 7.0f;
+        float x = depart.x + (portail.x - depart.x) * t;
+        float y = depart.y + b + (portail.y - depart.y) * t + 10 * std::sin(t * PI);
+        DrawEllipse(x, y, 16, 6, Color{80, 90, 120, 255});
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawEllipse(x, y, 10, 3, Fade(SEUIL_VIOLET, 0.25f + 0.2f * std::sin(temps * 3 - i)));
+        EndBlendMode();
+    }
+
+    // Des herbes et des fleurs qui brillent
+    for (int i = 0; i < 40; i++) {
+        float angle = hasardFixe(i + 500) * 2 * PI;
+        float distance = std::sqrt(hasardFixe(i + 600)) * 0.9f;
+        float x = cx + std::cos(angle) * 340 * distance;
+        float y = cy + std::sin(angle) * 95 * distance;
+        if (i % 3 == 0) {
+            Color couleur = i % 2 ? SEUIL_CYAN : SEUIL_ROSE;
+            DrawLine(x, y, x, y - 8, Color{60, 110, 90, 255});
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleGradient(x, y - 9, 8, Fade(couleur, 0.6f + 0.3f * std::sin(temps * 2 + i)), BLANK);
+            EndBlendMode();
+            DrawCircle(x, y - 9, 1.6f, WHITE);
+        } else {
+            DrawLine(x, y, x - 2, y - 7, Color{80, 130, 110, 255});
+            DrawLine(x + 2, y, x + 3, y - 6, Color{70, 120, 100, 255});
+        }
+    }
+}
+
+// L'arbre du Seuil : il grandit avec les visions, et ses petales lumineux tombent doucement
+void dessinerArbreDuSeuil(const Memoire& m) {
+    float temps = GetTime();
+    float b = balancementIle();
+    int souvenirs = m.visions + m.victoires;
+    float echelle = 0.72f + (souvenirs > 12 ? 12 : souvenirs) * 0.025f;
+    float x = 432;
+    float pied = 440 + b;
+    float haut = pied - 150 * echelle;
+
+    // Le tronc et les branches
+    Color bois = {74, 52, 92, 255};
+    DrawTriangle({x - 16 * echelle, pied}, {x + 16 * echelle, pied}, {x, haut}, bois);
+    DrawLineEx({x, pied - 60 * echelle}, {x - 70 * echelle, haut + 10}, 6 * echelle, bois);
+    DrawLineEx({x, pied - 80 * echelle}, {x + 75 * echelle, haut + 5}, 6 * echelle, bois);
+    DrawLineEx({x, haut + 20}, {x + 10, haut - 40 * echelle}, 5 * echelle, bois);
+
+    // Le feuillage : des grappes de lumiere (d'abord un fond sombre, puis la lumiere par-dessus)
+    const float grappes[9][3] = {{0, -40, 70}, {-80, -10, 55}, {80, -15, 58}, {-45, -80, 52}, {50, -85, 55},
+                                 {0, -115, 45}, {-120, 20, 38}, {120, 15, 40}, {0, 5, 50}};
+    for (const auto& g : grappes) {
+        DrawCircle(x + g[0] * echelle, haut + g[1] * echelle, g[2] * echelle, Color{60, 40, 96, 255});
+    }
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int i = 0; i < 9; i++) {
+        const auto& g = grappes[i];
+        Color couleur = i % 3 == 0 ? SEUIL_CYAN : (i % 3 == 1 ? SEUIL_VIOLET : SEUIL_ROSE);
+        float pulsation = 0.35f + 0.12f * std::sin(temps * 1.3f + i);
+        DrawCircleGradient(x + g[0] * echelle, haut + g[1] * echelle, g[2] * echelle * 1.25f, Fade(couleur, pulsation), BLANK);
+    }
+    // Les fleurs de l'arbre : de petits points blancs qui scintillent
+    for (int i = 0; i < 45; i++) {
+        float fx = x + (hasardFixe(i + 800) - 0.5f) * 260 * echelle;
+        float fy = haut - 10 + (hasardFixe(i + 900) - 0.7f) * 170 * echelle;
+        DrawCircle(fx, fy, 1.8f, Fade(WHITE, 0.5f + 0.5f * std::sin(temps * 3 + i)));
+    }
+    // Les petales qui tombent en tournoyant
+    for (int i = 0; i < 26; i++) {
+        float chute = std::fmod(temps * (18 + hasardFixe(i + 50) * 14) + hasardFixe(i + 60) * 300, 300.0f);
+        float px = x + (hasardFixe(i + 70) - 0.5f) * 300 * echelle + 25 * std::sin(temps * 1.2f + i);
+        float py = haut - 40 + chute;
+        float vie = 1 - chute / 300;
+        Color couleur = i % 2 ? SEUIL_ROSE : SEUIL_CYAN;
+        DrawCircle(px, py, 2.2f, Fade(couleur, vie));
+        DrawCircleGradient(px, py, 7, Fade(couleur, vie * 0.4f), BLANK);
+    }
+    EndBlendMode();
+}
+
+// Le portail de runes : c'est par la qu'AYLIS repart vers une nouvelle vision
+void dessinerPortail(bool survole) {
+    float temps = GetTime();
+    Vector2 p = positionAuSeuil(4);
+    float cx = p.x;
+    float cy = p.y + balancementIle() - 70;
+    float rx = 46;
+    float ry = 72;
+
+    // L'interieur : un tourbillon de lumiere
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawEllipse(cx, cy, rx, ry, Fade(Color{80, 40, 160, 255}, 0.6f));
+    for (int i = 0; i < 40; i++) {
+        float angle = i * 0.5f + temps * 1.8f;
+        float rayon = std::fmod(i * 7.0f + temps * 25, 60.0f) / 60.0f;
+        DrawCircle(cx + std::cos(angle) * rx * rayon, cy + std::sin(angle) * ry * rayon, 2,
+                   Fade(i % 2 ? SEUIL_CYAN : WHITE, 1 - rayon));
+    }
+    DrawCircleGradient(cx, cy, 90, Fade(SEUIL_VIOLET, survole ? 0.5f : 0.3f), BLANK);
+    EndBlendMode();
+
+    // L'arche de pierre, faite de petits blocs, et ses runes qui brillent
+    for (int i = 0; i < 20; i++) {
+        float angle = PI + i * PI / 19.0f;      // un demi-cercle, par le haut
+        Vector2 bloc = {cx + std::cos(angle) * (rx + 8), cy + std::sin(angle) * (ry + 8)};
+        DrawCircle(bloc.x, bloc.y, 8, Color{70, 64, 96, 255});
+        DrawCircle(bloc.x, bloc.y - 2, 5, Color{96, 90, 124, 255});
+        if (i % 4 == 2) {
+            BeginBlendMode(BLEND_ADDITIVE);
+            DrawCircleGradient(bloc.x, bloc.y, 10, Fade(SEUIL_VIOLET, 0.6f + 0.4f * std::sin(temps * 3 + i)), BLANK);
+            EndBlendMode();
+        }
+    }
+    // Les deux piliers
+    DrawRectangle(cx - rx - 16, cy, 16, ry + 4, Color{70, 64, 96, 255});
+    DrawRectangle(cx + rx, cy, 16, ry + 4, Color{70, 64, 96, 255});
+    if (survole) {
+        texteCentre("Franchir le portail", {cx - 110, cy - ry - 44, 220, 20}, 20, WHITE);
+    }
+}
+
+// Un echo (Maren, Durgan ou Silas) : un peu transparent, entoure d'une lueur, il flotte legerement
+void dessinerEcho(int personnage, bool survole) {
+    const Sprites& s = sprites();
+    float temps = GetTime();
+    Vector2 p = positionAuSeuil(personnage);
+    float y = p.y + balancementIle();
+    float flotte = 3 * std::sin(temps * 1.5f + personnage * 2);
+    Color couleurs[3] = {Color{120, 230, 150, 255}, Color{255, 170, 80, 255}, SEUIL_VIOLET};
+
+    DrawEllipse(p.x, y, 26, 8, Fade(BLACK, 0.35f));
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(p.x, y - 40, survole ? 70 : 52, Fade(couleurs[personnage], survole ? 0.45f : 0.22f), BLANK);
+    EndBlendMode();
+    if (survole) {
+        DrawEllipseLines(p.x, y, 34, 11, OR);
+    }
+    DrawTexturePro(s.marchands[personnage], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE},
+                   {p.x - 40, y - 80 + flotte, 80, 80}, {0, 0}, 0, Fade(WHITE, 0.92f));
+    texteCentre(TextFormat("%i. %s", personnage + 1, nomMarchand(personnage).c_str()), {p.x - 80, y + 12, 160, 20}, 20,
+                survole ? OR : Fade(WHITE, 0.75f));
+}
+
+Rectangle rectangleEcho(int personnage) {
+    Vector2 p = positionAuSeuil(personnage);
+    return {p.x - 40, p.y - 85, 80, 110};
+}
+
+Rectangle rectanglePortail() {
+    Vector2 p = positionAuSeuil(4);
+    return {p.x - 60, p.y - 150, 120, 160};
+}
+
+Rectangle rectangleAmelioration(int choix) {
+    return {100.0f + choix * 340, 390, 324, 150};
+}
+
+// La fenetre de discussion avec un echo, et ses deux ameliorations
+void dessinerDiscussion(const Jeu& jeu) {
+    int qui = jeu.interlocuteur;
+    const Memoire& m = jeu.memoire;
+    DrawRectangle(0, 0, LARGEUR_FENETRE, HAUTEUR_FENETRE, Fade(BLACK, 0.5f));
+    Rectangle cadre = {70, 150, LARGEUR_FENETRE - 140.0f, 460};
+    dessinerCadre(cadre, Fade(Color{20, 14, 36, 255}, 0.97f), SEUIL_VIOLET, 3);
+
+    // Le portrait, dans son halo
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(160, 240, 80, Fade(SEUIL_VIOLET, 0.35f), BLANK);
+    EndBlendMode();
+    DrawTexturePro(sprites().marchands[qui], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, {96, 176, 128, 128}, {0, 0}, 0, WHITE);
+    DrawText(nomMarchand(qui).c_str(), 250, 172, 40, OR);
+    DrawText(TextFormat("%s  -  un echo du Seuil", titreMarchand(qui).c_str()), 252, 214, 20, TEXTE_GRIS);
+    texteSurPlusieursLignes("\"" + paroleAuSeuil(m, qui) + "\"", {250, 250, cadre.width - 210, 110}, 20, RAYWHITE);
+
+    for (int choix = 0; choix < 2; choix++) {
+        int numero = qui * 2 + choix;
+        int rang = m.ameliorations[numero];
+        int cout = coutAmelioration(m, numero);
+        bool possible = cout > 0 && m.fragments >= cout;
+        Rectangle r = rectangleAmelioration(choix);
+        bool survol = CheckCollisionPointRec(GetMousePosition(), r);
+        Color bord = cout == 0 ? OR : (possible ? SEUIL_VIOLET : BORD);
+        dessinerCadre(r, survol ? CADRE_CLAIR : CADRE, bord, survol ? 3 : 2);
+        DrawText(TextFormat("%i", choix + 1), r.x + 12, r.y + 8, 20, Fade(bord, 0.9f));
+        texteCentre(nomAmelioration(numero), {r.x, r.y + 14, r.width, 26}, 20, RAYWHITE);
+        texteCentre(descriptionAmelioration(numero), {r.x, r.y + 46, r.width, 20}, 20, TEXTE_GRIS);
+        // Les rangs : un petit losange par rang, allume s'il est achete
+        int rangMax = rangMaxAmelioration(numero);
+        for (int i = 0; i < rangMax; i++) {
+            float x = r.x + r.width / 2 + (i - (rangMax - 1) / 2.0f) * 26;
+            if (i < rang) {
+                dessinerFragment(x, r.y + 88, 9);
+            } else {
+                DrawPolyLines({x, r.y + 88}, 4, 9, 0, BORD);
+            }
+        }
+        if (cout == 0) {
+            texteCentre("MAXIMUM", {r.x, r.y + 112, r.width, 24}, 20, OR);
+        } else {
+            std::string prix = std::to_string(cout);
+            int largeur = MeasureText(prix.c_str(), 20) + 24;
+            float x = r.x + (r.width - largeur) / 2;
+            dessinerFragment(x + 8, r.y + 122, 8);
+            DrawText(prix.c_str(), x + 24, r.y + 112, 20, possible ? RAYWHITE : Color{200, 100, 100, 255});
+        }
+    }
+    texteCentre(jeu.messageSeuil, {cadre.x, 552, cadre.width, 20}, 20, Color{140, 230, 160, 255});
+    texteCentre("1 / 2 : acheter      ECHAP : revenir", {cadre.x, 580, cadre.width, 20}, 20, TEXTE_GRIS);
+}
+
+void dessinerSeuil(const Jeu& jeu) {
+    const Memoire& m = jeu.memoire;
+    Vector2 souris = GetMousePosition();
+    bool libre = jeu.interlocuteur < 0;     // pas de discussion en cours : on peut survoler les personnages
+
+    dessinerCielDuSeuil();
+    dessinerIleDuSeuil();
+    dessinerArbreDuSeuil(m);
+    dessinerPortail(libre && CheckCollisionPointRec(souris, rectanglePortail()));
+
+    // AYLIS, devant l'arbre, dans la lumiere de la prophetie
+    Vector2 a = positionAuSeuil(3);
+    float ay = a.y + balancementIle();
+    DrawEllipse(a.x, ay, 26, 8, Fade(BLACK, 0.35f));
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(a.x, ay - 40, 60, Fade(Color{255, 236, 210, 255}, 0.25f), BLANK);
+    EndBlendMode();
+    dessinerPortraitAylis(jeu.aylis.stats.arme, {a.x - 40, ay - 80, 80, 80}, WHITE);
+
+    for (int personnage = 0; personnage < 3; personnage++) {
+        dessinerEcho(personnage, libre && CheckCollisionPointRec(souris, rectangleEcho(personnage)));
+    }
+
+    // Des feux follets qui tournent autour de l'ile
+    float temps = GetTime();
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int i = 0; i < 9; i++) {
+        float angle = temps * (0.25f + i * 0.03f) + i * 0.7f;
+        float x = 432 + std::cos(angle) * (330 + i * 8);
+        float y = 470 + std::sin(angle) * (120 + i * 6) - 40;
+        Color couleur = i % 3 == 0 ? SEUIL_CYAN : (i % 3 == 1 ? SEUIL_VIOLET : SEUIL_ROSE);
+        DrawCircleGradient(x, y, 14, Fade(couleur, 0.5f), BLANK);
+        DrawCircle(x, y, 2.5f, WHITE);
+    }
+    EndBlendMode();
+
+    // Le titre, le murmure, et les fragments
+    texteCentre("LE SEUIL", {0, 22, (float)LARGEUR_FENETRE, 44}, 40, Color{225, 205, 255, 255});
+    texteCentre(murmureDuSeuil(m), {0, 72, (float)LARGEUR_FENETRE, 20}, 20, Color{180, 170, 215, 255});
+    dessinerFragment(LARGEUR_FENETRE - 110, 34, 11);
+    DrawText(TextFormat("%i", m.fragments), LARGEUR_FENETRE - 92, 24, 20, RAYWHITE);
+    DrawText("fragments", LARGEUR_FENETRE - 92, 46, 10, TEXTE_GRIS);
+
+    if (libre) {
+        texteCentre("1, 2, 3 : parler aux echos      ENTREE : franchir le portail",
+                    {0, 736, (float)LARGEUR_FENETRE, 20}, 20, Color{190, 180, 220, 255});
+        texteCentre(jeu.messageSeuil, {0, 712, (float)LARGEUR_FENETRE, 20}, 20, Color{140, 230, 160, 255});
+    } else {
+        dessinerDiscussion(jeu);
+    }
+}
+
 // ===================== La chute et le reveil =====================
 
 // AYLIS tombe : des anneaux de runes s'echappent de son corps, et tout se teinte de violet
@@ -1054,6 +1748,10 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         dessinerReveil(jeu);
         return;
     }
+    if (jeu.phase == Phase::Seuil) {
+        dessinerSeuil(jeu);
+        return;
+    }
     if (jeu.phase == Phase::Rencontre) {
         dessinerRencontre(jeu);
         return;
@@ -1061,6 +1759,7 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
 
     // L'arene est dessinee a travers une "camera" qui tremble quand un coup porte.
     // L'interface (bandeau, panneau...) reste immobile : elle est dessinee apres, hors camera.
+    preparerLumiere(jeu);       // la carte de lumiere se dessine a part, avant la camera
     BeginMode2D(cameraAvecSecousse(jeu));
     dessinerArene(jeu, colonneSouris, ligneSouris);
     EndMode2D();

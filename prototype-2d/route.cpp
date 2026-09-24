@@ -301,7 +301,11 @@ void choisirVoie(Jeu& jeu, int voie) {
     jeu.lieu = 0;
     jeu.typeSalle = TypeSalle::Combat;
     jeu.messageRoute = "";
+    appliquerAmeliorations(jeu);    // ce qu'AYLIS a gagne au Seuil
     preparerCombat(jeu);
+    if (!jeu.messageRoute.empty()) {
+        ecrireJournal(jeu, jeu.messageRoute);     // par exemple : la rune d'eveil
+    }
 }
 
 // ===================== Preparer un combat =====================
@@ -404,6 +408,22 @@ void preparerCombat(Jeu& jeu) {
     if (jeu.lieu == 1) {
         jeu.feuColonne = rochers.back().first;
         jeu.feuLigne = rochers.back().second;
+    }
+
+    // Les sources de lumiere : 4 a 5 cases libres, plutot vers les bords (elles ne bloquent pas le passage)
+    jeu.lumieres.clear();
+    int nombreLumieres = GetRandomValue(4, 5);
+    for (int essai = 0; essai < 200 && (int)jeu.lumieres.size() < nombreLumieres; essai++) {
+        int c = GetRandomValue(0, COLONNES - 1);
+        int l = GetRandomValue(0, LIGNES - 1);
+        bool auBord = l == 0 || l == LIGNES - 1 || c == 0 || c == COLONNES - 1 || GetRandomValue(0, 3) == 0;
+        bool troPres = false;
+        for (const auto& autre : jeu.lumieres) {
+            troPres = troPres || distanceCases(c, l, autre.first, autre.second) < 3;
+        }
+        if (auBord && !troPres && !estRocher(jeu, c, l) && !(c == jeu.aylis.colonne && l == jeu.aylis.ligne)) {
+            jeu.lumieres.push_back({c, l});
+        }
     }
 
     jeu.nomDuLieu = nomLieu(jeu.lieu);

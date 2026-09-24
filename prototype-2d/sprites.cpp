@@ -7,6 +7,7 @@
 //   f  fourrure           F  fourrure foncee     e  yeux rouges     p  violet
 //   v  vert               V  vert fonce          l  vert clair      o  orange (flammes)
 //   Y  jaune              W  neige
+//   u  cyan lumineux       U  cyan sombre         L  violet clair    P  violet sombre
 //   c  la couleur des vetements (elle change selon le Haschen)
 // Pour modifier un dessin, il suffit de changer les lettres !
 #include <string>
@@ -39,6 +40,10 @@ Color couleurDuPixel(char lettre, Color vetement) {
         case 'o': return {240, 130, 40, 255};
         case 'Y': return {250, 225, 90, 255};
         case 'W': return {225, 232, 242, 255};
+        case 'u': return {110, 235, 240, 255};     // cyan lumineux (les champignons de la foret)
+        case 'U': return {40, 120, 140, 255};      // cyan sombre
+        case 'L': return {215, 170, 255, 255};     // violet clair (les cristaux du col)
+        case 'P': return {95, 50, 150, 255};       // violet sombre
         case 'c': return vetement;
         default:  return BLANK;     // '.' et tout le reste : transparent
     }
@@ -114,6 +119,67 @@ const std::vector<std::string> DESSIN_AYLIS = {
     "....kBBkkBBk....",
     "....knnk.knnk...",
     "....kkkk.kkkk...",
+};
+
+// Les sources de lumiere, une par lieu : elles brillent dans le noir (voir la lumiere dans dessin.cpp)
+// La foret : des champignons qui luisent
+const std::vector<std::string> DESSIN_CHAMPIGNON = {
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "..........kkk...",
+    ".........kuuuk..",
+    "..kkkk..kuuwuuk.",
+    ".kuuuuk.kUUUUUk.",
+    "kuuwuuuk..kwk...",
+    "kUUUUUUk..kwk...",
+    "..kwwk....kwk...",
+    "..kwwk...kVVVk..",
+    ".kVVVVk.kVVVVVk.",
+    "................",
+    "................",
+};
+
+// Le camp : un brasero de fer, plein de braises
+const std::vector<std::string> DESSIN_BRASERO = {
+    "................",
+    "......o..Y......",
+    ".....oYo.oo.....",
+    "....oYYYoYYo....",
+    "....oYwYYYYo....",
+    "...kooYYYYook...",
+    "...kGGGGGGGGk...",
+    "....kGgggggk....",
+    ".....kGGGGk.....",
+    "......kGGk......",
+    "......kGGk......",
+    "......kGGk......",
+    ".....kGGGGk.....",
+    "....kGGkkGGk....",
+    "....kkk..kkk....",
+    "................",
+};
+
+// Le col : des cristaux violets, charges de la magie de la prophetie
+const std::vector<std::string> DESSIN_CRISTAL = {
+    "................",
+    ".......k........",
+    "......kLk.......",
+    "......kLpk......",
+    ".....kLLpk......",
+    "..k..kLwpk..k...",
+    ".kLk.kLLpk.kLk..",
+    ".kLpkkLLppkkLpk.",
+    ".kLpkkLwppkkLpk.",
+    ".kLppkLLppkLppk.",
+    "kGkLpkLLpPkLpkGk",
+    "kGGkPkLppPkPkGGk",
+    "kGGGkkPPPPkkGGGk",
+    ".kkkkkkkkkkkkkk.",
+    "................",
+    "................",
 };
 
 // Les marchands de la route
@@ -502,6 +568,9 @@ void chargerSprites() {
     lesSprites.arc = creerTexture(DESSIN_ARC, aucune);
     lesSprites.baton = creerTexture(DESSIN_BATON, aucune);
     lesSprites.couronne = creerTexture(DESSIN_COURONNE, aucune);
+    lesSprites.lumineux[0] = creerTexture(DESSIN_CHAMPIGNON, aucune);
+    lesSprites.lumineux[1] = creerTexture(DESSIN_BRASERO, aucune);
+    lesSprites.lumineux[2] = creerTexture(DESSIN_CRISTAL, aucune);
     lesSprites.marchands[0] = creerTexture(DESSIN_MAREN, aucune);
     lesSprites.marchands[1] = creerTexture(DESSIN_DURGAN, aucune);
     lesSprites.marchands[2] = creerTexture(DESSIN_SILAS, aucune);
@@ -551,6 +620,7 @@ void dechargerSprites() {
         lesSprites.eclaireur, lesSprites.guerrier, lesSprites.traqueur, lesSprites.chaman,
         lesSprites.louvetier, lesSprites.ashka, lesSprites.feu[0], lesSprites.feu[1],
         lesSprites.marchands[0], lesSprites.marchands[1], lesSprites.marchands[2],
+        lesSprites.lumineux[0], lesSprites.lumineux[1], lesSprites.lumineux[2],
     };
     for (const Texture2D& texture : textures) {
         UnloadTexture(texture);

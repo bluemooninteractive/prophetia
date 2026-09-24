@@ -18,6 +18,7 @@ struct Sprites {
     Texture2D louvetier;
     Texture2D ashka;
     Texture2D marchands[3];         // Maren, Durgan et Silas
+    Texture2D lumineux[3];          // les sources de lumiere : champignons, brasero, cristaux
     // L'environnement : [numero du lieu][variante]. Lieu 0 = foret, 1 = camp, 2 = col.
     Texture2D sol[3][2];
     Texture2D obstacle[3][2];       // arbres, tonneaux et tentes, rochers
