@@ -11,13 +11,25 @@ void parler(const Marchand& marchand, const std::string& texte) {
     std::cout << marchand.nom << " : \"" << texte << "\"\n";
 }
 
-// La replique qui correspond a cette halte (la derniere si on depasse la liste)
-std::string repliqueDuJour(const std::vector<std::string>& repliques, int visite) {
+// La replique qui correspond au moment de l'histoire (voir MOMENT_... dans marchands.h)
+std::string repliqueDuMoment(const std::vector<std::string>& repliques, int moment) {
     int nombre = repliques.size();
-    if (visite >= nombre) {
+    if (moment >= nombre) {
         return repliques[nombre - 1];
     }
-    return repliques[visite];
+    return repliques[moment];
+}
+
+// Quelle replique d'accueil choisir : la presentation a la toute premiere halte,
+// puis une replique qui suit l'histoire
+int indexAccueil(int visite, int moment) {
+    if (visite == 0) {
+        return 0;               // "Je suis Maren..."
+    }
+    if (moment == MOMENT_DEBUT) {
+        return 1;               // "Te revoila !"
+    }
+    return moment;
 }
 
 // Affiche l'inventaire numerote a partir de 1
@@ -57,12 +69,12 @@ std::vector<Arme> tirerStock(const std::vector<Arme>& armes, const Arme& armeEnM
 }
 
 // ----- Maren, l'herboriste : potions et mana -----
-void boutiqueHerboriste(Combattant& aylis, const Marchand& maren, int visite, int& potionsEnStock) {
+void boutiqueHerboriste(Combattant& aylis, const Marchand& maren, int visite, int moment, int& potionsEnStock) {
     const int prixPotion = prixDuJour(15, visite);
     const int prixElixir = prixDuJour(30, visite);
 
     std::cout << "\n";
-    parler(maren, repliqueDuJour(maren.accueil, visite));
+    parler(maren, repliqueDuMoment(maren.accueil, indexAccueil(visite, moment)));
 
     while (true) {
         std::cout << "\n=== " << maren.nom << ", " << maren.metier << " ===   Tu as " << aylis.pieces << " pieces d'or\n";
@@ -78,7 +90,7 @@ void boutiqueHerboriste(Combattant& aylis, const Marchand& maren, int visite, in
             return;
         }
         if (choix == 3) {
-            parler(maren, repliqueDuJour(maren.nouvelles, visite));
+            parler(maren, repliqueDuMoment(maren.nouvelles, moment));
             continue;
         }
         if (choix == 1 && potionsEnStock == 0) {
@@ -110,12 +122,12 @@ void boutiqueHerboriste(Combattant& aylis, const Marchand& maren, int visite, in
 }
 
 // ----- Durgan, le forgeron : armes et armure -----
-void forge(Combattant& aylis, const Marchand& durgan, int visite,
+void forge(Combattant& aylis, const Marchand& durgan, int visite, int moment,
            std::vector<Arme>& stock, const std::string& armeEnPromo) {
     const int prixArmure = prixDuJour(35, visite);
 
     std::cout << "\n";
-    parler(durgan, repliqueDuJour(durgan.accueil, visite));
+    parler(durgan, repliqueDuMoment(durgan.accueil, indexAccueil(visite, moment)));
 
     while (true) {
         std::cout << "\n=== " << durgan.nom << ", " << durgan.metier << " ===   Tu as " << aylis.pieces << " pieces d'or\n";
@@ -147,7 +159,7 @@ void forge(Combattant& aylis, const Marchand& durgan, int visite,
             return;
         }
         if (choix == choixDiscuter) {
-            parler(durgan, repliqueDuJour(durgan.nouvelles, visite));
+            parler(durgan, repliqueDuMoment(durgan.nouvelles, moment));
             continue;
         }
 
@@ -190,9 +202,9 @@ int prixDeRachat(const Objet& objet) {
 }
 
 // ----- Silas, le collectionneur : rachete le butin -----
-void collectionneur(Combattant& aylis, const Marchand& silas, int visite) {
+void collectionneur(Combattant& aylis, const Marchand& silas, int visite, int moment) {
     std::cout << "\n";
-    parler(silas, repliqueDuJour(silas.accueil, visite));
+    parler(silas, repliqueDuMoment(silas.accueil, indexAccueil(visite, moment)));
 
     while (true) {
         std::cout << "\n=== " << silas.nom << ", " << silas.metier << " ===   Tu as " << aylis.pieces << " pieces d'or\n";
@@ -216,7 +228,7 @@ void collectionneur(Combattant& aylis, const Marchand& silas, int visite) {
             return;
         }
         if (choix == choixDiscuter) {
-            parler(silas, repliqueDuJour(silas.nouvelles, visite));
+            parler(silas, repliqueDuMoment(silas.nouvelles, moment));
             continue;
         }
 
@@ -296,8 +308,9 @@ void gererInventaire(Combattant& aylis) {
     }
 }
 
-// La halte entre deux combats. "visite" = combien de haltes AYLIS a deja faites (0 a la premiere).
-void halte(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
+// La halte. "visite" = combien de haltes AYLIS a deja faites (les prix montent),
+// "moment" = ou en est l'histoire (les marchands n'ont pas les memes repliques).
+void halte(Combattant& aylis, const std::vector<Arme>& armes, int visite, int moment) {
     const Marchand maren = {
         "Maren", "l'herboriste",
         {
@@ -307,9 +320,9 @@ void halte(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
             "Derniere halte avant la forteresse de Vorgath... Prends tout ce qu'il te faut.",
         },
         {
-            "Un guerrier Haschen rode plus loin. Plus solide qu'un eclaireur, mais rien d'impossible.",
+            "Les chemins d'elite sont dangereux... mais les Haschen qu'on y croise portent toujours un butin rare.",
             "Ashka, la Matriarche, garde le col. Elle lance ses javelots bien avant d'arriver au contact. Garde des potions.",
-            "Un berserker barre le pont. Il frappe tres fort : ne pars pas sans de quoi te soigner.",
+            "Au-dela du col, les Haschen sont plus nombreux et plus feroces. Ne pars jamais sans de quoi te soigner.",
             "Vorgath ne marche pas vers ses ennemis : il CHARGE. Tu n'auras pas le temps de tirer de loin.",
         },
         "Bon choix ! Ca soigne meme les blessures de Haschen.",
@@ -328,7 +341,7 @@ void halte(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
         {
             "Les dagues et les couteaux frappent deux fois. Parfait contre les Haschen sans armure.",
             "Contre quelqu'un qui tire de loin, une arme a distance te permet de repondre.",
-            "Le berserker a une bonne defense. Une arme lourde passe mieux qu'une arme rapide.",
+            "Les Haschen de l'autre cote du col portent de meilleures armures. Une arme lourde passe mieux qu'une arme rapide.",
             "Vorgath porte une armure epaisse. Les petits coups vont rebondir dessus. Frappe fort.",
         },
         "Du bon travail. Tu verras.",
@@ -387,11 +400,11 @@ void halte(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
 
         int choix = lireChoix(1, 5);
         if (choix == 1) {
-            boutiqueHerboriste(aylis, maren, visite, potionsEnStock);
+            boutiqueHerboriste(aylis, maren, visite, moment, potionsEnStock);
         } else if (choix == 2) {
-            forge(aylis, durgan, visite, stock, armeEnPromo);
+            forge(aylis, durgan, visite, moment, stock, armeEnPromo);
         } else if (choix == 3) {
-            collectionneur(aylis, silas, visite);
+            collectionneur(aylis, silas, visite, moment);
         } else if (choix == 4) {
             gererInventaire(aylis);
         } else {

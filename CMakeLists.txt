@@ -9,4 +9,5 @@ add_executable(turn_based
     progression.cpp
     marchands.cpp
     combat.cpp
+    carte.cpp
 )

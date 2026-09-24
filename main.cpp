@@ -1,4 +1,4 @@
-// main.cpp : la preparation de la partie et l'enchainement des combats
+// main.cpp : la preparation de la partie (heros, armes, ennemis, difficulte), puis la route
 #include <iostream>
 #include <string>
 #include <vector>
@@ -7,9 +7,15 @@
 
 #include "types.h"
 #include "outils.h"
-#include "progression.h"
-#include "marchands.h"
-#include "combat.h"
+#include "carte.h"
+
+// Applique la difficulte a un ennemi (pourcentages : 125 = +25%)
+void appliquerDifficulte(Combattant& ennemi, int forceEnnemis, int orEnnemis) {
+    ennemi.pvMax = ennemi.pvMax * forceEnnemis / 100;
+    ennemi.pv = ennemi.pvMax;
+    ennemi.attaque = ennemi.attaque * forceEnnemis / 100;
+    ennemi.orDonne = ennemi.orDonne * orEnnemis / 100;
+}
 
 int main() {
     // Pour que le hasard change a chaque partie
@@ -17,9 +23,8 @@ int main() {
 
     //                   nom            pv  pvMax att  def potions boss   xp  or
     Combattant aylis = {"AYLIS",        40, 40,   12,  4,  3,      false, 0,  0};
-    int rage = 0;
 
-    // Les armes vendues a l'armurerie
+    // Les armes vendues par Durgan
     //                       nom                 distance  bonus crit coups prix
     std::vector<Arme> armes = {
         {"Epee courte",         false,  0, 10, 1,  20},
@@ -35,7 +40,9 @@ int main() {
     //                 nom                      type            rarete  valeur
     Objet croc     = {"Croc de Haschen",        OBJET_MATERIAU, COMMUN,  8};
     Objet peau     = {"Peau de Haschen",        OBJET_MATERIAU, COMMUN, 12};
+    Objet totem    = {"Totem de chaman",        OBJET_MATERIAU, RARE,   30};
     Objet griffe   = {"Griffe de berserker",    OBJET_MATERIAU, RARE,   25};
+    Objet osGraves = {"Os graves de runes",     OBJET_MATERIAU, RARE,   25};
     Objet couronne = {"Couronne d'os d'Ashka",  OBJET_MATERIAU, EPIQUE, 70};
     Objet potion   = {"Potion",                 OBJET_POTION,   COMMUN,  7};
 
@@ -46,20 +53,34 @@ int main() {
     Objet hacheBerserker = objetDepuisArme({"Hache du berserker", false,  6, 15, 1,  80, RARE});
     Objet javelots       = objetDepuisArme({"Javelots d'Ashka",   true,   6, 20, 1, 120, EPIQUE});
 
-    // La liste des ennemis, dans l'ordre.
-    // Apres l'XP et l'or : la table de loot (chaque objet avec sa chance sur 100), puis le style.
-    std::vector<Combattant> ennemis = {
-        {"Haschen eclaireur",              18, 18,  8, 1, 0, false,  20, 20,
+    // Les ennemis. Apres l'XP et l'or : la table de loot (chaque objet avec sa chance sur 100), puis le style.
+    Bestiaire bestiaire;
+
+    // Les Haschen des chemins normaux
+    bestiaire.normaux = {
+        {"Haschen eclaireur",   18, 18,  8, 1, 0, false,  20, 20,
             {{croc, 70}, {peau, 30}, {potion, 20}, {arcDOs, 10}}},
-        {"Haschen guerrier",               22, 22,  9, 2, 0, false,  25, 25,
+        {"Haschen guerrier",    22, 22,  9, 2, 0, false,  25, 25,
             {{croc, 60}, {peau, 50}, {potion, 20}, {lance, 12}}},
-        {"Ashka, Matriarche des Haschen",  40, 40, 14, 4, 1, true,   50, 50,
-            {{couronne, 100}, {javelots, 100}, {potion, 50}}, STYLE_LANCEUR},
-        {"Haschen berserker",              30, 30, 15, 5, 0, false,  30, 30,
-            {{croc, 50}, {griffe, 60}, {hacheBerserker, 15}}},
-        {"Vorgath le Destructeur",         60, 60, 17, 6, 2, true,  100,  0,
-            {}, STYLE_CHARGEUR},
+        {"Haschen traqueur",    20, 20,  9, 1, 0, false,  25, 22,
+            {{croc, 50}, {peau, 40}, {potion, 20}, {arcDOs, 12}}, STYLE_LANCEUR},
+        {"Haschen chaman",      20, 20, 10, 1, 0, false,  25, 25,
+            {{croc, 40}, {totem, 30}, {potion, 40}}},
     };
+
+    // Les Haschen d'elite : plus durs, avec un objet RARE garanti
+    bestiaire.elites = {
+        {"Haschen berserker",   30, 30, 15, 5, 0, false,  35, 35,
+            {{griffe, 100}, {croc, 50}, {hacheBerserker, 20}}},
+        {"Haschen brise-os",    34, 34, 13, 6, 0, false,  35, 35,
+            {{osGraves, 100}, {peau, 60}, {lance, 20}}},
+    };
+
+    // Les boss
+    bestiaire.ashka = {"Ashka, Matriarche des Haschen", 40, 40, 14, 4, 1, true, 50, 50,
+        {{couronne, 100}, {javelots, 100}, {potion, 50}}, STYLE_LANCEUR};
+    bestiaire.vorgath = {"Vorgath le Destructeur", 60, 60, 17, 6, 2, true, 100, 0,
+        {}, STYLE_CHARGEUR};
 
     std::cout << "=== AYLIS contre les Haschen : la route vers Vorgath le Destructeur ===\n";
 
@@ -95,51 +116,19 @@ int main() {
         orEnnemis = 80;
     }
 
-    // On applique la difficulte a chaque ennemi. Le & modifie le vrai ennemi de la liste.
-    for (Combattant& ennemi : ennemis) {
-        ennemi.pvMax = ennemi.pvMax * forceEnnemis / 100;
-        ennemi.pv = ennemi.pvMax;
-        ennemi.attaque = ennemi.attaque * forceEnnemis / 100;
-        ennemi.orDonne = ennemi.orDonne * orEnnemis / 100;
+    // On applique la difficulte a tous les ennemis. Le & modifie le vrai ennemi de la liste.
+    for (Combattant& ennemi : bestiaire.normaux) {
+        appliquerDifficulte(ennemi, forceEnnemis, orEnnemis);
     }
+    for (Combattant& ennemi : bestiaire.elites) {
+        appliquerDifficulte(ennemi, forceEnnemis, orEnnemis);
+    }
+    appliquerDifficulte(bestiaire.ashka, forceEnnemis, orEnnemis);
+    appliquerDifficulte(bestiaire.vorgath, forceEnnemis, orEnnemis);
 
-    int nombreEnnemis = ennemis.size();
-
-    for (int i = 0; i < nombreEnnemis; i++) {
-        Combattant& ennemi = ennemis[i];
-
-        std::cout << "\n==========================================\n";
-        if (ennemi.estBoss) {
-            std::cout << "  !!! BOSS : " << ennemi.nom << " !!!\n";
-        } else {
-            std::cout << "  Combat " << (i + 1) << "/" << nombreEnnemis << " : " << ennemi.nom << " apparait !\n";
-        }
-        std::cout << "==========================================\n";
-
-        bool victoire = combattre(aylis, ennemi, rage);
-
-        if (!victoire) {
-            std::cout << "\n=== GAME OVER ===\n";
-            std::cout << "AYLIS tombe au combat face a " << ennemi.nom << ".\n";
-            return 0;
-        }
-
-        std::cout << "\nVictoire contre " << ennemi.nom << " !\n";
-
-        // Le dernier ennemi : la partie est gagnee, pas besoin de marche
-        if (i == nombreEnnemis - 1) {
-            break;
-        }
-
-        // Les recompenses
-        ramasserButin(aylis, ennemi);
-        gagnerXp(aylis, ennemi.xpDonne);
-        depenserPoints(aylis);
-
-        soigner(aylis, 10);
-        std::cout << "AYLIS souffle un peu : +10 pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
-
-        halte(aylis, armes, i);
+    // En route !
+    if (!parcourirCarte(aylis, armes, bestiaire)) {
+        return 0;   // le GAME OVER est deja affiche
     }
 
     std::cout << "\n=== VICTOIRE TOTALE ! ===\n";
