@@ -1,0 +1,6 @@
+# Fichiers generes par la compilation
+*.exe
+cmake-build-*/
+
+# Reglages de CLion (propres a chaque ordinateur)
+.idea/
