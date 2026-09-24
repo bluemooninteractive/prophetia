@@ -3,12 +3,13 @@
 #include <cstdlib>
 #include "marchands.h"
 #include "outils.h"
+#include "couleurs.h"
 
 // ===================== La halte et ses marchands =====================
 
 // Un marchand dit une phrase
 void parler(const Marchand& marchand, const std::string& texte) {
-    std::cout << marchand.nom << " : \"" << texte << "\"\n";
+    std::cout << colorer(marchand.nom, CYAN + GRAS) << " : \"" << texte << "\"\n";
 }
 
 // La replique qui correspond au moment de l'histoire (voir MOMENT_... dans marchands.h)

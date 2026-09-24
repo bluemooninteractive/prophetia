@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include "progression.h"
 #include "outils.h"
+#include "couleurs.h"
 
 // ===================== Le loot =====================
 
@@ -52,12 +53,12 @@ void gagnerXp(Combattant& aylis, int xpGagne) {
         aylis.points = aylis.points + 2;
         aylis.pv = aylis.pvMax;     // monter de niveau soigne completement
 
-        std::cout << "\n*** NIVEAU " << aylis.niveau << " ! ***\n";
+        std::cout << "\n" << colorer("*** NIVEAU " + std::to_string(aylis.niveau) + " ! ***", JAUNE + GRAS) << "\n";
         std::cout << "+2 points de competence. AYLIS retrouve tous ses pv !\n";
     }
 
     std::cout << "XP         ";
-    afficherBarre(aylis.xp, xpPourNiveauSuivant(aylis.niveau));
+    afficherBarre(aylis.xp, xpPourNiveauSuivant(aylis.niveau), CYAN);
     std::cout << " " << aylis.xp << "/" << xpPourNiveauSuivant(aylis.niveau)
               << " vers le niveau " << (aylis.niveau + 1) << "\n";
 }

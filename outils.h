@@ -11,7 +11,8 @@ int lireChoix(int min, int max);
 int calculerDegats(int attaque, int puissance, int defense, int chanceCritique);
 
 // Affiche une barre comme [##########----------]
-void afficherBarre(int valeur, int maximum);
+// Sans couleur, c'est une barre de vie (verte, jaune puis rouge). Exemple : afficherBarre(mana, manaMax, BLEU);
+void afficherBarre(int valeur, int maximum, const std::string& couleur = "");
 
 // Affichages des armes et des objets
 void afficherArme(const Arme& arme);
@@ -23,5 +24,5 @@ void afficherObjet(const Objet& objet);
 void soigner(Combattant& c, int quantite);
 void boirePotion(Combattant& c);
 
-// Attend que le joueur appuie sur Entree (pour que la fenetre ne se ferme pas toute seule)
+// Attend que le joueur appuie sur Entree (pour lui laisser le temps de lire)
 void attendreEntree();

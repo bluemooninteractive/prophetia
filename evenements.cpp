@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include "evenements.h"
 #include "outils.h"
+#include "couleurs.h"
 #include "progression.h"
 
 // Un evenement ne peut pas tuer AYLIS : il lui reste toujours au moins 1 pv
@@ -11,7 +12,7 @@ void blesser(Combattant& aylis, int degats) {
     if (aylis.pv < 1) {
         aylis.pv = 1;
     }
-    std::cout << "AYLIS perd " << degats << " pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
+    std::cout << "AYLIS perd " << colorer(degats, ROUGE) << " pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
 }
 
 void gagnerOr(Combattant& aylis, int pieces) {

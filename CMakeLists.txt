@@ -11,4 +11,6 @@ add_executable(turn_based
     combat.cpp
     carte.cpp
     evenements.cpp
+    couleurs.cpp
+    accueil.cpp
 )

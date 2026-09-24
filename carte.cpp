@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include "carte.h"
 #include "outils.h"
+#include "couleurs.h"
 #include "progression.h"
 #include "marchands.h"
 #include "combat.h"
@@ -150,7 +151,7 @@ void afficherChemin(const Chemin& chemin) {
 bool combatEtRecompenses(Combattant& aylis, std::vector<Combattant> groupe, int& rage, bool dernierCombat) {
     std::cout << "\n==========================================\n";
     if (groupe[0].estBoss) {
-        std::cout << "  !!! BOSS : " << groupe[0].nom << " !!!\n";
+        std::cout << colorer("  !!! BOSS : " + groupe[0].nom + " !!!", ROUGE + GRAS) << "\n";
     } else if (groupe.size() > 1) {
         std::cout << "  Une meute surgit : " << nomsDuGroupe(groupe) << " !\n";
     } else {
@@ -159,12 +160,12 @@ bool combatEtRecompenses(Combattant& aylis, std::vector<Combattant> groupe, int&
     std::cout << "==========================================\n";
 
     if (!combattre(aylis, groupe, rage)) {
-        std::cout << "\n=== GAME OVER ===\n";
+        std::cout << "\n" << colorer("=== GAME OVER ===", ROUGE + GRAS) << "\n";
         std::cout << "AYLIS tombe au combat face a " << nomsDuGroupe(groupe) << ".\n";
         return false;
     }
 
-    std::cout << "\nVictoire contre " << nomsDuGroupe(groupe) << " !\n";
+    std::cout << "\n" << colorer("Victoire contre " + nomsDuGroupe(groupe) + " !", VERT + GRAS) << "\n";
     if (dernierCombat) {
         return true;    // la partie est gagnee, pas besoin de recompenses
     }
@@ -262,7 +263,7 @@ bool parcourirCarte(Combattant& aylis, const std::vector<Arme>& armes, const Bes
             }
         } else if (chemin.type == CHEMIN_REPOS) {
             soigner(aylis, aylis.pvMax / 2);
-            std::cout << "\nAYLIS se repose pres du feu. Retour a " << aylis.pv << "/" << aylis.pvMax << " pv.\n";
+            std::cout << "\nAYLIS se repose pres du feu. Retour a " << colorer(aylis.pv, VERT) << "/" << aylis.pvMax << " pv.\n";
         } else if (chemin.type == CHEMIN_HALTE) {
             halte(aylis, armes, haltesVisitees, momentDeLHistoire(ashkaVaincue, prochaineEtape));
             haltesVisitees = haltesVisitees + 1;

@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include "combat.h"
 #include "outils.h"
+#include "couleurs.h"
 
 // ===================== Les cibles =====================
 
@@ -76,7 +77,7 @@ void annoncerChutes(std::vector<Combattant>& ennemis) {
     for (Combattant& ennemi : ennemis) {
         if (ennemi.pv <= 0 && !ennemi.vaincu) {
             ennemi.vaincu = true;
-            std::cout << ">> " << ennemi.nom << " tombe !\n";
+            std::cout << colorer(">> " + ennemi.nom + " tombe !", VERT) << "\n";
         }
     }
 }
@@ -148,7 +149,7 @@ bool lancerSort(Combattant& aylis, std::vector<Combattant>& ennemis) {
 
     if (choix == 2) {
         soigner(aylis, 20);
-        std::cout << "SOIN ! AYLIS remonte a " << aylis.pv << " pv.\n";
+        std::cout << "SOIN ! AYLIS remonte a " << colorer(aylis.pv, VERT) << " pv.\n";
         return true;
     }
 
@@ -157,12 +158,12 @@ bool lancerSort(Combattant& aylis, std::vector<Combattant>& ennemis) {
     if (choix == 1) {
         int degats = calculerDegats(aylis.attaque, 150, 0, 10);
         cible.pv = cible.pv - degats;
-        std::cout << "BOULE DE FEU ! " << cible.nom << " perd " << degats << " pv.\n";
+        std::cout << "BOULE DE FEU ! " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv.\n";
     } else {
         int degats = calculerDegats(aylis.attaque, 100, cible.defense, 10);
         cible.pv = cible.pv - degats;
         cible.etourdi = true;
-        std::cout << "ECLAIR ! " << cible.nom << " perd " << degats << " pv. Paralysie !\n";
+        std::cout << "ECLAIR ! " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv. Paralysie !\n";
     }
     return true;
 }
@@ -176,7 +177,7 @@ void toucherAylis(const Combattant& ennemi, Combattant& aylis, int degats, bool 
         std::cout << "(AYLIS bloque la moitie du coup) ";
     }
     aylis.pv = aylis.pv - degats;
-    std::cout << ennemi.nom << " touche ! AYLIS perd " << degats << " pv.\n";
+    std::cout << ennemi.nom << " touche ! AYLIS perd " << colorer(degats, ROUGE) << " pv.\n";
 
     // Chaque coup recu remplit la rage
     rage = rage + degats * 4;
@@ -198,7 +199,7 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
     if (ennemi.estBoss && !ennemi.enrage && ennemi.pv <= ennemi.pvMax / 2) {
         ennemi.enrage = true;
         ennemi.attaque = ennemi.attaque + 3;
-        std::cout << "!!! " << ennemi.nom << " S'ENRAGE ! Son attaque augmente ! !!!\n";
+        std::cout << colorer("!!! " + ennemi.nom + " S'ENRAGE ! Son attaque augmente ! !!!", ROUGE + GRAS) << "\n";
     }
 
     // Un boss en danger se soigne
@@ -268,11 +269,11 @@ void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemi
     std::cout << " " << aylis.pv << "/" << aylis.pvMax << " pv\n";
 
     std::cout << "Mana         ";
-    afficherBarre(aylis.mana, aylis.manaMax);
+    afficherBarre(aylis.mana, aylis.manaMax, BLEU);
     std::cout << " " << aylis.mana << "/" << aylis.manaMax << "\n";
 
     std::cout << "Rage         ";
-    afficherBarre(rage, rageMax);
+    afficherBarre(rage, rageMax, ROUGE);
     if (rage >= rageMax) {
         std::cout << " PLEINE !";
     }
@@ -356,7 +357,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage) {
             // Une arme de melee ne peut frapper que les ennemis au contact
             int numeroCible = choisirCible(ennemis, !aylis.arme.aDistance);
             if (numeroCible == -1) {
-                std::cout << "\n!! Impossible : personne a portee de " << aylis.arme.nom
+                std::cout << "\n" << colorer("!! Impossible", JAUNE + GRAS) << " : personne a portee de " << aylis.arme.nom
                           << ". Avance d'abord (7), ou lance un sort (5).\n\n";
                 continue;
             }
@@ -364,23 +365,23 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage) {
 
             if (choix == 1) {
                 int degats = frapper(aylis, cible, 100);
-                std::cout << "Attaque normale ! " << cible.nom << " perd " << degats << " pv.\n";
+                std::cout << "Attaque normale ! " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv.\n";
             } else if (choix == 2) {
                 // 60 chances sur 100 de toucher
                 if (std::rand() % 100 < 60) {
                     int degats = frapper(aylis, cible, 180);
-                    std::cout << "Attaque lourde ! BAM ! " << cible.nom << " perd " << degats << " pv.\n";
+                    std::cout << "Attaque lourde ! BAM ! " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv.\n";
                 } else {
                     std::cout << "Attaque lourde... ratee ! " << cible.nom << " esquive.\n";
                 }
             } else if (choix == 3) {
                 int degats = frapper(aylis, cible, 60);
                 enGarde = true;
-                std::cout << "AYLIS attaque en restant en garde. " << cible.nom << " perd " << degats << " pv.\n";
+                std::cout << "AYLIS attaque en restant en garde. " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv.\n";
             } else {
                 int degats = frapper(aylis, cible, 220);
                 rage = 0;
-                std::cout << "*** ATTAQUE SPECIALE ! *** " << cible.nom << " perd " << degats << " pv !\n";
+                std::cout << "*** ATTAQUE SPECIALE ! *** " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv !\n";
             }
         } else if (choix == 4) {
             if (aylis.potions == 0) {

@@ -7,7 +7,9 @@
 
 #include "types.h"
 #include "outils.h"
+#include "couleurs.h"
 #include "carte.h"
+#include "accueil.h"
 
 // Applique la difficulte a un ennemi (pourcentages : 125 = +25%)
 void appliquerDifficulte(Combattant& ennemi, int forceEnnemis, int orEnnemis) {
@@ -17,10 +19,8 @@ void appliquerDifficulte(Combattant& ennemi, int forceEnnemis, int orEnnemis) {
     ennemi.orDonne = ennemi.orDonne * orEnnemis / 100;
 }
 
-int main() {
-    // Pour que le hasard change a chaque partie
-    std::srand(std::time(nullptr));
-
+// Une partie complete : on prepare le heros, les armes et les ennemis, puis on part sur la route
+void jouerPartie() {
     //                   nom            pv  pvMax att  def potions boss   xp  or
     Combattant aylis = {"AYLIS",        40, 40,   12,  4,  3,      false, 0,  0};
 
@@ -82,7 +82,9 @@ int main() {
     bestiaire.vorgath = {"Vorgath le Destructeur", 60, 60, 17, 6, 2, true, 100, 0,
         {}, STYLE_CHARGEUR};
 
-    std::cout << "=== AYLIS contre les Haschen : la route vers Vorgath le Destructeur ===\n";
+    std::cout << "\n" << colorer("=== Une nouvelle partie commence ===", JAUNE + GRAS) << "\n";
+    std::cout << "Les Haschen deferlent sur la vallee, menes par Vorgath le Destructeur.\n";
+    std::cout << "AYLIS prend la route vers sa forteresse. Personne d'autre n'ose y aller.\n";
 
     // Le choix de l'arme de depart : melee ou distance
     std::cout << "\nChoisis l'arme de depart d'AYLIS :\n";
@@ -128,11 +130,29 @@ int main() {
 
     // En route !
     if (parcourirCarte(aylis, armes, bestiaire)) {
-        std::cout << "\n=== VICTOIRE TOTALE ! ===\n";
+        std::cout << "\n" << colorer("=== VICTOIRE TOTALE ! ===", VERT + GRAS) << "\n";
         std::cout << "Les Haschen sont en deroute : AYLIS a abattu Vorgath le Destructeur !\n";
     }
     // Sinon, le GAME OVER est deja affiche
 
-    attendreEntree();
-    return 0;
+    attendreEntree();   // on laisse le temps de lire la fin avant de revenir au menu
+}
+
+int main() {
+    // Pour que le hasard change a chaque partie
+    std::srand(std::time(nullptr));
+    activerCouleurs();
+
+    // L'ecran d'accueil, jusqu'a ce que le joueur choisisse de quitter
+    while (true) {
+        int choix = ecranTitre();
+        if (choix == 1) {
+            jouerPartie();
+        } else if (choix == 2) {
+            afficherRegles();
+        } else {
+            std::cout << "\nA bientot sur la route, AYLIS !\n";
+            return 0;
+        }
+    }
 }
