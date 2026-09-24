@@ -59,6 +59,18 @@ int choisirCible(const std::vector<Combattant>& ennemis, bool seulementAuContact
     return possibles[lireChoix(1, nombrePossibles) - 1];
 }
 
+// Est-ce qu'il existe au moins une cible possible ? (meme regle que choisirCible, sans poser de question)
+bool quelquUnAPortee(const std::vector<Combattant>& ennemis, bool seulementAuContact) {
+    for (const Combattant& ennemi : ennemis) {
+        bool debout = ennemi.pv > 0;
+        bool aPortee = !seulementAuContact || ennemi.distance == 0;
+        if (debout && aPortee) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // Annonce les ennemis qui viennent de tomber
 void annoncerChutes(std::vector<Combattant>& ennemis) {
     for (Combattant& ennemi : ennemis) {
@@ -288,9 +300,16 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage) {
         ennemi.distance = distanceDepart;   // chaque combat commence de loin
     }
 
+    int dernierTourAffiche = 0;
+
     while (aylis.pv > 0 && resteDesEnnemis(ennemis)) {
-        std::cout << "\n--- Tour " << tour << " ---\n";
-        afficherEtat(aylis, ennemis, rage);
+        // On n'affiche l'etat du combat qu'une fois par tour :
+        // si une action est refusee, on redemande juste le choix
+        if (tour != dernierTourAffiche) {
+            std::cout << "\n--- Tour " << tour << " ---\n";
+            afficherEtat(aylis, ennemis, rage);
+            dernierTourAffiche = tour;
+        }
 
         // Est-ce qu'au moins un ennemi est encore a distance ?
         bool quelquUnEstLoin = false;
@@ -300,9 +319,18 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage) {
             }
         }
 
-        std::cout << "1. Attaque normale   (degats normaux, ne rate jamais)\n";
-        std::cout << "2. Attaque lourde    (degats x1.8, mais 40% de chances de rater)\n";
-        std::cout << "3. Attaque en garde  (petits degats, mais les ennemis tapent 2x moins fort)\n";
+        // Est-ce que l'arme peut toucher quelqu'un ? (une arme de melee a besoin d'un ennemi au contact)
+        bool armeAPortee = quelquUnAPortee(ennemis, !aylis.arme.aDistance);
+        std::string tropLoin = "";
+        if (!armeAPortee) {
+            tropLoin = "  -> TROP LOIN, avance d'abord (7)";
+            std::cout << "(Les ennemis sont trop loin pour " << aylis.arme.nom
+                      << " : avance vers eux avec 7, ou lance un sort avec 5.)\n";
+        }
+
+        std::cout << "1. Attaque normale   (degats normaux, ne rate jamais)" << tropLoin << "\n";
+        std::cout << "2. Attaque lourde    (degats x1.8, mais 40% de chances de rater)" << tropLoin << "\n";
+        std::cout << "3. Attaque en garde  (petits degats, mais les ennemis tapent 2x moins fort)" << tropLoin << "\n";
         std::cout << "4. Boire une potion  (+15 pv, reste " << aylis.potions << ")\n";
         std::cout << "5. Lancer un sort\n";
         if (rage >= rageMax) {
@@ -328,8 +356,8 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage) {
             // Une arme de melee ne peut frapper que les ennemis au contact
             int numeroCible = choisirCible(ennemis, !aylis.arme.aDistance);
             if (numeroCible == -1) {
-                std::cout << "Personne a portee de " << aylis.arme.nom
-                          << " ! Avance d'abord (choix 7), ou utilise un sort.\n";
+                std::cout << "\n!! Impossible : personne a portee de " << aylis.arme.nom
+                          << ". Avance d'abord (7), ou lance un sort (5).\n\n";
                 continue;
             }
             Combattant& cible = ennemis[numeroCible];

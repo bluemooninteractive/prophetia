@@ -127,12 +127,12 @@ int main() {
     appliquerDifficulte(bestiaire.vorgath, forceEnnemis, orEnnemis);
 
     // En route !
-    if (!parcourirCarte(aylis, armes, bestiaire)) {
-        return 0;   // le GAME OVER est deja affiche
+    if (parcourirCarte(aylis, armes, bestiaire)) {
+        std::cout << "\n=== VICTOIRE TOTALE ! ===\n";
+        std::cout << "Les Haschen sont en deroute : AYLIS a abattu Vorgath le Destructeur !\n";
     }
+    // Sinon, le GAME OVER est deja affiche
 
-    std::cout << "\n=== VICTOIRE TOTALE ! ===\n";
-    std::cout << "Les Haschen sont en deroute : AYLIS a abattu Vorgath le Destructeur !\n";
-
+    attendreEntree();
     return 0;
 }

@@ -125,3 +125,10 @@ void boirePotion(Combattant& c) {
     soigner(c, 15);
     std::cout << c.nom << " boit une potion ! Retour a " << c.pv << " pv.\n";
 }
+
+// Attend que le joueur appuie sur Entree (pour que la fenetre ne se ferme pas toute seule)
+void attendreEntree() {
+    std::cout << "\nAppuie sur Entree pour quitter...";
+    std::cin.ignore(1000, '\n');    // on vide la fin de la ligne du dernier choix
+    std::cin.get();                 // puis on attend Entree
+}

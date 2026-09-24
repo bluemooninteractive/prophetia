@@ -22,3 +22,6 @@ void afficherObjet(const Objet& objet);
 // Les soins
 void soigner(Combattant& c, int quantite);
 void boirePotion(Combattant& c);
+
+// Attend que le joueur appuie sur Entree (pour que la fenetre ne se ferme pas toute seule)
+void attendreEntree();
