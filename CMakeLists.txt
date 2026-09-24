@@ -3,4 +3,10 @@ project(turn_based)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(turn_based main.cpp)
+add_executable(turn_based
+    main.cpp
+    outils.cpp
+    progression.cpp
+    marchands.cpp
+    combat.cpp
+)
