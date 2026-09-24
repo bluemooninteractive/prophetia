@@ -10,3 +10,6 @@ AYLIS-jeu/
 
 # La sauvegarde de la partie en cours
 prophetia_sauvegarde.txt
+
+# Le dossier de compilation du prototype 2D (raylib y est telecharge)
+prototype-2d/build/
