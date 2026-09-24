@@ -16,7 +16,7 @@ std::string nomTypeSalle(TypeSalle type) {
         case TypeSalle::Oracle: return "Oracle";
         case TypeSalle::Marchand: return "Marchand";
         case TypeSalle::Rencontre: return "???";
-        case TypeSalle::Boss: return "Ashka";
+        case TypeSalle::Boss: return "Boss";
     }
     return "";
 }
@@ -29,15 +29,71 @@ std::string descriptionSalle(TypeSalle type) {
         case TypeSalle::Oracle: return "Une rune sans combat. La vision coute 6 pv.";
         case TypeSalle::Marchand: return "De quoi depenser ton or.";
         case TypeSalle::Rencontre: return "Une surprise... bonne ou mauvaise ?";
-        case TypeSalle::Boss: return "La cheffe de guerre des Haschen t'attend.";
+        case TypeSalle::Boss: return "Le gardien de cette terre t'attend.";
     }
     return "";
 }
 
-// Le lieu d'une salle : un lieu par salle, dans l'ordre de la route. Ashka attend au col (la derniere salle).
+// ===================== Les actes =====================
+// Chaque acte : son nom, le lieu de chacune de ses salles (dans l'ordre de l'histoire), et son boss.
+
+const Acte ACTES[NOMBRE_ACTES] = {
+    {"Les Terres Brumeuses", {0, 0, 1, 1, 2, 2}, 2, BOSS_SKARN},           // foret, village, gue
+    {"Les Terres Hantees", {3, 3, 3, 4, 4, 4}, 3, BOSS_MATRIARCHE},        // bois des Pendus, camp
+    {"La Marche d'Ashka", {5, 5, 5, 6, 6, 6}, 6, BOSS_ASHKA},              // forteresse, col
+    {"Le Domaine de Vorgath", {7, 7, 7, 8, 8}, 8, BOSS_VORGATH},           // cendres, citadelle
+};
+
+const Acte& acte(int numero) {
+    return ACTES[numero];
+}
+
+int nombreDeSallesDeLActe(int numero) {
+    return (int)ACTES[numero].lieux.size() + 1;     // + la salle du boss
+}
+
+int premiereSalleDeLActe(int numero) {
+    int salle = 1;
+    for (int i = 0; i < numero; i++) {
+        salle = salle + nombreDeSallesDeLActe(i);
+    }
+    return salle;
+}
+
+int nombreDeSalles() {
+    return premiereSalleDeLActe(NOMBRE_ACTES);
+}
+
+int acteDeLaSalle(int salle) {
+    for (int i = NOMBRE_ACTES - 1; i >= 0; i--) {
+        if (salle >= premiereSalleDeLActe(i)) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+bool estSalleDeBoss(int salle) {
+    int numero = acteDeLaSalle(salle);
+    return salle == premiereSalleDeLActe(numero) + nombreDeSallesDeLActe(numero) - 1;
+}
+
+// Le lieu d'une salle : celui que l'acte a prevu pour elle (ou celui du boss, pour la derniere)
 int lieuDeLaSalle(int salle) {
-    int lieu = salle - 1;
-    return lieu > NOMBRE_LIEUX - 1 ? NOMBRE_LIEUX - 1 : lieu;
+    int numero = acteDeLaSalle(salle);
+    if (estSalleDeBoss(salle)) {
+        return ACTES[numero].lieuDuBoss;
+    }
+    return ACTES[numero].lieux[salle - premiereSalleDeLActe(numero)];
+}
+
+std::string nomDuBoss(int boss) {
+    switch (boss) {
+        case BOSS_SKARN: return "Skarn le Brise-Cranes";
+        case BOSS_MATRIARCHE: return "La Matriarche";
+        case BOSS_ASHKA: return "Ashka";
+        default: return "Vorgath le Destructeur";
+    }
 }
 
 // ===================== Les runes de prophetie =====================
@@ -141,13 +197,13 @@ void proposerSalles(Jeu& jeu) {
     jeu.lieu = lieu;
     jeu.phase = Phase::ChoixSalle;
 
-    if (jeu.salle >= NOMBRE_SALLES) {
+    if (estSalleDeBoss(jeu.salle)) {
         jeu.propositions.push_back({TypeSalle::Boss, lieu});
         return;
     }
 
-    // Juste avant Ashka, la vision montre toujours un feu de camp
-    if (jeu.salle == NOMBRE_SALLES - 1) {
+    // Juste avant chaque boss, la vision montre toujours un feu de camp
+    if (estSalleDeBoss(jeu.salle + 1)) {
         jeu.propositions.push_back({TypeSalle::Repos, lieu});
     }
     int nombre = GetRandomValue(2, 3);
@@ -193,6 +249,17 @@ void proposerSalles(Jeu& jeu) {
 // La salle est finie : on passe a la suivante
 void allerPlusLoin(Jeu& jeu) {
     jeu.salle = jeu.salle + 1;
+    // Le debut d'un nouvel acte : AYLIS se repose entierement, et l'ecran annonce l'acte
+    if (jeu.salle == premiereSalleDeLActe(acteDeLaSalle(jeu.salle))) {
+        Combattant& aylis = jeu.aylis.stats;
+        aylis.soigner(aylis.pvMax);
+        aylis.potions = aylis.potions + 1;
+        jeu.lieu = lieuDeLaSalle(jeu.salle);
+        jeu.messageRoute = "";
+        jeu.fondu = 0.0f;
+        jeu.phase = Phase::NouvelActe;
+        return;
+    }
     proposerSalles(jeu);
 }
 
@@ -233,7 +300,8 @@ void apresCombat(Jeu& jeu) {
     int soin = jeu.aylis.stats.pvMax / 4;
     jeu.aylis.stats.soigner(soin);
     jeu.messageRoute = "AYLIS reprend son souffle : +" + std::to_string(soin) + " pv.";
-    proposerRunes(jeu, jeu.typeSalle == TypeSalle::Elite);
+    // Apres une elite ou un boss : une rune epique parmi les choix
+    proposerRunes(jeu, jeu.typeSalle == TypeSalle::Elite || jeu.typeSalle == TypeSalle::Boss);
 }
 
 void choisirRune(Jeu& jeu, int numero) {
@@ -317,6 +385,9 @@ void placerHaschen(Jeu& jeu, const std::vector<bool>& accessibles, Combattant st
 
 void preparerCombat(Jeu& jeu) {
     jeu.haschen.clear();
+    // Assez de place d'avance pour les renforts des boss : la liste ne sera jamais deplacee en memoire
+    // (sinon, un Pion& garde pendant le tour d'un boss deviendrait invalide)
+    jeu.haschen.reserve(16);
     jeu.journal.clear();
     jeu.textes.clear();
 
@@ -353,15 +424,15 @@ void preparerCombat(Jeu& jeu) {
     Combattant traqueur   = {"Haschen traqueur",    20, 20,   9,  1, 0,      false, 25, 22};
     Combattant chaman     = {"Haschen chaman",      20, 20,  10,  1, 0,      false, 25, 25};
     Combattant louvetier  = {"Haschen louvetier",   22, 22,  10,  2, 0,      false, 25, 25};
-    Combattant ashka      = {"Ashka",               55, 55,  15,  4, 1,      true,  50, 50};
+    Combattant brute      = {"Haschen brute",       34, 34,  12,  4, 0,      false, 30, 35};
     traqueur.style = Style::Lanceur;
     chaman.attaquePoison = true;
     louvetier.style = Style::Chargeur;
-    ashka.style = Style::Lanceur;
+    brute.style = Style::Chargeur;
 
     // Plus AYLIS avance, plus les Haschen sont coriaces
     int bonus = jeu.salle - 1;
-    for (Combattant* h : {&eclaireur, &guerrier, &traqueur, &chaman, &louvetier}) {
+    for (Combattant* h : {&eclaireur, &guerrier, &traqueur, &chaman, &louvetier, &brute}) {
         h->pvMax = h->pvMax + bonus * 2;
         h->pv = h->pvMax;
         h->attaque = h->attaque + bonus / 3;
@@ -373,25 +444,29 @@ void preparerCombat(Jeu& jeu) {
     std::pair<Combattant, Color> T = {traqueur, GREEN};
     std::pair<Combattant, Color> C = {chaman, PURPLE};
     std::pair<Combattant, Color> L = {louvetier, BROWN};
+    std::pair<Combattant, Color> B = {brute, MAROON};
     const std::vector<std::pair<Combattant, Color>> groupes[NOMBRE_LIEUX] = {
         {E, G, T},          // la foret : les eclaireurs d'Ashka
         {E, G, L},          // le village : des pillards
         {T, E, C},          // le gue : des tireurs caches dans les roseaux
         {C, L, T},          // le bois des Pendus : chamans et louvetiers
         {G, L, C, T},       // le camp : tout le monde
-        {G, T, C, L},       // la forteresse
-        {T, L, G, C},       // le col
+        {G, T, C, L, B},    // la forteresse : les premieres brutes
+        {T, L, G, C, B},    // le col
+        {B, L, C, T},       // les cendres : l'armee de Vorgath
+        {B, G, T, C},       // la citadelle
     };
     const std::vector<std::pair<Combattant, Color>>& groupe = groupes[jeu.lieu];
+    int numeroActe = acteDeLaSalle(jeu.salle);
 
     jeu.nomDuLieu = nomLieu(jeu.lieu);
+    jeu.zonesDanger.clear();
     if (jeu.typeSalle == TypeSalle::Boss) {
-        placerHaschen(jeu, accessibles, ashka, GOLD);
-        placerHaschen(jeu, accessibles, traqueur, GREEN);
-        placerHaschen(jeu, accessibles, eclaireur, ORANGE);
+        // Le boss de l'acte, et son escorte (boss.cpp)
+        placerBossEtEscorte(jeu, accessibles, acte(numeroActe).boss, groupe);
     } else if (jeu.typeSalle == TypeSalle::Elite) {
-        // Un Haschen d'elite (un guerrier au debut de la route, un louvetier ensuite), et deux compagnons
-        Combattant elite = jeu.lieu <= 1 || jeu.lieu == 5 ? guerrier : louvetier;
+        // Un Haschen d'elite (guerrier, louvetier ou brute selon le lieu), et deux compagnons
+        Combattant elite = jeu.lieu <= 1 || jeu.lieu == 5 ? guerrier : (jeu.lieu >= 7 ? brute : louvetier);
         elite.nom = elite.nom + " d'elite";
         elite.pvMax = elite.pvMax * 17 / 10;
         elite.pv = elite.pvMax;
@@ -404,7 +479,15 @@ void preparerCombat(Jeu& jeu) {
             placerHaschen(jeu, accessibles, h.first, h.second);
         }
     } else {
-        int nombre = jeu.salle == 1 ? 2 : (jeu.salle >= 6 ? 4 : 3);
+        // Le nombre de Haschen grandit avec les actes
+        int nombre = 3;
+        if (jeu.salle == 1) {
+            nombre = 2;
+        } else if (numeroActe == 1 || numeroActe == 2) {
+            nombre = GetRandomValue(3, 4);
+        } else if (numeroActe == 3) {
+            nombre = 4;
+        }
         for (int i = 0; i < nombre; i++) {
             const auto& h = groupe[GetRandomValue(0, (int)groupe.size() - 1)];
             placerHaschen(jeu, accessibles, h.first, h.second);
@@ -415,8 +498,10 @@ void preparerCombat(Jeu& jeu) {
     jeu.enGarde = false;
     jeu.actionChoisie = Action::Attaque;
     jeu.phase = Phase::Deplacement;
-    jeu.banniere = jeu.typeSalle == TypeSalle::Boss ? "ASHKA" : jeu.nomDuLieu;
+    jeu.banniere = jeu.typeSalle == TypeSalle::Boss ? nomDuBoss(acte(numeroActe).boss) : jeu.nomDuLieu;
     jeu.tempsBanniere = 2.0f;
-    ecrireJournal(jeu, "Salle " + std::to_string(jeu.salle) + "/" + std::to_string(NOMBRE_SALLES) + " : "
-                       + nomTypeSalle(jeu.typeSalle) + " - " + jeu.nomDuLieu);
+    int salleDansLActe = jeu.salle - premiereSalleDeLActe(numeroActe) + 1;
+    ecrireJournal(jeu, "Acte " + std::to_string(numeroActe + 1) + ", salle " + std::to_string(salleDansLActe) + "/"
+                       + std::to_string(nombreDeSallesDeLActe(numeroActe)) + " : " + nomTypeSalle(jeu.typeSalle) + " - "
+                       + jeu.nomDuLieu);
 }

@@ -121,6 +121,10 @@ std::string paroleAuSeuil(const Memoire& m, int personnage) {
             return "Toi aussi, la chute te mene ici ? Au Seuil, mes herbes poussent a la lumiere des etoiles. "
                    "Assieds-toi. Rien ne presse, entre deux visions.";
         }
+        if (m.bossAffrontes[1] > 0 && m.bossVaincus[1] == 0) {
+            return "La Matriarche... elle soigne ses blessures avec mes propres herbes, je les ai reconnues. "
+                   "Frappe fort, et vite, avant qu'elle ne boive.";
+        }
         if (m.voyageurDepouille > m.voyageurAide) {
             return "On raconte qu'un voyageur blesse a ete depouille, dans la foret des Brumes... "
                    "Les visions gardent tout en memoire, tu sais. Le Seuil aussi.";
@@ -132,6 +136,13 @@ std::string paroleAuSeuil(const Memoire& m, int personnage) {
         return "Chaque vision laisse une graine. Regarde l'arbre : il a encore grandi depuis ta derniere chute.";
     }
     if (personnage == 1) {      // Durgan
+        if (m.bossAffrontes[3] > 0 && m.bossVaincus[3] == 0) {
+            return "Vorgath... Meme ici, je sens la chaleur de sa forge. Le sol rougit avant d'exploser : "
+                   "ne reste jamais sur une case qui brille.";
+        }
+        if (m.bossAffrontes[0] > 0 && m.bossVaincus[0] == 0) {
+            return "Skarn leve sa masse tous les trois tours. Trois ! Compte-les, et recule quand il la leve.";
+        }
         if (m.ashkaAffrontee >= 2) {
             return "Ashka recule toujours d'un pas avant de tirer. Frappe a ce moment-la. "
                    "J'ai mis ca dans le metal, en quelque sorte.";

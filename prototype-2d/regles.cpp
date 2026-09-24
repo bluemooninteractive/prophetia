@@ -199,6 +199,9 @@ void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique, float dela
     if (!cible.stats.estDebout()) {
         ecrireJournal(jeu, cible.stats.nom + " tombe !");
         animerChute(jeu, cible, delai);
+        if (cible.boss != 0) {
+            bossTombe(jeu, cible);
+        }
         // Le Haschen laisse tomber quelques pieces d'or
         int pieces = cible.stats.orDonne / 2 + GetRandomValue(0, 4);
         gagnerOr(jeu, pieces);
@@ -263,6 +266,9 @@ void subirEtats(Jeu& jeu, Pion& pion) {
             ecrireJournal(jeu, pion.stats.nom + " succombe a ses blessures !");
             if (&pion != &jeu.aylis) {
                 animerChute(jeu, pion, 0.0f);
+                if (pion.boss != 0) {
+                    bossTombe(jeu, pion);
+                }
             } else {
                 jeu.derniereBlessure = empoisonne ? "poison" : "blessures";
             }
@@ -504,7 +510,7 @@ void deplacerAylis(Jeu& jeu, int colonne, int ligne) {
 
 void finirTourAylis(Jeu& jeu) {
     if (!resteDesHaschen(jeu)) {
-        if (jeu.typeSalle == TypeSalle::Boss) {
+        if (jeu.typeSalle == TypeSalle::Boss && acteDeLaSalle(jeu.salle) == NOMBRE_ACTES - 1) {
             jeu.phase = Phase::Victoire;
             terminerCourse(jeu, true);
         } else {
@@ -529,6 +535,11 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
     if (stats.etourdi) {
         stats.etourdi = false;
         ajouterTexte(jeu, h, "paralyse", SKYBLUE);
+        return;
+    }
+
+    // Les boss ont leurs propres attaques (boss.cpp)
+    if (h.boss != 0 && jouerTourDeBoss(jeu, h)) {
         return;
     }
 

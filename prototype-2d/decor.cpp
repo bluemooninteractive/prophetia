@@ -67,7 +67,14 @@ void dessinerChemin(const Jeu& jeu, int c, int l) {
     DrawRectangleRec({x + 40 + h % 9, y + 44 - h % 11, 4, 3}, bord);
 }
 
+bool estLave(int lieu) {
+    return lieu >= 7;
+}
+
 Color couleurEau(int lieu) {
+    if (estLave(lieu)) {
+        return {220, 80, 20, 255};      // la lave du domaine de Vorgath
+    }
     if (lieu == 3) {
         return {32, 56, 52, 255};       // l'eau croupie du bois des Pendus
     }
@@ -83,7 +90,9 @@ void dessinerEau(const Jeu& jeu, int c, int l) {
     // Des vaguelettes qui glissent dans le sens du courant
     for (int i = 0; i < 3; i++) {
         float decalage = std::fmod(temps * 14 + i * 26 + c * 17 + l * 5, T);
-        DrawRectangleRec({x + decalage - 8, y + 14 + i * 20, 14, 2}, Fade(WHITE, 0.25f));
+        Color vague = estLave(jeu.lieu) ? Color{255, 220, 90, 255} : WHITE;
+        DrawRectangleRec({x + decalage - 8, y + 14 + i * 20, 14, estLave(jeu.lieu) ? 4.0f : 2.0f},
+                         Fade(vague, estLave(jeu.lieu) ? 0.6f : 0.25f));
     }
     // Un reflet qui scintille
     int h = hasardCase(c, l, jeu.salle);
@@ -91,8 +100,8 @@ void dessinerEau(const Jeu& jeu, int c, int l) {
     DrawRectangleRec({x + 10 + h % 50, y + 8 + h % 45, 3, 3}, Fade(WHITE, 0.6f * eclat));
 
     // Les berges : une bande de terre et de sable la ou l'eau touche le sol
-    Color berge = {126, 112, 78, 255};
-    Color bordSombre = {30, 44, 50, 255};
+    Color berge = estLave(jeu.lieu) ? Color{40, 30, 30, 255} : Color{126, 112, 78, 255};
+    Color bordSombre = estLave(jeu.lieu) ? Color{255, 170, 60, 255} : Color{30, 44, 50, 255};
     if (!estEau(caseDuTerrain(jeu, c, l - 1)) && l > 0) {
         DrawRectangleRec({x, y, T, 6}, berge);
         DrawRectangleRec({x, y + 6, T, 2}, bordSombre);
@@ -115,9 +124,10 @@ void dessinerPont(const Jeu& jeu, int c, int l) {
     float x = c * T;
     float y = l * T;
     dessinerEau(jeu, c, l);
-    Color planche = {140, 98, 60, 255};
-    Color planche2 = {122, 84, 50, 255};
-    Color rampe = {70, 46, 28, 255};
+    // Sur la lave, un pont de pierre noire ; sur l'eau, un pont de bois
+    Color planche = estLave(jeu.lieu) ? Color{70, 62, 70, 255} : Color{140, 98, 60, 255};
+    Color planche2 = estLave(jeu.lieu) ? Color{58, 50, 58, 255} : Color{122, 84, 50, 255};
+    Color rampe = estLave(jeu.lieu) ? Color{30, 26, 32, 255} : Color{70, 46, 28, 255};
     // La riviere coule de haut en bas s'il y a de l'eau au-dessus ou en dessous : on la traverse de gauche a droite
     bool rivereVerticale = caseDuTerrain(jeu, c, l - 1) == '~' || caseDuTerrain(jeu, c, l + 1) == '~';
     if (rivereVerticale) {
@@ -209,8 +219,8 @@ bool estRempart(char lettre) {
 void dessinerMur(const Jeu& jeu, int c, int l) {
     float x = c * T;
     float y = l * T;
-    Color pierre = {112, 106, 126, 255};
-    Color joint = {76, 70, 88, 255};
+    Color pierre = jeu.lieu == 8 ? Color{58, 50, 70, 255} : Color{112, 106, 126, 255};
+    Color joint = jeu.lieu == 8 ? Color{30, 24, 38, 255} : Color{76, 70, 88, 255};
     bool murAuDessus = estRempart(caseDuTerrain(jeu, c, l - 1));
     float haut = murAuDessus ? y : y + 10;
     DrawRectangleRec({x, haut, T, y + T - haut}, pierre);
@@ -251,9 +261,9 @@ void dessinerMur(const Jeu& jeu, int c, int l) {
 void dessinerTour(const Jeu& jeu, int c, int l) {
     float x = c * T;
     float y = l * T;
-    Color pierre = {126, 120, 140, 255};
-    Color ombre = {96, 90, 110, 255};
-    Color joint = {76, 70, 88, 255};
+    Color pierre = jeu.lieu == 8 ? Color{66, 58, 78, 255} : Color{126, 120, 140, 255};
+    Color ombre = jeu.lieu == 8 ? Color{44, 38, 54, 255} : Color{96, 90, 110, 255};
+    Color joint = jeu.lieu == 8 ? Color{30, 24, 38, 255} : Color{76, 70, 88, 255};
     DrawEllipse(x + T / 2, y + T - 2, T / 2, 10, Fade(BLACK, 0.4f));
     DrawRectangleRec({x + 2, y - 30, T - 4, T + 30}, pierre);
     DrawRectangleRec({x + T - 20, y - 30, 18, T + 30}, ombre);      // le cote dans l'ombre : du volume
@@ -378,6 +388,8 @@ void dessinerTerrain(const Jeu& jeu) {
         {{60, 50, 50, 255}, {140, 90, 50, 255}},        // camp : cendre et terre battue
         {{60, 58, 70, 255}, {110, 104, 120, 255}},      // forteresse : dalles sales
         {{210, 220, 240, 255}, {90, 100, 150, 255}},    // col : neige et glace
+        {{30, 24, 24, 255}, {120, 60, 40, 255}},        // cendres : cendre noire et terre brulee
+        {{20, 16, 28, 255}, {90, 50, 70, 255}},         // citadelle : obsidienne
     };
     for (int i = 0; i < 14; i++) {
         float x = (float)(hasardCase(i, 3, jeu.salle) * 9 % LARGEUR_FENETRE);
@@ -424,7 +436,7 @@ void dessinerTerrain(const Jeu& jeu) {
                     break;
                 case 'r':
                     DrawEllipse(x + T / 2, y + T - 8, 28, 8, Fade(BLACK, 0.3f));
-                    dessinerSpriteDecor(s.rocher, {x, y + 2, T, T}, WHITE);
+                    dessinerSpriteDecor(estLave(lieu) ? s.obstacle[lieu][0] : s.rocher, {x, y + 2, T, T}, WHITE);
                     break;
                 case 'b':
                     dessinerSpriteDecor(s.tonneau, {x + 4, y + 2, T - 8, T - 8}, WHITE);
@@ -450,8 +462,18 @@ void dessinerTerrain(const Jeu& jeu) {
     }
 }
 
-// Les lumieres du decor, ajoutees a la carte de lumiere (les fenetres allumees du village)
+// Les lumieres du decor, ajoutees a la carte de lumiere (les fenetres allumees du village, la lave)
 void ajouterLumieresDuDecor(const Jeu& jeu) {
+    if (estLave(jeu.lieu)) {
+        for (int l = 0; l < LIGNES; l++) {
+            for (int c = 0; c < COLONNES; c++) {
+                if (estEau(caseDuTerrain(jeu, c, l))) {
+                    Color lave = {255, 110, 30, 255};
+                    DrawCircleGradient(c * T + T / 2, l * T + T / 2, 90, Fade(lave, 0.4f), Fade(lave, 0.0f));
+                }
+            }
+        }
+    }
     for (int l = 0; l < LIGNES; l++) {
         for (int c = 0; c < COLONNES; c++) {
             if (estCoinHautGauche(jeu, c, l, 'H') && !maisonBrulee(c, l, jeu.salle)) {

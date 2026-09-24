@@ -145,8 +145,9 @@ void dessinerChoixVoie(const Jeu& jeu) {
         Rectangle cadre = {40, 640, LARGEUR_FENETRE - 80.0f, 90};
         dessinerCadre(cadre, Fade(PANNEAU, 0.9f), Fade(Color{175, 115, 240, 255}, 0.6f), 2);
         texteCentre("SOUVENIRS DE LA PROPHETIE", {cadre.x, cadre.y + 10, cadre.width, 20}, 20, Color{175, 115, 240, 255});
-        std::string ligne = TextFormat("Visions : %i   Record : salle %i/%i   Ashka vaincue : %i   Fragments : %i",
-                                       m.visions, m.meilleureSalle, NOMBRE_SALLES, m.victoires, m.fragments);
+        std::string ligne = TextFormat("Visions : %i   Record : acte %i   Vorgath vaincu : %i   Fragments : %i",
+                                       m.visions, acteDeLaSalle(m.meilleureSalle > 0 ? m.meilleureSalle : 1) + 1,
+                                       m.victoires, m.fragments);
         texteCentre(ligne, {cadre.x, cadre.y + 50, cadre.width, 20}, 20, RAYWHITE);
     }
 }
@@ -220,7 +221,14 @@ void dessinerPion(const Pion& pion, bool estAylis, int colonneAylis) {
 
     // Les personnages "respirent" : ils montent et descendent un tout petit peu, chacun a son rythme
     float respiration = std::sin(GetTime() * 3.0 + pion.colonne * 1.7 + pion.ligne) * 2.0f;
-    float taille = pion.stats.estBoss ? 80.0f : (pion.stats.nom.find("elite") != std::string::npos ? 74.0f : 64.0f);
+    float taille = 64.0f;
+    if (pion.boss == BOSS_VORGATH) {
+        taille = 104.0f;        // Vorgath domine l'arene
+    } else if (pion.stats.estBoss) {
+        taille = 84.0f;
+    } else if (pion.stats.nom.find("elite") != std::string::npos || pion.stats.nom.find("brute") != std::string::npos) {
+        taille = 74.0f;
+    }
 
     // Un Haschen vaincu se dissout : il s'eleve, retrecit et devient transparent
     float visibilite = 1.0f;
@@ -256,8 +264,9 @@ void dessinerPion(const Pion& pion, bool estAylis, int colonneAylis) {
         if (arme != nullptr) {
             dessinerSprite(*arme, ecran, versLaGauche, teinte);
         }
-        if (pion.stats.estBoss) {
-            dessinerSprite(s.couronne, ecran, versLaGauche, WHITE);
+        const Texture2D* coiffe = spriteCoiffe(pion.stats.nom);
+        if (coiffe != nullptr) {
+            dessinerSprite(*coiffe, ecran, versLaGauche, teinte);
         }
     }
 }
@@ -281,10 +290,13 @@ const Color PENOMBRE[NOMBRE_LIEUX] = {
     {74, 48, 62, 255},      // camp : la braise
     {58, 54, 78, 255},      // forteresse : pierre froide
     {56, 60, 100, 255},     // col : la glace
+    {78, 38, 36, 255},      // cendres : le rougeoiement de la lave
+    {46, 30, 58, 255},      // citadelle : obsidienne et braise
 };
 // La couleur des sources de lumiere de chaque lieu
 const Color LUEUR[NOMBRE_LIEUX] = {{90, 230, 240, 255}, {255, 196, 120, 255}, {140, 240, 215, 255}, {170, 255, 110, 255},
-                                   {255, 150, 60, 255}, {255, 165, 80, 255}, {190, 120, 255, 255}};
+                                   {255, 150, 60, 255}, {255, 165, 80, 255}, {190, 120, 255, 255},
+                                   {255, 120, 40, 255}, {255, 110, 60, 255}};
 
 // Une tache de lumiere ronde, forte au centre et qui s'efface vers le bord
 void tacheDeLumiere(float x, float y, float rayon, Color couleur, float force) {
@@ -343,7 +355,7 @@ void preparerLumiere(const Jeu& jeu) {
     // Les sources de lumiere du lieu
     for (int i = 0; i < (int)jeu.lumieres.size(); i++) {
         Vector2 p = centreDeCase(jeu.lumieres[i].first, jeu.lumieres[i].second);
-        bool flamme = lieu == 1 || lieu == 4 || lieu == 5;      // lanternes, braseros, torches : ca vacille
+        bool flamme = lieu == 1 || lieu == 4 || lieu == 5 || lieu >= 7;     // lanternes, braseros, torches, lave : ca vacille
         float force = flamme ? vacillement(9, i * 2.1f) : 0.8f + 0.2f * std::sin(GetTime() * 1.5f + i);
         tacheDeLumiere(p.x, p.y, 200, LUEUR[lieu], 0.8f * force);
     }
@@ -562,9 +574,17 @@ void dessinerAmbiance(const Jeu& jeu) {
         // Le bois des Pendus : des feux follets verdatres, et des yeux dans le noir
         dessinerLucioles(10, Color{170, 255, 110, 255});
         dessinerYeuxDansLeNoir();
-    } else if (lieu == 4 || lieu == 5) {
-        // Le camp et la forteresse : des braises qui montent des feux et des torches
+    } else if (lieu == 4 || lieu == 5 || lieu >= 7) {
+        // Le camp, la forteresse, et le domaine de Vorgath : des braises qui montent des feux et de la lave
         dessinerBraises(jeu);
+        if (lieu >= 7) {
+            for (int i = 0; i < 40; i++) {
+                float x = std::fmod(hasardFixe(i + 700) * LARGEUR_FENETRE + std::sin(temps * 0.7f + i) * 30, (float)LARGEUR_FENETRE);
+                float y = std::fmod(hasardFixe(i + 800) * HAUTEUR_ARENE - temps * (14 + i % 5 * 6) + HAUTEUR_ARENE * 8,
+                                    (float)HAUTEUR_ARENE);
+                DrawCircle(x, y, 1.6f, Fade(Color{255, 150, 60, 255}, 0.5f + 0.4f * std::sin(temps * 3 + i)));
+            }
+        }
     } else {
         // Le col : une aurore violette et verte, et des volutes autour des cristaux
         for (int x = 0; x < LARGEUR_FENETRE; x = x + 6) {
@@ -613,8 +633,16 @@ void dessinerAmbiance(const Jeu& jeu) {
             DrawRectangleRec({x, chute, 5, 3}, Fade(i % 2 ? Color{150, 90, 40, 255} : Color{100, 70, 40, 255}, 0.8f));
         }
     }
-    if (lieu == 5) {
+    if (lieu == 5 || lieu == 8) {
         dessinerChauvesSouris();
+    }
+    // De la cendre grise qui tombe doucement, dans le domaine de Vorgath
+    if (lieu >= 7) {
+        for (int i = 0; i < 50; i++) {
+            float x = std::fmod(i * 131.0f + temps * (8 + i % 4 * 3), (float)LARGEUR_FENETRE);
+            float y = std::fmod(i * 67.0f + temps * (20 + i % 6 * 5), (float)HAUTEUR_ARENE);
+            DrawRectangle(x, y, 2, 2, Fade(Color{150, 140, 140, 255}, 0.6f));
+        }
     }
     // La brume : au ras du sol partout, epaisse en foret, sur le gue et dans le bois des Pendus
     bool brumeEpaisse = lieu == 0 || lieu == 2 || lieu == 3;
@@ -666,6 +694,20 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     // ----- 3. La penombre et les lumieres -----
     appliquerLumiere();
     dessinerSourcesDeLumiere(jeu, true);
+
+    // ----- Les attaques annoncees par les boss : des cases rouges qui pulsent (a eviter !) -----
+    {
+        float pulsation = 0.5f + 0.5f * std::sin(GetTime() * 8);
+        for (const auto& zone : jeu.zonesDanger) {
+            float x = zone.first * TAILLE_CASE;
+            float y = zone.second * TAILLE_CASE;
+            DrawRectangle(x + 2, y + 2, TAILLE_CASE - 4, TAILLE_CASE - 4, Fade(Color{255, 40, 30, 255}, 0.25f + 0.2f * pulsation));
+            DrawRectangleLinesEx({x + 2, y + 2, TAILLE_CASE - 4.0f, TAILLE_CASE - 4.0f}, 3, Fade(Color{255, 90, 60, 255}, 0.9f));
+            DrawTriangleLines({x + 36, y + 20}, {x + 22, y + 48}, {x + 50, y + 48}, Fade(WHITE, 0.8f));
+            DrawRectangle(x + 35, y + 29, 2, 10, Fade(WHITE, 0.9f));
+            DrawRectangle(x + 35, y + 42, 2, 3, Fade(WHITE, 0.9f));
+        }
+    }
 
     // ----- 4. Les aides de jeu, par-dessus (elles doivent rester bien lisibles) -----
     for (int l = 0; l < LIGNES; l++) {
@@ -744,8 +786,11 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
 // Le bandeau du haut : le lieu, le tour, et a qui c'est de jouer
 void dessinerBandeau(const Jeu& jeu) {
     DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, 44, Fade(BLACK, 0.8f), Fade(BLACK, 0.0f));
-    DrawText(TextFormat("SALLE %i/%i", jeu.salle, NOMBRE_SALLES), 12, 8, 20, OR);
-    DrawText(jeu.nomDuLieu.c_str(), 150, 8, 20, RAYWHITE);
+    int numeroActe = acteDeLaSalle(jeu.salle);
+    std::string repere = TextFormat("ACTE %i - %i/%i", numeroActe + 1, jeu.salle - premiereSalleDeLActe(numeroActe) + 1,
+                                    nombreDeSallesDeLActe(numeroActe));
+    DrawText(repere.c_str(), 12, 8, 20, OR);
+    DrawText(jeu.nomDuLieu.c_str(), 12 + MeasureText(repere.c_str(), 20) + 18, 8, 20, RAYWHITE);
 
     std::string qui = "TON TOUR";
     Color couleur = Color{90, 200, 110, 255};
@@ -1000,31 +1045,35 @@ void dessinerFondVision() {
     }
 }
 
-// La frise de la route : une pierre par salle, reliees par un chemin. Les salles passees brillent.
+// La frise de l'acte en cours : une pierre par salle, reliees par un chemin. Les salles passees brillent.
 void dessinerFrise(const Jeu& jeu) {
     float y = 200;
     float gauche = 150;
-    float pas = (LARGEUR_FENETRE - 2 * gauche) / (NOMBRE_SALLES - 1);
-    DrawLineEx({gauche, y}, {gauche + pas * (NOMBRE_SALLES - 1), y}, 3, Fade(BORD, 0.7f));
-    for (int salle = 1; salle <= NOMBRE_SALLES; salle++) {
-        float x = gauche + pas * (salle - 1);
+    int numeroActe = acteDeLaSalle(jeu.salle);
+    int premiere = premiereSalleDeLActe(numeroActe);
+    int nombre = nombreDeSallesDeLActe(numeroActe);
+    int derniere = premiere + nombre - 1;
+    float pas = (LARGEUR_FENETRE - 2 * gauche) / (nombre - 1);
+    DrawLineEx({gauche, y}, {gauche + pas * (nombre - 1), y}, 3, Fade(BORD, 0.7f));
+    for (int salle = premiere; salle <= derniere; salle++) {
+        float x = gauche + pas * (salle - premiere);
         Color couleur = BORD;
         if (salle < jeu.salle) {
             couleur = VIOLET_VISION;
         } else if (salle == jeu.salle) {
             couleur = OR;
         }
-        float rayon = salle == NOMBRE_SALLES ? 13.0f : 9.0f;
+        float rayon = salle == derniere ? 13.0f : 9.0f;
         if (salle == jeu.salle) {
             DrawCircle(x, y, rayon + 6 + 2 * std::sin(GetTime() * 4), Fade(OR, 0.25f));
         }
         DrawCircle(x, y, rayon, salle <= jeu.salle ? couleur : CADRE);
         DrawCircleLines(x, y, rayon, couleur);
     }
-    // Le nom du lieu sous chaque salle, dans l'ordre de l'histoire (et Ashka tout au bout)
-    for (int salle = 1; salle <= NOMBRE_SALLES; salle++) {
-        float x = gauche + pas * (salle - 1);
-        std::string nom = salle == NOMBRE_SALLES ? "Ashka" : nomCourtLieu(salle - 1);
+    // Le nom du lieu sous chaque salle (et le boss tout au bout)
+    for (int salle = premiere; salle <= derniere; salle++) {
+        float x = gauche + pas * (salle - premiere);
+        std::string nom = salle == derniere ? "Boss" : nomCourtLieu(lieuDeLaSalle(salle));
         texteCentre(nom, {x - 50, y + 16, 100, 20}, 10, salle == jeu.salle ? OR : TEXTE_GRIS);
     }
 }
@@ -1074,7 +1123,22 @@ void dessinerResumeAylis(const Jeu& jeu, const std::string& aide, float yMessage
 }
 
 // L'image d'une salle, au milieu de sa carte
-void dessinerImageSalle(TypeSalle type, int lieu, Rectangle zone) {
+// Le portrait d'un boss : son sprite, son arme et sa coiffe
+void dessinerPortraitBoss(int boss, Rectangle ecran) {
+    const char* noms[5] = {"", "Skarn", "Matriarche", "Ashka", "Vorgath"};
+    Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
+    DrawTexturePro(spriteHaschen(noms[boss]), source, ecran, {0, 0}, 0, WHITE);
+    const Texture2D* arme = spriteArmeHaschen(noms[boss]);
+    if (arme != nullptr) {
+        DrawTexturePro(*arme, source, ecran, {0, 0}, 0, WHITE);
+    }
+    const Texture2D* coiffe = spriteCoiffe(noms[boss]);
+    if (coiffe != nullptr) {
+        DrawTexturePro(*coiffe, source, ecran, {0, 0}, 0, WHITE);
+    }
+}
+
+void dessinerImageSalle(TypeSalle type, int lieu, int boss, Rectangle zone) {
     const Sprites& s = sprites();
     Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
     float centreX = zone.x + zone.width / 2;
@@ -1106,9 +1170,7 @@ void dessinerImageSalle(TypeSalle type, int lieu, Rectangle zone) {
         DrawCircle(centreX, centreY, 5, BLACK);
     } else {
         DrawCircle(centreX, centreY, 54, Fade(RED, 0.15f));
-        DrawTexturePro(s.ashka, source, ecran, {0, 0}, 0, WHITE);
-        DrawTexturePro(s.arc, source, ecran, {0, 0}, 0, WHITE);
-        DrawTexturePro(s.couronne, source, ecran, {0, 0}, 0, WHITE);
+        dessinerPortraitBoss(boss, ecran);
     }
 }
 
@@ -1157,9 +1219,10 @@ void texteSurPlusieursLignes(const std::string& texte, Rectangle zone, int taill
 
 void dessinerChoixSalle(const Jeu& jeu) {
     dessinerFondVision();
-    const char* titre = jeu.salle >= NOMBRE_SALLES ? "LA VISION S'ASSOMBRIT" : "UNE VISION";
+    const char* titre = estSalleDeBoss(jeu.salle) ? "LA VISION S'ASSOMBRIT" : "UNE VISION";
     texteCentre(titre, {0, 40, (float)LARGEUR_FENETRE, 50}, 50, VIOLET_VISION);
-    texteCentre(TextFormat("Salle %i/%i  -  %s", jeu.salle, NOMBRE_SALLES, nomLieu(jeu.lieu).c_str()),
+    texteCentre(TextFormat("Acte %i : %s  -  %s", acteDeLaSalle(jeu.salle) + 1, acte(acteDeLaSalle(jeu.salle)).nom.c_str(),
+                           nomLieu(jeu.lieu).c_str()),
                 {0, 100, (float)LARGEUR_FENETRE, 24}, 20, LIGHTGRAY);
     dessinerFrise(jeu);
 
@@ -1168,8 +1231,9 @@ void dessinerChoixSalle(const Jeu& jeu) {
         TypeSalle type = jeu.propositions[i].type;
         Color couleur = couleurSalle(type);
         Rectangle carte = dessinerCarteChoix(i, nombre, couleur);
-        dessinerImageSalle(type, jeu.lieu, {carte.x, carte.y + 30, carte.width, 120});
-        texteCentre(nomTypeSalle(type), {carte.x, carte.y + 165, carte.width, 30}, 30, couleur);
+        dessinerImageSalle(type, jeu.lieu, acte(acteDeLaSalle(jeu.salle)).boss, {carte.x, carte.y + 30, carte.width, 120});
+        std::string titreCarte = type == TypeSalle::Boss ? nomDuBoss(acte(acteDeLaSalle(jeu.salle)).boss) : nomTypeSalle(type);
+        texteCentre(titreCarte, {carte.x, carte.y + 165, carte.width, 30}, titreCarte.size() > 14 ? 20 : 30, couleur);
         texteSurPlusieursLignes(descriptionSalle(type), {carte.x + 18, carte.y + 215, carte.width - 36, 60}, 20, RAYWHITE);
     }
     dessinerResumeAylis(jeu, nombre == 1 ? "Clique sur la carte, ou tape 1" : "Ou aller ? Clique sur une carte, ou tape son numero");
@@ -1757,7 +1821,8 @@ void dessinerReveil(const Jeu& jeu) {
     Rectangle bilan = {70, 430, LARGEUR_FENETRE - 140.0f, 150};
     dessinerCadre(bilan, Fade(PANNEAU, 0.9f), Fade(OR, 0.6f), 2);
     texteCentre("CETTE VISION", {bilan.x, bilan.y + 12, bilan.width, 20}, 20, OR);
-    texteCentre(TextFormat("Salle %i/%i  -  %s", jeu.salle, NOMBRE_SALLES, nomLieu(jeu.lieu).c_str()),
+    texteCentre(TextFormat("Acte %i : %s  -  %s", acteDeLaSalle(jeu.salle) + 1, acte(acteDeLaSalle(jeu.salle)).nom.c_str(),
+                           nomLieu(jeu.lieu).c_str()),
                 {bilan.x, bilan.y + 44, bilan.width, 20}, 20, RAYWHITE);
     std::string runes = TextFormat("%i rune(s) : ", (int)jeu.runes.size());
     for (int i = 0; i < (int)jeu.runes.size(); i++) {
@@ -1775,6 +1840,42 @@ void dessinerReveil(const Jeu& jeu) {
         texteCentre("ENTREE : reprendre la route", {0, 620, (float)LARGEUR_FENETRE, 24}, 20, Fade(RAYWHITE, clignote));
     }
     texteCentre(TextFormat("Visions vecues : %i", jeu.memoire.visions), {0, 700, (float)LARGEUR_FENETRE, 20}, 20, TEXTE_GRIS);
+}
+
+// ===================== Un nouvel acte =====================
+
+void dessinerNouvelActe(const Jeu& jeu) {
+    dessinerFondVision();
+    int numeroActe = acteDeLaSalle(jeu.salle);
+    const Acte& a = acte(numeroActe);
+    const char* chiffres[NOMBRE_ACTES] = {"I", "II", "III", "IV"};
+    float apparition = jeu.fondu > 1 ? 1 : jeu.fondu;
+    texteCentre(TextFormat("ACTE %s", chiffres[numeroActe]), {0, 120, (float)LARGEUR_FENETRE, 70}, 70,
+                Fade(Color{225, 205, 255, 255}, apparition));
+    texteCentre(a.nom, {0, 210, (float)LARGEUR_FENETRE, 40}, 40, Fade(OR, apparition));
+    // les lieux de l'acte
+    std::string lieux;
+    int dernier = -1;
+    for (int lieu : a.lieux) {
+        if (lieu != dernier) {
+            lieux = lieux + (lieux.empty() ? "" : "   -   ") + nomLieu(lieu);
+            dernier = lieu;
+        }
+    }
+    texteCentre(lieux, {0, 280, (float)LARGEUR_FENETRE, 20}, 20, Fade(LIGHTGRAY, apparition));
+    // le gardien qui attend au bout
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawCircleGradient(LARGEUR_FENETRE / 2, 440, 110, Fade(Color{255, 60, 60, 255}, 0.3f * apparition), BLANK);
+    EndBlendMode();
+    dessinerPortraitBoss(a.boss, {LARGEUR_FENETRE / 2.0f - 70, 360, 140, 140});
+    texteCentre(TextFormat("Au bout de la route : %s", nomDuBoss(a.boss).c_str()), {0, 520, (float)LARGEUR_FENETRE, 24}, 20,
+                Color{255, 140, 130, 255});
+    texteCentre("AYLIS reprend des forces : tous les pv, et une potion.", {0, 580, (float)LARGEUR_FENETRE, 20}, 20,
+                Color{140, 230, 160, 255});
+    if (jeu.fondu > 1.2f) {
+        texteCentre("ENTREE : reprendre la route", {0, 660, (float)LARGEUR_FENETRE, 24}, 20,
+                    Fade(RAYWHITE, 0.6f + 0.4f * std::sin(GetTime() * 4)));
+    }
 }
 
 void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
@@ -1804,6 +1905,10 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         dessinerSeuil(jeu);
         return;
     }
+    if (jeu.phase == Phase::NouvelActe) {
+        dessinerNouvelActe(jeu);
+        return;
+    }
     if (jeu.phase == Phase::Rencontre) {
         dessinerRencontre(jeu);
         return;
@@ -1830,7 +1935,7 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     if (jeu.phase == Phase::CombatGagne) {
         dessinerMessage(jeu.nomDuLieu + " : victoire !", Color{110, 220, 120, 255}, "Appuie sur ENTREE pour choisir ta rune");
     } else if (jeu.phase == Phase::Victoire) {
-        dessinerMessage("ASHKA EST VAINCUE !", OR,
+        dessinerMessage("VORGATH EST VAINCU !", OR,
                         TextFormat("+%i fragments de prophetie - ENTREE pour revenir", jeu.fragmentsGagnes));
     } else if (jeu.phase == Phase::Defaite) {
         dessinerVisionBrisee(jeu);

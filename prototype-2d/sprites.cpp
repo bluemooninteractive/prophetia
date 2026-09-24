@@ -182,6 +182,112 @@ const std::vector<std::string> DESSIN_CRISTAL = {
     "................",
 };
 
+// ----- Les boss -----
+
+// Skarn : un casque de fer a cornes, par-dessus la tete d'un Haschen (ses oreilles passent au travers)
+const std::vector<std::string> DESSIN_CASQUE = {
+    "................",
+    "................",
+    "k...........k...",
+    "gk.........kg...",
+    "kgk.......kgk...",
+    ".kGGGGGGGGGGk...",
+    ".kGgGGGGGGgGk...",
+};
+
+// La Matriarche : une ramure de bois de cerf, et une rune verte sur le front
+const std::vector<std::string> DESSIN_RAMURE = {
+    "N.N.........N.N.",
+    ".NN.N.....N.NN..",
+    "..NNN.....NNN...",
+    "...kN.....Nk....",
+    "....kNNNNNk.....",
+    "................",
+    "......l.........",
+};
+
+// Vorgath le Destructeur : une armure noire, des cornes, et la lave qui coule dans les fissures
+const std::vector<std::string> DESSIN_VORGATH = {
+    "kk..........kk..",
+    "kGk........kGk..",
+    ".kGk......kGk...",
+    ".kGGkkkkkkGGk...",
+    "..kGGGGGGGGk....",
+    ".kGGkeGGekGGk...",
+    ".kGGGGooGGGGk...",
+    "..kGGGGGGGGk....",
+    ".kokGggggGkok...",
+    "kGGkGGooGGkGGk..",
+    "kGokGGGGGGkoGk..",
+    "kGGkGoGGoGkGGk..",
+    ".kk.kGGGGGGk.kk.",
+    "....kGGkkGGk....",
+    "....kGGk.kGGk...",
+    "....kkkk.kkkk...",
+};
+
+// ----- L'acte IV : les Cendres et la citadelle de Vorgath -----
+
+// Une roche volcanique, fendue de lave
+const std::vector<std::string> DESSIN_ROCHE_VOLCANIQUE = {
+    "................",
+    "................",
+    "................",
+    "......kkkk......",
+    "....kkGGGGkk....",
+    "...kGGGoGGGGk...",
+    "..kGGGGGoGGGGk..",
+    "..kGGoGGGoGGGk..",
+    ".kGGGGoGGGGGGGk.",
+    ".kGGGGGoGGoGGGk.",
+    ".kGGGGGGGGoGGGk.",
+    "..kGGGGGGGGGGk..",
+    "...kkkkkkkkkk...",
+    "................",
+    "................",
+    "................",
+};
+
+// De la cendre grise, et quelques braises
+const std::vector<std::string> DESSIN_CENDRES = {
+    "................",
+    "................",
+    "....G...........",
+    "...GgG......o...",
+    "....G...........",
+    "..........G.....",
+    ".........GgG....",
+    "..o.......G.....",
+    "................",
+    "......G.........",
+    ".....GgG....o...",
+    "......G.........",
+    "................",
+    "..G.............",
+    ".GgG............",
+    "................",
+};
+
+// Une fissure de lave dans le sol : elle eclaire les Cendres
+const std::vector<std::string> DESSIN_FISSURE = {
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    "..k.............",
+    "..kok...........",
+    "...koYk.....k...",
+    "....kYoYk..kok..",
+    ".....koYYokoYk..",
+    "......kkoYYok...",
+    "........kkkk....",
+    "................",
+    "................",
+    "................",
+    "................",
+};
+
 // ----- Les nouveaux lieux de la route -----
 
 // Le gue des Saules : un saule pleureur, dont les branches retombent
@@ -789,6 +895,17 @@ void chargerSprites() {
          DESSIN_TORCHE);                                                         // la forteresse de Karn
     lieu(6, {78, 82, 96, 255}, {70, 74, 88, 255}, DESSIN_ROCHER, DESSIN_ROCHER, DESSIN_CAILLOUX, DESSIN_NEIGE,
          DESSIN_CRISTAL);                                                        // le col d'Ashka
+    lieu(7, {62, 46, 46, 255}, {56, 41, 41, 255}, DESSIN_ROCHE_VOLCANIQUE, DESSIN_ROCHE_VOLCANIQUE, DESSIN_CENDRES,
+         DESSIN_CAILLOUX, DESSIN_FISSURE);                                       // les Cendres
+    lieu(8, {46, 38, 56, 255}, {42, 34, 52, 255}, DESSIN_ROCHE_VOLCANIQUE, DESSIN_ROCHE_VOLCANIQUE, DESSIN_GRAVATS,
+         DESSIN_OS, DESSIN_BRASERO);                                             // la citadelle de Vorgath
+
+    // Les boss : le meme lievre pour Skarn (armure de fer) et la Matriarche (robe verte), et Vorgath a part
+    lesSprites.skarn = creerTexture(DESSIN_HASCHEN, {70, 70, 84, 255});
+    lesSprites.matriarche = creerTexture(DESSIN_HASCHEN, {48, 104, 66, 255});
+    lesSprites.vorgath = creerTexture(DESSIN_VORGATH, aucune);
+    lesSprites.casque = creerTexture(DESSIN_CASQUE, aucune);
+    lesSprites.ramure = creerTexture(DESSIN_RAMURE, aucune);
 
     lesSprites.tonneau = creerTexture(DESSIN_TONNEAU, aucune);
     lesSprites.tente = creerTexture(DESSIN_TENTE, aucune);
@@ -808,6 +925,7 @@ void dechargerSprites() {
         lesSprites.louvetier, lesSprites.ashka, lesSprites.feu[0], lesSprites.feu[1],
         lesSprites.marchands[0], lesSprites.marchands[1], lesSprites.marchands[2],
         lesSprites.tonneau, lesSprites.tente, lesSprites.rocher,
+        lesSprites.skarn, lesSprites.matriarche, lesSprites.vorgath, lesSprites.casque, lesSprites.ramure,
     };
     for (const Texture2D& texture : textures) {
         UnloadTexture(texture);
@@ -836,6 +954,9 @@ bool contient(const std::string& nom, const std::string& mot) {
 
 const Texture2D& spriteHaschen(const std::string& nom) {
     if (contient(nom, "Ashka")) return lesSprites.ashka;
+    if (contient(nom, "Skarn")) return lesSprites.skarn;
+    if (contient(nom, "Matriarche")) return lesSprites.matriarche;
+    if (contient(nom, "Vorgath")) return lesSprites.vorgath;
     if (contient(nom, "eclaireur")) return lesSprites.eclaireur;
     if (contient(nom, "traqueur")) return lesSprites.traqueur;
     if (contient(nom, "chaman")) return lesSprites.chaman;
@@ -843,7 +964,18 @@ const Texture2D& spriteHaschen(const std::string& nom) {
     return lesSprites.guerrier;
 }
 
+// Ce que porte un boss sur la tete (ou nullptr)
+const Texture2D* spriteCoiffe(const std::string& nom) {
+    if (contient(nom, "Ashka")) return &lesSprites.couronne;
+    if (contient(nom, "Skarn")) return &lesSprites.casque;
+    if (contient(nom, "Matriarche")) return &lesSprites.ramure;
+    return nullptr;
+}
+
 const Texture2D* spriteArmeHaschen(const std::string& nom) {
+    if (contient(nom, "Vorgath")) return nullptr;       // Vorgath se bat avec ses griffes de fer
+    if (contient(nom, "Skarn") || contient(nom, "brute")) return &lesSprites.epee;
+    if (contient(nom, "Matriarche")) return &lesSprites.baton;
     if (contient(nom, "traqueur") || contient(nom, "Ashka")) return &lesSprites.arc;
     if (contient(nom, "chaman")) return &lesSprites.baton;
     if (contient(nom, "louvetier")) return nullptr;     // il se bat avec ses crocs... et son loup

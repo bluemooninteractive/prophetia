@@ -10,7 +10,8 @@
 #include "jeu2d.h"
 
 const std::string fichierMemoire = "vesperance_memoire.txt";
-const std::string enteteMemoire = "VESPERANCE-MEMOIRE-2";
+const std::string enteteMemoire = "VESPERANCE-MEMOIRE-3";
+const std::string enteteV2 = "VESPERANCE-MEMOIRE-2";       // avant les 4 actes
 const std::string enteteAncienne = "VESPERANCE-MEMOIRE-1";    // la version d'avant le Seuil : on sait encore la lire
 
 // ===================== Le fichier =====================
@@ -26,6 +27,11 @@ std::vector<int*> valeursDeLaMemoire(Memoire& m) {
     for (int i = 0; i < NOMBRE_AMELIORATIONS; i++) {
         valeurs.push_back(&m.ameliorations[i]);
     }
+    // a partir d'ici : la version 3 (les 4 actes et leurs boss)
+    for (int i = 0; i < 4; i++) {
+        valeurs.push_back(&m.bossAffrontes[i]);
+        valeurs.push_back(&m.bossVaincus[i]);
+    }
     return valeurs;
 }
 
@@ -33,7 +39,7 @@ void chargerMemoire(Memoire& memoire) {
     memoire = Memoire();    // on repart de zero si le fichier n'existe pas
     std::ifstream fichier(fichierMemoire);
     std::string ligne;
-    if (!fichier || !std::getline(fichier, ligne) || (ligne != enteteMemoire && ligne != enteteAncienne)) {
+    if (!fichier || !std::getline(fichier, ligne) || (ligne != enteteMemoire && ligne != enteteV2 && ligne != enteteAncienne)) {
         return;
     }
     // Une vieille memoire s'arrete apres les 6 premieres valeurs : le reste reste a zero
@@ -61,17 +67,15 @@ void enregistrerMemoire(const Memoire& memoire) {
 void terminerCourse(Jeu& jeu, bool victoire) {
     Memoire& m = jeu.memoire;
 
-    // Les fragments de prophetie : 1 par salle franchie, 2 de plus par elite, 5 pour Ashka
-    int sallesFranchies = victoire ? NOMBRE_SALLES : jeu.salle - 1;
-    jeu.fragmentsGagnes = sallesFranchies + 2 * jeu.elitesVaincues + (victoire ? 5 : 0);
+    // Les fragments de prophetie : 1 par salle franchie, 2 de plus par elite, 5 par boss vaincu
+    int sallesFranchies = victoire ? nombreDeSalles() : jeu.salle - 1;
+    int bossVaincus = victoire ? NOMBRE_ACTES : acteDeLaSalle(jeu.salle);
+    jeu.fragmentsGagnes = sallesFranchies + 2 * jeu.elitesVaincues + 5 * bossVaincus;
     m.fragments = m.fragments + jeu.fragmentsGagnes;
     m.fragmentsTotal = m.fragmentsTotal + jeu.fragmentsGagnes;
 
     if (jeu.salle > m.meilleureSalle) {
         m.meilleureSalle = jeu.salle;
-    }
-    if (jeu.typeSalle == TypeSalle::Boss) {
-        m.ashkaAffrontee = m.ashkaAffrontee + 1;
     }
     if (victoire) {
         m.victoires = m.victoires + 1;
@@ -103,7 +107,19 @@ std::string texteDuReveil(const Jeu& jeu) {
 
     // 2. Le souvenir le plus fort : qui, ou quoi, a fait tomber AYLIS
     const std::string& qui = jeu.derniereBlessure;
-    if (jeu.typeSalle == TypeSalle::Boss || qui == "Ashka") {
+    int bossDeLActe = acte(acteDeLaSalle(jeu.salle)).boss;
+    if (jeu.typeSalle == TypeSalle::Boss && bossDeLActe == BOSS_SKARN) {
+        texte = texte + (m.bossAffrontes[0] <= 1
+            ? "Le sol tremble encore sous la masse de Skarn. Quand il la leve, il faut s'ecarter : le souvenir est net."
+            : "Skarn, encore. Trois coups, puis la masse. AYLIS commence a compter avec lui.");
+    } else if (jeu.typeSalle == TypeSalle::Boss && bossDeLActe == BOSS_MATRIARCHE) {
+        texte = texte + "Le hurlement de la Matriarche resonne encore. Les loups repondent toujours a son appel... "
+                        "il faudra frapper avant qu'elle n'appelle.";
+    } else if (jeu.typeSalle == TypeSalle::Boss && bossDeLActe == BOSS_VORGATH) {
+        texte = texte + (m.bossAffrontes[3] <= 1
+            ? "Vorgath. Une montagne d'armure noire, et la lave qui monte sous les pieds. La prophetie n'avait jamais montre cela."
+            : "Vorgath, encore. Le sol rougit avant d'exploser : AYLIS le sait, maintenant.");
+    } else if (jeu.typeSalle == TypeSalle::Boss || qui == "Ashka") {
         if (m.ashkaAffrontee <= 1) {
             texte = texte + "Le visage d'Ashka reste grave dans sa memoire : la couronne, l'arc, ce regard sans pitie.";
         } else {
@@ -123,6 +139,8 @@ std::string texteDuReveil(const Jeu& jeu) {
             "L'odeur de fumee du camp haschen colle encore a sa peau.",
             "Les remparts de Karn se dressent encore dans sa memoire, et les bannieres pourpres d'Ashka.",
             "Le vent glace du col souffle encore dans sa memoire, si pres d'Ashka.",
+            "La cendre des terres de Vorgath brule encore les yeux d'AYLIS.",
+            "Les murs noirs de la citadelle de Vorgath se referment encore dans ses reves.",
         };
         texte = texte + souvenirs[jeu.lieu];
     }
@@ -134,7 +152,7 @@ std::string phraseDeDepart(const Memoire& memoire) {
         return "Choisis la voie d'AYLIS";
     }
     if (memoire.victoires > 0) {
-        return "Ashka est tombee dans au moins un futur. La prophetie en montre d'autres...";
+        return "Vorgath est tombe dans au moins un futur. La prophetie en montre d'autres...";
     }
     return "AYLIS se reveille. La route attend, encore.";
 }

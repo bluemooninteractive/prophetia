@@ -51,6 +51,11 @@ struct Pion {
     float reculY = 0.0f;
     float pvAffiches = -1.0f;   // la barre de vie "fantome", qui descend doucement apres un coup
     float disparition = 0.0f;   // > 0 pendant qu'il se dissout apres sa chute
+
+    // ----- Pour les boss (voir boss.cpp) -----
+    int boss = 0;               // 0 = pas un boss, sinon le numero du boss (BOSS_SKARN...)
+    int compteur = 0;           // les tours du boss, pour ses attaques speciales
+    bool phase2 = false;        // Vorgath : la deuxieme phase du combat
 };
 
 // ----- Les effets visuels -----
@@ -129,6 +134,7 @@ enum class Phase {
     Defaite,        // AYLIS tombe : l'ecran se teinte de violet, la vision se brise...
     Reveil,         // ... et AYLIS se reveille, avec le souvenir de la vision
     Seuil,          // le monde entre les visions : on y depense les fragments de prophetie
+    NouvelActe,     // le titre d'un nouvel acte de la route (apres chaque boss)
 };
 
 // ===================== La memoire (memoire.cpp) =====================
@@ -136,9 +142,9 @@ enum class Phase {
 // on le retrouve meme apres avoir ferme le jeu.
 struct Memoire {
     int visions = 0;            // le nombre de courses terminees par une chute
-    int victoires = 0;          // le nombre de fois ou Ashka a ete vaincue
+    int victoires = 0;          // le nombre de courses gagnees (Vorgath vaincu)
     int meilleureSalle = 0;     // la salle la plus lointaine jamais atteinte
-    int ashkaAffrontee = 0;     // combien de fois AYLIS a affronte Ashka
+    int ashkaAffrontee = 0;     // combien de fois AYLIS a affronte Ashka (garde pour les vieilles memoires)
     int fragments = 0;          // les fragments de prophetie a depenser au Seuil
     int fragmentsTotal = 0;     // tous ceux gagnes depuis le debut
     int passagesAuSeuil = 0;    // le nombre de visites au Seuil (le monde entre les visions)
@@ -148,13 +154,36 @@ struct Memoire {
     int voyageurDepouille = 0;
     int deserteurEpargne = 0;
     int deserteurDepouille = 0;
+    int bossAffrontes[4] = {0, 0, 0, 0};    // combien de fois AYLIS a affronte chaque boss
+    int bossVaincus[4] = {0, 0, 0, 0};      // ... et combien de fois chacun est tombe
 };
 
 const int NOMBRE_AMELIORATIONS = 6;
 
 // ===================== La route (route.cpp) =====================
 
-const int NOMBRE_SALLES = 8;        // une salle par lieu de la route, et la derniere est celle du boss
+// La route est coupee en 4 ACTES. Chaque acte traverse quelques lieux, et se termine par un boss.
+const int NOMBRE_ACTES = 4;
+const int BOSS_SKARN = 1;
+const int BOSS_MATRIARCHE = 2;
+const int BOSS_ASHKA = 3;
+const int BOSS_VORGATH = 4;
+
+struct Acte {
+    std::string nom;
+    std::vector<int> lieux;     // le lieu de chaque salle de l'acte (sans compter la salle du boss)
+    int lieuDuBoss;
+    int boss;                   // BOSS_SKARN, BOSS_MATRIARCHE...
+};
+
+const Acte& acte(int numero);                            // numero : 0 a NOMBRE_ACTES - 1
+int nombreDeSalles();                                   // toutes les salles de la route (boss compris)
+int lieuDeLaSalle(int salle);                           // le lieu prevu pour cette salle
+int acteDeLaSalle(int salle);                           // la salle est numerotee de 1 a nombreDeSalles()
+int premiereSalleDeLActe(int numero);
+int nombreDeSallesDeLActe(int numero);                  // boss compris
+bool estSalleDeBoss(int salle);
+std::string nomDuBoss(int boss);
 
 // Les sortes de salles que la vision peut montrer
 enum class TypeSalle {
@@ -224,7 +253,10 @@ struct Jeu {
     Jauge rage = Jauge(rageMax);        // la classe du jeu console
     bool enGarde = false;               // attaque en garde ce tour-ci : les coups recus sont divises par 2
     // La route
-    int salle = 1;                      // le numero de la salle en cours (1 a NOMBRE_SALLES)
+    int salle = 1;                      // le numero de la salle en cours (1 a nombreDeSalles())
+    // Les attaques annoncees : les cases qui vont exploser au prochain tour du boss (a eviter !)
+    std::vector<std::pair<int, int>> zonesDanger;
+    int degatsDanger = 0;
     int lieu = 0;                       // le lieu de la salle (0 a NOMBRE_LIEUX - 1, voir lieux.cpp)
     std::vector<char> terrain;          // la carte du lieu : une lettre par case (voir lieux.cpp)
     TypeSalle typeSalle = TypeSalle::Combat;
@@ -308,6 +340,7 @@ const std::vector<Rune>& catalogueRunes();
 bool runeDisponible(const Jeu& jeu, const Rune& rune);
 void proposerRunes(Jeu& jeu, bool epique);
 void appliquerRune(Jeu& jeu, const Rune& rune);
+void proposerSalles(Jeu& jeu);                          // la vision : les salles possibles pour jeu.salle
 void allerPlusLoin(Jeu& jeu);                           // la salle est finie : la vision montre la suite
 
 // ===================== haltes.cpp : les marchands et les rencontres =====================
@@ -388,3 +421,12 @@ std::vector<bool> casesAccessibles(const Jeu& jeu);    // depuis la case de depa
 void dessinerTerrain(const Jeu& jeu);                   // le sol et les constructions (avant la penombre)
 void ajouterLumieresDuDecor(const Jeu& jeu);            // les fenetres allumees... (dans la carte de lumiere)
 std::vector<Vector2> cheminsDeFumee(const Jeu& jeu);    // d'ou monte la fumee des maisons brulees
+
+// ===================== boss.cpp : les gardiens de la route =====================
+
+void placerHaschen(Jeu& jeu, const std::vector<bool>& accessibles, Combattant stats, Color couleur);   // route.cpp
+void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique, float delai);            // regles.cpp
+void placerBossEtEscorte(Jeu& jeu, const std::vector<bool>& accessibles, int boss,
+                         const std::vector<std::pair<Combattant, Color>>& groupe);
+bool jouerTourDeBoss(Jeu& jeu, Pion& boss);              // true : le boss a fait une action speciale
+void bossTombe(Jeu& jeu, Pion& boss);                    // son escorte s'enfuit

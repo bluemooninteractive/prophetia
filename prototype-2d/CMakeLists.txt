@@ -21,6 +21,7 @@ add_executable(vesperance_2d
     regles.cpp
     route.cpp
     lieux.cpp
+    boss.cpp
     decor.cpp
     haltes.cpp
     memoire.cpp

@@ -193,6 +193,8 @@ int main() {
             } else {
                 entrerAuSeuil(jeu);                 // entre deux visions : le Seuil
             }
+        } else if (jeu.phase == Phase::NouvelActe && jeu.fondu > 1.2f && (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+            proposerSalles(jeu);                    // la vision montre la premiere salle du nouvel acte
         } else if (jeu.phase == Phase::Seuil) {
             commandesSeuil(jeu, souris);
         }
@@ -215,7 +217,7 @@ int main() {
                 jeu.phase = Phase::Reveil;
                 jeu.fondu = 0.0f;
             }
-        } else if (jeu.phase == Phase::Reveil) {
+        } else if (jeu.phase == Phase::Reveil || jeu.phase == Phase::NouvelActe) {
             jeu.fondu = jeu.fondu + secondes;       // le texte du reveil apparait lettre par lettre
         }
         mettreAJourTextes(jeu, tempsDuJeu);

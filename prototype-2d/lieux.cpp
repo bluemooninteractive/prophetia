@@ -10,6 +10,7 @@
 //   H  maison (2x2 cases)   A  tente (2x2 cases)         #  rempart
 //   I  tour                 f  cloture ou palissade      o  puits
 //   b  tonneau              F  feu de camp
+// Dans les Cendres et la citadelle de Vorgath, l'eau (~) est de la LAVE, et les ponts (=) sont en pierre.
 //
 // AYLIS commence toujours en colonne 1, ligne 3 : cette case doit etre libre.
 #include "jeu2d.h"
@@ -24,13 +25,15 @@ std::string nomLieu(int lieu) {
         case 3: return "Le bois des Pendus";
         case 4: return "Le camp de guerre haschen";
         case 5: return "La forteresse de Karn";
-        default: return "Le col d'Ashka";
+        case 6: return "Le col d'Ashka";
+        case 7: return "Les Cendres";
+        default: return "La citadelle de Vorgath";
     }
 }
 
 // Un nom tres court, pour la frise de la route
 std::string nomCourtLieu(int lieu) {
-    const char* noms[NOMBRE_LIEUX] = {"Foret", "Village", "Gue", "Bois", "Camp", "Karn", "Col"};
+    const char* noms[NOMBRE_LIEUX] = {"Foret", "Village", "Gue", "Bois", "Camp", "Karn", "Col", "Cendres", "Citadelle"};
     return noms[lieu];
 }
 
@@ -173,6 +176,42 @@ const std::vector<Carte> CARTES[NOMBRE_LIEUX] = {
          ".*...r......",
          "......r..r.*",
          "r..r.....r.."},
+    },
+    {   // 7. Les Cendres : un desert de cendre, fendu par des rivieres de lave
+        {"r...~~..r...",
+         "..*.~~....*.",
+         "....==..r...",
+         "....~~.r....",
+         "....~~~~==~~",
+         "..r.....*...",
+         "*...r....r..",
+         "...r......r."},
+        {"..r......r..",
+         ".*...r....*.",
+         "~~~==~~~~~~~",
+         "............",
+         "..r.*...r...",
+         "~~~~~~~==~~~",
+         ".r.......*..",
+         "....r....r.."},
+    },
+    {   // 8. La citadelle de Vorgath : des remparts d'obsidienne, des bassins de lave, des braseros
+        {"I###I..I###I",
+         "#..*#..#*..#",
+         "............",
+         "..~~....~~..",
+         "..~~.**.~~..",
+         "............",
+         "#..*#..#*..#",
+         "I###I..I###I"},
+        {"..I#G#I.....",
+         "..#...#..*..",
+         "*.#.*.#.....",
+         "............",
+         "~~~==~~~~==~",
+         "......*.....",
+         ".I##G##I..r.",
+         ".#.....#...."},
     },
 };
 

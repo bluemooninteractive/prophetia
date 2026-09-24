@@ -4,7 +4,7 @@
 #include <string>
 #include "raylib.h"
 
-const int NOMBRE_LIEUX = 7;         // foret, village, gue, bois, camp, forteresse, col
+const int NOMBRE_LIEUX = 9;         // foret, village, gue, bois, camp, forteresse, col, cendres, citadelle
 
 // Les images du jeu. Une "Texture2D" est une image chargee dans la carte graphique, prete a etre dessinee.
 struct Sprites {
@@ -19,6 +19,11 @@ struct Sprites {
     Texture2D chaman;
     Texture2D louvetier;
     Texture2D ashka;
+    Texture2D skarn;
+    Texture2D matriarche;
+    Texture2D vorgath;
+    Texture2D casque;               // la coiffe de Skarn
+    Texture2D ramure;               // la coiffe de la Matriarche
     Texture2D marchands[3];         // Maren, Durgan et Silas
     // L'environnement de chaque lieu : [numero du lieu][variante] (voir lieux.cpp pour la liste des lieux)
     Texture2D lumineux[NOMBRE_LIEUX];       // la source de lumiere du lieu (champignon, lanterne, torche...)
@@ -50,3 +55,6 @@ const Texture2D& spriteHaschen(const std::string& nom);
 
 // L'arme dessinee dans la main d'un pion (ou nullptr s'il n'en a pas)
 const Texture2D* spriteArmeHaschen(const std::string& nom);
+
+// Ce que porte un boss sur la tete : couronne, casque, ramure (ou nullptr)
+const Texture2D* spriteCoiffe(const std::string& nom);
