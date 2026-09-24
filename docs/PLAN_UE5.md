@@ -5,6 +5,21 @@ La version UE5 reprend **les mêmes règles** dans une arène en 3D vue du dessu
 (caméra à 45°, comme un diorama). Le concept visuel est dans le canvas « VESPERANCE Key Art »,
 planche « Concept UE5 vue du dessus ».
 
+## Direction artistique (décidée)
+
+- **Le prototype 2D reste en pixel art** : il sert à régler les règles, l'équilibre et la route.
+- **La version UE5 aura un style illustré, « à la Hades »** : contours à l'encre, ombres franches (cel-shading),
+  couleurs saturées, éclairage dramatique. Pas de pixel art.
+- La référence est le concept **B, « clairière de la Forêt des Brumes »** du canvas « VESPERANCE Key Art » :
+  - un monde organique, avec une **végétation dense et arrondie** (turquoise, vert, violet) ;
+  - **des chemins bien colorés** : terre dorée, pierres runiques lumineuses, tapis de fleurs roses et violettes ;
+  - des autels aux runes bleues, des esprits-échos, une mare lumineuse ;
+  - **des branches sombres au premier plan** pour cadrer la scène ;
+  - une grille tactique **discrète**, visible seulement autour d'AYLIS quand c'est son tour.
+- Le concept A (île de dalles avec chemin en mosaïque) sert pour les lieux construits : la Forteresse de Karn, le Seuil.
+- En UE5, ce rendu passe par des **matériaux stylisés (toon shading + contour)**, **Lumen** pour la lumière,
+  et de la végétation en instances (Foliage), avec des modèles au style peint.
+
 ## Ce qu'il faut installer (à faire soi-même)
 
 1. **Epic Games Launcher**, puis **Unreal Engine 5** (onglet Unreal Engine > Bibliothèque).
