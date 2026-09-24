@@ -200,6 +200,7 @@ void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique, fl
         degats = degats - absorbe;
     }
     aylis.pv = aylis.pv - degats;
+    jeu.derniereBlessure = attaquant.stats.nom;     // pour le souvenir du reveil, si ce coup est le dernier
     jeu.aylis.flash = 0.25f + delai;
     jeu.rage.remplir(degats * (jeu.runeFureur ? 8 : 4));     // la rune de Fureur double la rage
     ajouterTexte(jeu, jeu.aylis, (critique ? "CRIT -" : "-") + std::to_string(degats), RED, delai);
@@ -216,6 +217,7 @@ void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique, fl
 // Au debut de son tour, un pion subit ses etats (poison, brulure, saignement)
 void subirEtats(Jeu& jeu, Pion& pion) {
     int total = 0;
+    bool empoisonne = pion.stats.poison > 0;
     if (pion.stats.poison > 0) {
         total = total + 3;
         pion.stats.poison = pion.stats.poison - 1;
@@ -236,6 +238,8 @@ void subirEtats(Jeu& jeu, Pion& pion) {
             ecrireJournal(jeu, pion.stats.nom + " succombe a ses blessures !");
             if (&pion != &jeu.aylis) {
                 animerChute(jeu, pion, 0.0f);
+            } else {
+                jeu.derniereBlessure = empoisonne ? "poison" : "blessures";
             }
         }
     }
@@ -477,6 +481,7 @@ void finirTourAylis(Jeu& jeu) {
     if (!resteDesHaschen(jeu)) {
         if (jeu.typeSalle == TypeSalle::Boss) {
             jeu.phase = Phase::Victoire;
+            terminerCourse(jeu, true);
         } else {
             jeu.phase = Phase::CombatGagne;
         }

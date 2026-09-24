@@ -26,6 +26,8 @@ const int PORTEE_DISTANCE = 4;                      // arc, arbalete, baton...
 const int PORTEE_SORT = 5;
 const int PORTEE_LANCEUR = 4;                       // les Haschen qui tirent de loin
 const float PAUSE_ENTRE_ENNEMIS = 0.5f;             // en secondes
+const float DUREE_FONDU = 2.2f;                     // la vision qui se brise, quand AYLIS tombe
+const float DUREE_TEXTE_REVEIL = 6.0f;              // le temps pour que tout le texte du reveil s'ecrive
 
 // ===================== Les donnees =====================
 
@@ -123,7 +125,20 @@ enum class Phase {
     Marchand,       // la boutique d'un marchand
     Rencontre,      // une rencontre sur la route (un choix a faire)
     Victoire,
-    Defaite,
+    Defaite,        // AYLIS tombe : l'ecran se teinte de violet, la vision se brise...
+    Reveil,         // ... et AYLIS se reveille, avec le souvenir de la vision
+};
+
+// ===================== La memoire (memoire.cpp) =====================
+// Ce qu'AYLIS retient d'une course a l'autre. C'est enregistre dans un fichier :
+// on le retrouve meme apres avoir ferme le jeu.
+struct Memoire {
+    int visions = 0;            // le nombre de courses terminees par une chute
+    int victoires = 0;          // le nombre de fois ou Ashka a ete vaincue
+    int meilleureSalle = 0;     // la salle la plus lointaine jamais atteinte
+    int ashkaAffrontee = 0;     // combien de fois AYLIS a affronte Ashka
+    int fragments = 0;          // les fragments de prophetie a depenser (au refuge, bientot)
+    int fragmentsTotal = 0;     // tous ceux gagnes depuis le debut
 };
 
 // ===================== La route (route.cpp) =====================
@@ -220,6 +235,12 @@ struct Jeu {
     std::string resultatRencontre;      // vide tant que le choix n'est pas fait
     bool runeOfferte = false;           // la rencontre se termine par le choix d'une rune
     std::vector<int> rencontresVues;    // pour ne pas vivre deux fois la meme rencontre dans une course
+    // La memoire et la fin d'une course
+    Memoire memoire;
+    std::string derniereBlessure;       // qui a porte le dernier coup a AYLIS (pour le texte du reveil)
+    int elitesVaincues = 0;             // pendant cette course
+    int fragmentsGagnes = 0;            // pendant cette course
+    float fondu = 0.0f;                 // le fondu violet quand la vision se brise, puis le texte du reveil
     std::string messageRoute;          // ce qui vient de se passer sur la route (affiche sur les ecrans de choix)
     std::string nomDuLieu;
     int ennemiQuiJoue = 0;
@@ -288,6 +309,14 @@ std::string reponseRencontre(const Jeu& jeu, int rencontre, int reponse);   // l
 void repondreRencontre(Jeu& jeu, int reponse);          // 0 ou 1
 void finirRencontre(Jeu& jeu);                          // apres avoir lu le resultat
 void gagnerOr(Jeu& jeu, int pieces);
+
+// ===================== memoire.cpp : ce qu'AYLIS retient d'une course a l'autre =====================
+
+void chargerMemoire(Memoire& memoire);
+void enregistrerMemoire(const Memoire& memoire);
+void terminerCourse(Jeu& jeu, bool victoire);           // compte les fragments et enregistre la memoire
+std::string texteDuReveil(const Jeu& jeu);              // ce dont AYLIS se souvient en ouvrant les yeux
+std::string phraseDeDepart(const Memoire& memoire);     // le sous-titre de l'ecran de depart
 
 // Le tour d'AYLIS
 void deplacerAylis(Jeu& jeu, int colonne, int ligne);

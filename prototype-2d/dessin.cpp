@@ -91,10 +91,11 @@ Rectangle rectangleCarteVoie(int voie) {
 
 // ===================== L'ecran de depart =====================
 
-void dessinerChoixVoie() {
+void dessinerChoixVoie(const Jeu& jeu) {
     const char* titre = "VESPERANCE";
     DrawText(titre, (LARGEUR_FENETRE - MeasureText(titre, 70)) / 2, 40, 70, Color{170, 110, 240, 255});
-    const char* sousTitre = "Choisis la voie d'AYLIS";
+    std::string phrase = phraseDeDepart(jeu.memoire);     // elle change avec les souvenirs d'AYLIS
+    const char* sousTitre = phrase.c_str();
     DrawText(sousTitre, (LARGEUR_FENETRE - MeasureText(sousTitre, 20)) / 2, 125, 20, LIGHTGRAY);
 
     const char* noms[3] = {"L'EPEE", "L'ARC", "LES ARCANES"};
@@ -107,7 +108,7 @@ void dessinerChoixVoie() {
     const char* lignes[3][4] = {
         {"44 pv  -  attaque 13", "defense 4", "Frappe au contact.", "Sort : Boule de feu"},
         {"40 pv  -  attaque 12", "defense 4", "Tire a 4 cases.", "Sort : Boule de feu"},
-        {"34 pv  -  attaque 12", "defense 3  -  20 mana", "Fragile mais puissant.", "Connait les 4 sorts !"},
+        {"34 pv  -  attaque 12", "defense 3  -  20 mana", "Peu de pv, beaucoup de magie.", "Connait les 4 sorts !"},
     };
 
     Vector2 souris = GetMousePosition();
@@ -137,6 +138,17 @@ void dessinerChoixVoie() {
 
     const char* aide = "Clique sur une carte, ou tape 1, 2 ou 3";
     DrawText(aide, (LARGEUR_FENETRE - MeasureText(aide, 20)) / 2, 590, 20, TEXTE_GRIS);
+
+    // Les souvenirs des courses precedentes
+    const Memoire& m = jeu.memoire;
+    if (m.visions > 0 || m.victoires > 0) {
+        Rectangle cadre = {40, 640, LARGEUR_FENETRE - 80.0f, 90};
+        dessinerCadre(cadre, Fade(PANNEAU, 0.9f), Fade(Color{175, 115, 240, 255}, 0.6f), 2);
+        texteCentre("SOUVENIRS DE LA PROPHETIE", {cadre.x, cadre.y + 10, cadre.width, 20}, 20, Color{175, 115, 240, 255});
+        std::string ligne = TextFormat("Visions : %i   Record : salle %i/%i   Ashka vaincue : %i   Fragments : %i",
+                                       m.visions, m.meilleureSalle, NOMBRE_SALLES, m.victoires, m.fragments);
+        texteCentre(ligne, {cadre.x, cadre.y + 50, cadre.width, 20}, 20, RAYWHITE);
+    }
 }
 
 // ===================== L'arene =====================
@@ -767,14 +779,14 @@ Color couleurSalle(TypeSalle type) {
 }
 
 // Les mots d'une description, repartis sur plusieurs lignes pour tenir dans la carte
-void texteSurPlusieursLignes(const std::string& texte, Rectangle zone, int taille, Color couleur) {
+std::vector<std::string> decouperEnLignes(const std::string& texte, float largeurMax, int taille) {
     std::vector<std::string> lignes;
     std::string ligne;
     std::string mot;
     for (int i = 0; i <= (int)texte.size(); i++) {
         if (i == (int)texte.size() || texte[i] == ' ') {
             std::string essai = ligne.empty() ? mot : ligne + " " + mot;
-            if (MeasureText(essai.c_str(), taille) > zone.width && !ligne.empty()) {
+            if (MeasureText(essai.c_str(), taille) > largeurMax && !ligne.empty()) {
                 lignes.push_back(ligne);
                 ligne = mot;
             } else {
@@ -786,6 +798,11 @@ void texteSurPlusieursLignes(const std::string& texte, Rectangle zone, int taill
         }
     }
     lignes.push_back(ligne);
+    return lignes;
+}
+
+void texteSurPlusieursLignes(const std::string& texte, Rectangle zone, int taille, Color couleur) {
+    std::vector<std::string> lignes = decouperEnLignes(texte, zone.width, taille);
     for (int i = 0; i < (int)lignes.size(); i++) {
         texteCentre(lignes[i], {zone.x, zone.y + i * (taille + 6.0f), zone.width, (float)taille}, taille, couleur);
     }
@@ -935,11 +952,90 @@ void dessinerRencontre(const Jeu& jeu) {
     }
 }
 
+// ===================== La chute et le reveil =====================
+
+// AYLIS tombe : des anneaux de runes s'echappent de son corps, et tout se teinte de violet
+void dessinerVisionBrisee(const Jeu& jeu) {
+    float avancement = jeu.fondu / DUREE_FONDU;         // de 0 a 1
+    if (avancement > 1) {
+        avancement = 1;
+    }
+    Vector2 centre = positionAffichee(jeu.aylis);
+    for (int i = 0; i < 3; i++) {
+        float rayon = (avancement * 1.6f - i * 0.25f) * LARGEUR_FENETRE;
+        if (rayon > 0) {
+            DrawRing(centre, rayon, rayon + 6, 0, 360, 64, Fade(VIOLET_VISION, 0.6f * (1 - avancement)));
+        }
+    }
+    DrawRectangle(0, 0, LARGEUR_FENETRE, HAUTEUR_FENETRE, Fade(Color{20, 8, 36, 255}, avancement * 0.95f));
+    // Des fissures de lumiere, comme une vitre qui se brise
+    for (int i = 0; i < 9; i++) {
+        float angle = i * 0.7f + 0.3f;
+        float longueur = avancement * (200 + i * 40);
+        Vector2 bout = {centre.x + std::cos(angle * 2.3f) * longueur, centre.y + std::sin(angle * 2.3f) * longueur};
+        DrawLineEx(centre, bout, 2, Fade(VIOLET_VISION, 0.8f * avancement));
+    }
+    if (avancement > 0.35f) {
+        float apparition = (avancement - 0.35f) / 0.65f;
+        texteCentre("La vision se brise...", {0, HAUTEUR_FENETRE / 2.0f - 30, (float)LARGEUR_FENETRE, 40}, 40,
+                    Fade(Color{220, 200, 255, 255}, apparition));
+    }
+}
+
+void dessinerReveil(const Jeu& jeu) {
+    dessinerFondVision();
+    texteCentre("AYLIS SE REVEILLE", {0, 30, (float)LARGEUR_FENETRE, 50}, 50, VIOLET_VISION);
+
+    // AYLIS, dans le halo de la prophetie
+    float pulsation = 0.15f + 0.05f * std::sin(GetTime() * 2);
+    DrawCircle(LARGEUR_FENETRE / 2, 150, 56, Fade(VIOLET_VISION, pulsation));
+    dessinerPortraitAylis(jeu.aylis.stats.arme, {LARGEUR_FENETRE / 2.0f - 48, 100, 96, 96}, WHITE);
+
+    // Le souvenir, qui s'ecrit lettre par lettre (aligne a gauche pour que les mots ne bougent pas)
+    Rectangle cadre = {70, 220, LARGEUR_FENETRE - 140.0f, 190};
+    dessinerCadre(cadre, Fade(PANNEAU, 0.9f), Fade(VIOLET_VISION, 0.6f), 2);
+    std::vector<std::string> lignes = decouperEnLignes(texteDuReveil(jeu), cadre.width - 48, 20);
+    int total = 0;
+    for (const std::string& ligne : lignes) {
+        total = total + ligne.size();
+    }
+    float part = jeu.fondu / DUREE_TEXTE_REVEIL;
+    int visibles = part >= 1 ? total : (int)(total * part);
+    for (int i = 0; i < (int)lignes.size() && visibles > 0; i++) {
+        std::string morceau = lignes[i].substr(0, visibles);
+        DrawText(morceau.c_str(), cadre.x + 24, cadre.y + 22 + i * 28, 20, RAYWHITE);
+        visibles = visibles - lignes[i].size();
+    }
+
+    // Ce que cette vision a apporte
+    Rectangle bilan = {70, 430, LARGEUR_FENETRE - 140.0f, 150};
+    dessinerCadre(bilan, Fade(PANNEAU, 0.9f), Fade(OR, 0.6f), 2);
+    texteCentre("CETTE VISION", {bilan.x, bilan.y + 12, bilan.width, 20}, 20, OR);
+    texteCentre(TextFormat("Salle %i/%i  -  %s", jeu.salle, NOMBRE_SALLES, nomLieu(jeu.lieu).c_str()),
+                {bilan.x, bilan.y + 44, bilan.width, 20}, 20, RAYWHITE);
+    std::string runes = TextFormat("%i rune(s) : ", (int)jeu.runes.size());
+    for (int i = 0; i < (int)jeu.runes.size(); i++) {
+        runes = runes + (i > 0 ? ", " : "") + jeu.runes[i].nom;
+    }
+    if (jeu.runes.empty()) {
+        runes = "Aucune rune";
+    }
+    texteCentre(runes, {bilan.x, bilan.y + 74, bilan.width, 20}, 20, TEXTE_GRIS);
+    texteCentre(TextFormat("+%i fragments de prophetie  (total : %i)", jeu.fragmentsGagnes, jeu.memoire.fragments),
+                {bilan.x, bilan.y + 108, bilan.width, 24}, 20, OR);
+
+    if (jeu.fondu >= DUREE_TEXTE_REVEIL) {
+        float clignote = 0.6f + 0.4f * std::sin(GetTime() * 4);
+        texteCentre("ENTREE : reprendre la route", {0, 620, (float)LARGEUR_FENETRE, 24}, 20, Fade(RAYWHITE, clignote));
+    }
+    texteCentre(TextFormat("Visions vecues : %i", jeu.memoire.visions), {0, 700, (float)LARGEUR_FENETRE, 20}, 20, TEXTE_GRIS);
+}
+
 void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     ClearBackground(FOND);
 
     if (jeu.phase == Phase::ChoixVoie) {
-        dessinerChoixVoie();
+        dessinerChoixVoie(jeu);
         return;
     }
     if (jeu.phase == Phase::ChoixSalle) {
@@ -952,6 +1048,10 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     }
     if (jeu.phase == Phase::Marchand) {
         dessinerBoutique(jeu);
+        return;
+    }
+    if (jeu.phase == Phase::Reveil) {
+        dessinerReveil(jeu);
         return;
     }
     if (jeu.phase == Phase::Rencontre) {
@@ -979,8 +1079,9 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     if (jeu.phase == Phase::CombatGagne) {
         dessinerMessage(jeu.nomDuLieu + " : victoire !", Color{110, 220, 120, 255}, "Appuie sur ENTREE pour choisir ta rune");
     } else if (jeu.phase == Phase::Victoire) {
-        dessinerMessage("ASHKA EST VAINCUE !", OR, "Fin du prototype - appuie sur R pour rejouer");
+        dessinerMessage("ASHKA EST VAINCUE !", OR,
+                        TextFormat("+%i fragments de prophetie - ENTREE pour revenir", jeu.fragmentsGagnes));
     } else if (jeu.phase == Phase::Defaite) {
-        dessinerMessage("AYLIS TOMBE AU COMBAT...", Color{220, 80, 80, 255}, "Appuie sur R pour rejouer");
+        dessinerVisionBrisee(jeu);
     }
 }

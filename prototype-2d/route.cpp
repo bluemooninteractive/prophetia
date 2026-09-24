@@ -234,6 +234,9 @@ void choisirSalle(Jeu& jeu, int numero) {
 
 void apresCombat(Jeu& jeu) {
     // AYLIS reprend son souffle (un quart de ses pv), puis choisit sa recompense
+    if (jeu.typeSalle == TypeSalle::Elite) {
+        jeu.elitesVaincues = jeu.elitesVaincues + 1;
+    }
     int soin = jeu.aylis.stats.pvMax / 4;
     jeu.aylis.stats.soigner(soin);
     jeu.messageRoute = "AYLIS reprend son souffle : +" + std::to_string(soin) + " pv.";
@@ -281,6 +284,10 @@ void choisirVoie(Jeu& jeu, int voie) {
     jeu.aylis.stats = aylis;
     jeu.aylis.couleur = SKYBLUE;
     jeu.rencontresVues.clear();
+    jeu.elitesVaincues = 0;
+    jeu.fragmentsGagnes = 0;
+    jeu.derniereBlessure = "";
+    jeu.fondu = 0.0f;
     jeu.rage.vider();
 
     // Une nouvelle course : aucune rune, et la premiere salle est toujours un combat en foret

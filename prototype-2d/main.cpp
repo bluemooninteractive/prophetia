@@ -83,6 +83,7 @@ int main() {
     chargerSprites();       // fabrique les dessins (il faut que la fenetre soit ouverte)
 
     Jeu jeu;
+    chargerMemoire(jeu.memoire);     // les souvenirs des courses precedentes
 
     while (!WindowShouldClose()) {
         float secondes = GetFrameTime();    // le temps ecoule depuis l'image precedente
@@ -150,8 +151,14 @@ int main() {
             } else if ((clic && CheckCollisionPointRec(souris, rectangleBoutonRoute())) || IsKeyPressed(KEY_ENTER)) {
                 finirRencontre(jeu);
             }
-        } else if ((jeu.phase == Phase::Victoire || jeu.phase == Phase::Defaite) && IsKeyPressed(KEY_R) && !animationsEnCours(jeu)) {
+        } else if (jeu.phase == Phase::Victoire && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_R)) && !animationsEnCours(jeu)) {
             jeu.phase = Phase::ChoixVoie;
+        } else if (jeu.phase == Phase::Reveil && (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
+            if (jeu.fondu < DUREE_TEXTE_REVEIL) {
+                jeu.fondu = DUREE_TEXTE_REVEIL;     // un premier appui affiche tout le texte d'un coup
+            } else {
+                jeu.phase = Phase::ChoixVoie;
+            }
         }
 
         // 2. Mettre le jeu a jour
@@ -163,6 +170,17 @@ int main() {
         }
         if (jeu.phase == Phase::TourEnnemi) {
             mettreAJourTourEnnemi(jeu, tempsDuJeu);
+        }
+        // Quand AYLIS tombe : l'ecran se teinte de violet... puis AYLIS se reveille
+        if (jeu.phase == Phase::Defaite && !animationsEnCours(jeu)) {
+            jeu.fondu = jeu.fondu + secondes;
+            if (jeu.fondu >= DUREE_FONDU) {
+                terminerCourse(jeu, false);
+                jeu.phase = Phase::Reveil;
+                jeu.fondu = 0.0f;
+            }
+        } else if (jeu.phase == Phase::Reveil) {
+            jeu.fondu = jeu.fondu + secondes;       // le texte du reveil apparait lettre par lettre
         }
         mettreAJourTextes(jeu, tempsDuJeu);
         mettreAJourAnimations(jeu, tempsDuJeu);
