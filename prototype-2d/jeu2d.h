@@ -35,7 +35,80 @@ struct Pion {
     int colonne;
     int ligne;
     Color couleur;
-    float flash = 0.0f;     // > 0 juste apres avoir ete touche : le pion clignote en rouge
+
+    // ----- Pour les animations (voir animations.cpp) -----
+    float flash = 0.0f;         // entre 0 et 0.25 : le pion clignote en rouge (au-dessus : le coup n'est pas encore arrive)
+    float xAffiche = -1.0f;     // la position a l'ecran, en pixels : elle "glisse" vers la case du pion
+    float yAffiche = -1.0f;
+    float elan = 0.0f;          // > 0 pendant un bond d'attaque vers la cible
+    float elanX = 0.0f;         // la direction du bond
+    float elanY = 0.0f;
+    float recul = 0.0f;         // > 0 quand il vient d'etre frappe : il recule un peu
+    float reculX = 0.0f;
+    float reculY = 0.0f;
+    float pvAffiches = -1.0f;   // la barre de vie "fantome", qui descend doucement apres un coup
+    float disparition = 0.0f;   // > 0 pendant qu'il se dissout apres sa chute
+};
+
+// ----- Les effets visuels -----
+
+// Une particule : une etincelle, une flamme, un peu de fumee...
+struct Particule {
+    float x;
+    float y;
+    float vitesseX;
+    float vitesseY;
+    float vie;              // le temps qu'il lui reste, en secondes
+    float vieMax;
+    float taille;
+    Color couleur;
+    bool gravite = false;   // true : elle retombe
+    bool fantome = false;   // true : c'est une silhouette d'AYLIS (la trainee pendant un deplacement)
+};
+
+enum class SorteProjectile {
+    Fleche,
+    Orbe,           // le tir du baton de mage
+    BouleDeFeu,
+    Javelot,
+};
+
+// Un projectile qui vole d'un pion a un autre
+struct Projectile {
+    float departX;
+    float departY;
+    float arriveeX;
+    float arriveeY;
+    float temps = 0.0f;     // depuis combien de temps il vole
+    float duree;            // le temps total du vol
+    SorteProjectile sorte;
+};
+
+enum class SorteEffet {
+    Etincelles,
+    Explosion,
+    Fumee,
+    Secousse,
+    ArretSurImage,
+    Recul,
+};
+
+// Un effet programme pour plus tard : par exemple les etincelles, au moment ou la fleche arrive
+struct EffetEnAttente {
+    float delai;            // dans combien de temps il se declenche
+    SorteEffet sorte;
+    float x;
+    float y;
+    Color couleur;
+    float force;
+    int pion;               // pour le recul : le numero du Haschen, ou -1 pour AYLIS
+};
+
+// Un eclair qui tombe du ciel
+struct EffetEclair {
+    float x;
+    float y;
+    float vie;
 };
 
 // Les grandes etapes de l'ecran
@@ -69,6 +142,8 @@ struct TexteFlottant {
     float y;
     float tempsRestant;
     Color couleur;
+    float delai = 0.0f;     // il n'apparait qu'une fois ce delai ecoule (quand le coup arrive vraiment)
+    float age = 0.0f;       // depuis combien de temps il est affiche (pour le petit rebond)
 };
 
 // Tout l'etat du jeu
@@ -89,6 +164,14 @@ struct Jeu {
     std::vector<TexteFlottant> textes;
     std::string banniere;               // le grand titre anime au milieu ("TOUR 3", le nom du lieu...)
     float tempsBanniere = 0.0f;         // combien de temps il reste affiche, en secondes
+
+    // Les effets visuels en cours
+    std::vector<Particule> particules;
+    std::vector<Projectile> projectiles;
+    std::vector<EffetEnAttente> effets;
+    std::vector<EffetEclair> eclairs;
+    float secousse = 0.0f;              // la force du tremblement d'ecran
+    float arretSurImage = 0.0f;         // > 0 : le jeu se fige une fraction de seconde (coup critique)
 };
 
 // ===================== regles.cpp : les regles du jeu =====================

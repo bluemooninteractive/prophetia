@@ -9,6 +9,7 @@
 #include "raylib.h"
 #include "jeu2d.h"
 #include "sprites.h"
+#include "animations.h"
 
 // Choisit une action de la barre (numero 0 a 8)
 void selectionnerAction(Jeu& jeu, int numero) {
@@ -104,17 +105,24 @@ int main() {
             }
         } else if (jeu.phase == Phase::Deplacement || jeu.phase == Phase::Action) {
             commandesJoueur(jeu, colonneSouris, ligneSouris);
-        } else if (jeu.phase == Phase::CombatGagne && IsKeyPressed(KEY_ENTER)) {
+        } else if (jeu.phase == Phase::CombatGagne && IsKeyPressed(KEY_ENTER) && !animationsEnCours(jeu)) {
             combatSuivant(jeu);
-        } else if ((jeu.phase == Phase::Victoire || jeu.phase == Phase::Defaite) && IsKeyPressed(KEY_R)) {
+        } else if ((jeu.phase == Phase::Victoire || jeu.phase == Phase::Defaite) && IsKeyPressed(KEY_R) && !animationsEnCours(jeu)) {
             jeu.phase = Phase::ChoixVoie;
         }
 
         // 2. Mettre le jeu a jour
-        if (jeu.phase == Phase::TourEnnemi) {
-            mettreAJourTourEnnemi(jeu, secondes);
+        // L'arret sur image : sur un coup critique, le temps du jeu s'arrete une fraction de seconde
+        float tempsDuJeu = secondes;
+        if (jeu.arretSurImage > 0) {
+            jeu.arretSurImage = jeu.arretSurImage - secondes;
+            tempsDuJeu = 0.0f;
         }
-        mettreAJourTextes(jeu, secondes);
+        if (jeu.phase == Phase::TourEnnemi) {
+            mettreAJourTourEnnemi(jeu, tempsDuJeu);
+        }
+        mettreAJourTextes(jeu, tempsDuJeu);
+        mettreAJourAnimations(jeu, tempsDuJeu);
 
         // 3. Tout redessiner
         BeginDrawing();

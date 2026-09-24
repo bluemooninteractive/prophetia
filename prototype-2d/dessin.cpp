@@ -4,6 +4,7 @@
 #include <cmath>
 #include "jeu2d.h"
 #include "sprites.h"
+#include "animations.h"
 
 // Les couleurs de l'interface
 const Color FOND = {20, 18, 28, 255};
@@ -143,8 +144,9 @@ void dessinerChoixVoie() {
 // Les etats d'un pion, sous forme de petites pastilles au-dessus de lui
 void dessinerEtats(const Pion& pion) {
     const Combattant& s = pion.stats;
-    int x = pion.colonne * TAILLE_CASE + 6;
-    int y = pion.ligne * TAILLE_CASE + 12;
+    Vector2 position = positionAffichee(pion);
+    int x = position.x - TAILLE_CASE / 2 + 6;
+    int y = position.y - TAILLE_CASE / 2 + 12;
     struct Pastille { bool actif; const char* lettre; Color couleur; };
     const Pastille pastilles[5] = {
         {s.poison > 0, "P", GREEN},
@@ -162,19 +164,31 @@ void dessinerEtats(const Pion& pion) {
     }
 }
 
+// La barre de vie au-dessus d'un pion. La partie blanche, c'est la vie "fantome" :
+// elle montre ce qui vient d'etre perdu, puis s'efface doucement.
 void dessinerBarreDeVie(const Pion& pion) {
-    int x = pion.colonne * TAILLE_CASE + 8;
-    int y = pion.ligne * TAILLE_CASE + 4;
+    Vector2 position = positionAffichee(pion);
+    int x = position.x - TAILLE_CASE / 2 + 8;
+    int y = position.y - TAILLE_CASE / 2 + 4;
     int largeur = TAILLE_CASE - 16;
     int pv = pion.stats.pv < 0 ? 0 : pion.stats.pv;
+    float pvAffiches = pion.pvAffiches < 0 ? pv : pion.pvAffiches;
+    // Tant que le coup n'est pas encore arrive (fleche en vol), la barre ne bouge pas
+    if (pion.flash > 0.25f) {
+        pvAffiches = pion.pvAffiches < 0 ? pv : pion.pvAffiches;
+        pv = (int)pvAffiches;
+    }
     int remplie = largeur * pv / pion.stats.pvMax;
+    int fantome = largeur * pvAffiches / pion.stats.pvMax;
     Color couleur = GREEN;
     if (pv * 4 <= pion.stats.pvMax) {
         couleur = RED;
     } else if (pv * 2 <= pion.stats.pvMax) {
         couleur = YELLOW;
     }
+    DrawRectangle(x - 1, y - 1, largeur + 2, 8, Fade(BLACK, 0.7f));
     DrawRectangle(x, y, largeur, 6, DARKGRAY);
+    DrawRectangle(x, y, fantome, 6, Color{240, 235, 225, 255});
     DrawRectangle(x, y, remplie, 6, couleur);
 }
 
@@ -187,16 +201,27 @@ void dessinerSprite(const Texture2D& texture, Rectangle ecran, bool versLaGauche
 
 void dessinerPion(const Pion& pion, bool estAylis, int colonneAylis) {
     const Sprites& s = sprites();
-    float centreX = pion.colonne * TAILLE_CASE + TAILLE_CASE / 2.0f;
-    float basY = pion.ligne * TAILLE_CASE + TAILLE_CASE - 6.0f;
+    // La position animee : le pion glisse d'une case a l'autre, bondit quand il attaque, recule quand il est touche
+    Vector2 position = positionAffichee(pion);
+    float centreX = position.x;
+    float basY = position.y + TAILLE_CASE / 2.0f - 6.0f;
 
     // Les personnages "respirent" : ils montent et descendent un tout petit peu, chacun a son rythme
     float respiration = std::sin(GetTime() * 3.0 + pion.colonne * 1.7 + pion.ligne) * 2.0f;
     float taille = pion.stats.estBoss ? 80.0f : 64.0f;
+
+    // Un Haschen vaincu se dissout : il s'eleve, retrecit et devient transparent
+    float visibilite = 1.0f;
+    if (!pion.stats.estDebout() && pion.disparition > 0) {
+        visibilite = pion.disparition < 0.6f ? pion.disparition / 0.6f : 1.0f;
+        taille = taille * (0.6f + 0.4f * visibilite);
+        basY = basY - (1.0f - visibilite) * 20;
+    }
     Rectangle ecran = {centreX - taille / 2, basY - taille + respiration, taille, taille};
 
-    // Touche il y a un instant : il clignote en rouge
-    Color teinte = pion.flash > 0 ? Color{255, 90, 90, 255} : WHITE;
+    // Touche il y a un instant : il clignote en rouge (au-dessus de 0.25, le coup n'est pas encore arrive)
+    Color teinte = pion.flash > 0 && pion.flash <= 0.25f ? Color{255, 90, 90, 255} : WHITE;
+    teinte = Fade(teinte, visibilite);
 
     // Une ombre au sol
     DrawEllipse(centreX, basY - 2, taille * 0.3f, 6, Fade(BLACK, 0.35f));
@@ -320,20 +345,34 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         DrawRectangleLines(colonneSouris * TAILLE_CASE, ligneSouris * TAILLE_CASE, TAILLE_CASE, TAILLE_CASE, WHITE);
     }
 
+    // Les Haschen debout, et ceux qui sont en train de se dissoudre
     for (const Pion& h : jeu.haschen) {
-        if (h.stats.estDebout()) {
+        if (h.stats.estDebout() || h.disparition > 0) {
             dessinerPion(h, false, jeu.aylis.colonne);
         }
     }
-    if (jeu.aylis.stats.estDebout()) {
+    if (jeu.aylis.stats.estDebout() || animationsEnCours(jeu)) {
         dessinerPion(jeu.aylis, true, jeu.aylis.colonne);
     }
 
+    dessinerProjectiles(jeu);
+    dessinerParticules(jeu);
+    dessinerEclairs(jeu);
     dessinerAmbiance(lieu);
 
+    // Les chiffres des degats : ils apparaissent avec un petit rebond (plus gros au debut)
     for (const TexteFlottant& t : jeu.textes) {
+        if (t.delai > 0) {
+            continue;   // le coup n'est pas encore arrive
+        }
         float transparence = t.tempsRestant > 1.0f ? 1.0f : t.tempsRestant;
-        DrawText(t.texte.c_str(), t.x, t.y, 24, Fade(t.couleur, transparence));
+        float rebond = t.age < 0.15f ? 1.0f + 0.6f * (1.0f - t.age / 0.15f) : 1.0f;
+        int taille = (int)(24 * rebond);
+        if (t.texte.rfind("CRIT", 0) == 0) {
+            taille = (int)(taille * 1.3f);  // les critiques s'affichent en plus gros
+        }
+        DrawText(t.texte.c_str(), t.x - (taille - 24), t.y - (taille - 24), taille, Fade(BLACK, transparence * 0.6f));
+        DrawText(t.texte.c_str(), t.x - (taille - 24) - 2, t.y - (taille - 24) - 2, taille, Fade(t.couleur, transparence));
     }
 
 }
@@ -582,7 +621,12 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         return;
     }
 
+    // L'arene est dessinee a travers une "camera" qui tremble quand un coup porte.
+    // L'interface (bandeau, panneau...) reste immobile : elle est dessinee apres, hors camera.
+    BeginMode2D(cameraAvecSecousse(jeu));
     dessinerArene(jeu, colonneSouris, ligneSouris);
+    EndMode2D();
+
     dessinerBandeau(jeu);
     dessinerJournal(jeu);
     dessinerConsigne(jeu);
@@ -590,6 +634,10 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     dessinerBanniere(jeu);
     dessinerPanneau(jeu);
 
+    // Les grands messages attendent la fin des animations (le dernier Haschen doit finir de tomber)
+    if (animationsEnCours(jeu)) {
+        return;
+    }
     if (jeu.phase == Phase::CombatGagne) {
         dessinerMessage(jeu.nomDuLieu + " : victoire !", Color{110, 220, 120, 255}, "Appuie sur ENTREE pour continuer la route");
     } else if (jeu.phase == Phase::Victoire) {

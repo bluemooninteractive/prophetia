@@ -3,6 +3,7 @@
 // seule nouveaute, les distances se comptent maintenant en cases sur l'arene.
 #include <cstdlib>
 #include "jeu2d.h"
+#include "animations.h"
 
 // ===================== Les petites fonctions utiles =====================
 
@@ -52,14 +53,20 @@ void ecrireJournal(Jeu& jeu, const std::string& message) {
 }
 
 // Un texte qui s'envole au-dessus d'un pion
-void ajouterTexte(Jeu& jeu, const Pion& pion, const std::string& texte, Color couleur) {
+// (delai : il n'apparait qu'au moment ou le coup arrive vraiment, par exemple quand la fleche touche)
+void ajouterTexte(Jeu& jeu, const Pion& pion, const std::string& texte, Color couleur, float delai = 0.0f) {
     float x = pion.colonne * TAILLE_CASE + TAILLE_CASE / 2.0f - 12;
     float y = pion.ligne * TAILLE_CASE;
-    jeu.textes.push_back({texte, x, y, 1.2f, couleur});
+    jeu.textes.push_back({texte, x, y, 1.2f, couleur, delai});
 }
 
 void mettreAJourTextes(Jeu& jeu, float secondes) {
     for (TexteFlottant& t : jeu.textes) {
+        if (t.delai > 0) {
+            t.delai = t.delai - secondes;   // pas encore apparu
+            continue;
+        }
+        t.age = t.age + secondes;
         t.y = t.y - 40 * secondes;
         t.tempsRestant = t.tempsRestant - secondes;
     }
@@ -156,17 +163,22 @@ int calculerDegats2D(int attaque, int puissance, int defense, int chanceCritique
 }
 
 // Un Haschen encaisse des degats
-void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique) {
+// (delai : le temps avant que le coup arrive, pour que les animations tombent au bon moment)
+void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique, float delai) {
     cible.stats.pv = cible.stats.pv - degats;
-    cible.flash = 0.25f;
-    ajouterTexte(jeu, cible, (critique ? "CRIT -" : "-") + std::to_string(degats), critique ? ORANGE : YELLOW);
+    cible.flash = 0.25f + delai;
+    ajouterTexte(jeu, cible, (critique ? "CRIT -" : "-") + std::to_string(degats), critique ? ORANGE : YELLOW, delai);
+
+    int numero = &cible - &jeu.haschen[0];      // le numero du Haschen dans la liste
+    animerImpact(jeu, numero, delai, critique, critique ? ORANGE : YELLOW);
     if (!cible.stats.estDebout()) {
         ecrireJournal(jeu, cible.stats.nom + " tombe !");
+        animerChute(jeu, cible, delai);
     }
 }
 
 // AYLIS encaisse un coup : la garde divise par 2, le bouclier absorbe, la rage se remplit
-void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique) {
+void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique, float delai) {
     Combattant& aylis = jeu.aylis.stats;
     if (jeu.enGarde) {
         degats = degats / 2;
@@ -177,9 +189,10 @@ void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique) {
         degats = degats - absorbe;
     }
     aylis.pv = aylis.pv - degats;
-    jeu.aylis.flash = 0.25f;
+    jeu.aylis.flash = 0.25f + delai;
     jeu.rage.remplir(degats * 4);
-    ajouterTexte(jeu, jeu.aylis, (critique ? "CRIT -" : "-") + std::to_string(degats), RED);
+    ajouterTexte(jeu, jeu.aylis, (critique ? "CRIT -" : "-") + std::to_string(degats), RED, delai);
+    animerImpact(jeu, -1, delai, critique, RED);
     ecrireJournal(jeu, attaquant.stats.nom + " touche AYLIS : -" + std::to_string(degats) + " pv");
 
     // Les coups de certains Haschen empoisonnent (une chance sur deux)
@@ -207,8 +220,12 @@ void subirEtats(Jeu& jeu, Pion& pion) {
     if (total > 0) {
         pion.stats.pv = pion.stats.pv - total;
         ajouterTexte(jeu, pion, "-" + std::to_string(total), PURPLE);
+        animerEtat(jeu, pion, PURPLE);
         if (!pion.stats.estDebout()) {
             ecrireJournal(jeu, pion.stats.nom + " succombe a ses blessures !");
+            if (&pion != &jeu.aylis) {
+                animerChute(jeu, pion, 0.0f);
+            }
         }
     }
 }
@@ -320,8 +337,12 @@ void frapper(Jeu& jeu, Pion& cible, int puissance) {
             faitSaigner = true;
         }
     }
+    // L'animation : un bond au corps a corps, ou un projectile (une orbe pour le baton, une fleche sinon)
+    SorteProjectile sorte = arme.nom.find("Baton") != std::string::npos ? SorteProjectile::Orbe : SorteProjectile::Fleche;
+    float delai = animerAttaque(jeu, jeu.aylis, cible, arme.aDistance, sorte);
+
     ecrireJournal(jeu, "AYLIS frappe " + cible.stats.nom + " : -" + std::to_string(total) + " pv");
-    blesserHaschen(jeu, cible, total, unCritique);
+    blesserHaschen(jeu, cible, total, unCritique, delai);
     if (faitSaigner && cible.stats.estDebout()) {
         cible.stats.saignement = 3;
     }
@@ -356,8 +377,9 @@ bool agirSurHaschen(Jeu& jeu, int numero) {
         if (GetRandomValue(1, 100) <= 60) {
             frapper(jeu, cible, 180);
         } else {
+            float delai = animerAttaque(jeu, jeu.aylis, cible, aylis.arme.aDistance, SorteProjectile::Fleche);
             ecrireJournal(jeu, "Attaque lourde... ratee !");
-            ajouterTexte(jeu, cible, "rate", LIGHTGRAY);
+            ajouterTexte(jeu, cible, "rate", LIGHTGRAY, delai);
         }
     } else if (action == Action::Garde) {
         frapper(jeu, cible, 60);
@@ -368,11 +390,13 @@ bool agirSurHaschen(Jeu& jeu, int numero) {
     } else if (action == Action::BouleDeFeu) {
         // La boule de feu explose : la cible ET les Haschen juste a cote d'elle
         ecrireJournal(jeu, "BOULE DE FEU !");
+        float delai = animerAttaque(jeu, jeu.aylis, cible, true, SorteProjectile::BouleDeFeu);
+        animerExplosion(jeu, cible, delai);
         for (Pion& h : jeu.haschen) {
             if (h.stats.estDebout() && distanceEntre(h, cible) <= 1) {
                 bool critique = false;
                 int degats = calculerDegats2D(aylis.attaque, 150, 0, 10, critique);
-                blesserHaschen(jeu, h, degats, critique);
+                blesserHaschen(jeu, h, degats, critique, delai);
                 h.stats.brulure = 2;
             }
         }
@@ -380,7 +404,8 @@ bool agirSurHaschen(Jeu& jeu, int numero) {
         bool critique = false;
         int degats = calculerDegats2D(aylis.attaque, 100, cible.stats.defense, 10, critique);
         ecrireJournal(jeu, "ECLAIR ! " + cible.stats.nom + " est paralyse.");
-        blesserHaschen(jeu, cible, degats, critique);
+        animerEclair(jeu, cible);
+        blesserHaschen(jeu, cible, degats, critique, 0.05f);
         cible.stats.etourdi = true;
     }
 
@@ -400,6 +425,7 @@ bool agirSurSoi(Jeu& jeu) {
         aylis.potions = aylis.potions - 1;
         aylis.soigner(15);                          // une methode du Combattant du jeu console
         ajouterTexte(jeu, jeu.aylis, "+15", GREEN);
+        animerSoin(jeu, jeu.aylis);
         ecrireJournal(jeu, "AYLIS boit une potion.");
     } else if (action == Action::Soin) {
         aylis.soigner(20);
@@ -407,10 +433,12 @@ bool agirSurSoi(Jeu& jeu) {
         aylis.brulure = 0;
         aylis.saignement = 0;
         ajouterTexte(jeu, jeu.aylis, "+20", GREEN);
+        animerSoin(jeu, jeu.aylis);
         ecrireJournal(jeu, "SOIN ! Les blessures d'AYLIS se referment.");
     } else {
         aylis.bouclier = 15;
         ajouterTexte(jeu, jeu.aylis, "BOUCLIER", SKYBLUE);
+        animerBouclier(jeu, jeu.aylis);
         ecrireJournal(jeu, "Une barriere de lumiere entoure AYLIS.");
     }
     finirTourAylis(jeu);
@@ -469,6 +497,7 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
         stats.potions = stats.potions - 1;
         stats.soigner(15);
         ajouterTexte(jeu, h, "+15", GREEN);
+        animerSoin(jeu, h);
         ecrireJournal(jeu, stats.nom + " boit une potion !");
         return;
     }
@@ -480,7 +509,9 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
     if (stats.style == Style::Lanceur && distanceDepart > 1 && distanceDepart <= PORTEE_LANCEUR
         && GetRandomValue(0, 1) == 0) {
         int degats = calculerDegats2D(stats.attaque, 80, jeu.aylis.stats.defense, 10, critique);
-        toucherAylis(jeu, h, degats, critique);
+        SorteProjectile sorte = stats.estBoss ? SorteProjectile::Javelot : SorteProjectile::Fleche;
+        float delai = animerAttaque(jeu, h, jeu.aylis, true, sorte);
+        toucherAylis(jeu, h, degats, critique, delai);
         return;
     }
 
@@ -493,6 +524,7 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
         // Un boss tente parfois une attaque lourde
         if (stats.estBoss && GetRandomValue(1, 4) == 1) {
             if (GetRandomValue(1, 100) > 60) {
+                animerAttaque(jeu, h, jeu.aylis, false, SorteProjectile::Fleche);
                 ecrireJournal(jeu, stats.nom + " rate son attaque lourde !");
                 return;
             }
@@ -502,7 +534,8 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
             ecrireJournal(jeu, stats.nom + " CHARGE !");
         }
         int degats = calculerDegats2D(stats.attaque, puissance, jeu.aylis.stats.defense, 10, critique);
-        toucherAylis(jeu, h, degats, critique);
+        float delai = animerAttaque(jeu, h, jeu.aylis, false, SorteProjectile::Fleche);
+        toucherAylis(jeu, h, degats, critique, delai);
     }
 }
 
@@ -587,6 +620,19 @@ void preparerCombat(Jeu& jeu) {
     jeu.haschen.clear();
     jeu.journal.clear();
     jeu.textes.clear();
+
+    // On repart d'un ecran calme : plus de particules, de projectiles ni de secousse
+    jeu.particules.clear();
+    jeu.projectiles.clear();
+    jeu.effets.clear();
+    jeu.eclairs.clear();
+    jeu.secousse = 0.0f;
+    jeu.arretSurImage = 0.0f;
+    jeu.aylis.xAffiche = -1.0f;     // AYLIS apparait directement a sa place de depart
+    jeu.aylis.pvAffiches = -1.0f;
+    jeu.aylis.elan = 0.0f;
+    jeu.aylis.recul = 0.0f;
+    jeu.aylis.flash = 0.0f;
 
     Combattant& aylis = jeu.aylis.stats;
     aylis.mana = aylis.manaMax;     // le mana se recharge a chaque combat
