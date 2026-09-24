@@ -12,5 +12,6 @@ struct Bestiaire {
     Combattant vorgath;                 // boss final
 };
 
-// Parcourt toute la carte. Renvoie true si AYLIS abat Vorgath.
-bool parcourirCarte(Combattant& aylis, const std::vector<Arme>& armes, const Bestiaire& bestiaire);
+// Parcourt la carte a partir de etat.etape (0 pour une nouvelle partie), en sauvegardant a chaque etape.
+// Renvoie true si AYLIS abat Vorgath.
+bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Bestiaire& bestiaire);

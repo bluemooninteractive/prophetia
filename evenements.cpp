@@ -20,8 +20,26 @@ void gagnerOr(Combattant& aylis, int pieces) {
     std::cout << "+" << pieces << " pieces d'or (" << aylis.pieces << " en tout).\n";
 }
 
+// Un bon ou un mauvais choix : l'honneur monte ou descend (il decide de la fin de l'histoire)
+void changerHonneur(Combattant& aylis, int changement) {
+    aylis.honneur = aylis.honneur + changement;
+    if (changement > 0) {
+        std::cout << colorer("(Honneur +1)", VERT) << "\n";
+    } else {
+        std::cout << colorer("(Honneur -1)", ROUGE) << "\n";
+    }
+}
+
+// Un nouveau compagnon rejoint AYLIS
+void recruter(EtatPartie& etat, const Combattant& compagnon) {
+    etat.compagnon = compagnon;
+    etat.avecCompagnon = true;
+    std::cout << colorer(compagnon.nom + " rejoint AYLIS et combattra a ses cotes !", CYAN + GRAS) << "\n";
+}
+
 // ----- Le voyageur blesse -----
-void voyageurBlesse(Combattant& aylis) {
+void voyageurBlesse(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
     std::cout << "Au bord du chemin, un voyageur est adosse a un arbre, une fleche haschen dans l'epaule.\n";
     std::cout << "\"Par pitie... je n'ai plus rien pour me soigner...\"\n\n";
     std::cout << "1. Lui donner une potion (tu en as " << aylis.potions << ")\n";
@@ -45,6 +63,7 @@ void voyageurBlesse(Combattant& aylis) {
             afficherObjet(amulette);
             std::cout << "\n";
         }
+        changerHonneur(aylis, 1);
     } else if (choix == 2) {
         std::cout << "AYLIS trouve une bourse... et le voyageur murmure une malediction.\n";
         gagnerOr(aylis, 20);
@@ -53,13 +72,15 @@ void voyageurBlesse(Combattant& aylis) {
             aylis.pv = aylis.pvMax;
         }
         std::cout << "La malediction pese sur AYLIS : -3 pv max (" << aylis.pvMax << ").\n";
+        changerHonneur(aylis, -1);
     } else {
         std::cout << "AYLIS s'eloigne sans se retourner.\n";
     }
 }
 
 // ----- Le coffre piege -----
-void coffrePiege(Combattant& aylis) {
+void coffrePiege(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
     std::cout << "Un coffre cercle de fer trone au milieu des ruines. Des fils fins brillent autour de la serrure...\n\n";
     std::cout << "1. L'ouvrir prudemment (petit butin, petit risque)\n";
     std::cout << "2. Forcer la serrure (gros butin, gros risque)\n";
@@ -88,7 +109,8 @@ void coffrePiege(Combattant& aylis) {
 }
 
 // ----- L'autel mysterieux -----
-void autelMysterieux(Combattant& aylis) {
+void autelMysterieux(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
     std::cout << "Un autel de pierre noire, couvert de runes qui pulsent doucement. Une voix chuchote :\n";
     std::cout << "\"Donne... et tu recevras...\"\n\n";
     std::cout << "1. Offrir ton sang (-10 pv) pour devenir plus fort\n";
@@ -118,44 +140,87 @@ void autelMysterieux(Combattant& aylis) {
 }
 
 // ----- Le deserteur haschen -----
-void deserteurHaschen(Combattant& aylis) {
+void deserteurHaschen(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
     std::cout << "Un jeune Haschen, blesse et sans arme, leve les mains en tremblant.\n";
-    std::cout << "\"Je fuis Vorgath... Je ne veux plus me battre. Laisse-moi partir.\"\n\n";
-    std::cout << "1. L'aider (donner une potion, tu en as " << aylis.potions << ")\n";
+    std::cout << "\"Je m'appelle Kerrak. Je fuis Vorgath... Je ne veux plus me battre pour lui.\"\n\n";
+    std::cout << "1. Le soigner (donner une potion si tu en as, tu en as " << aylis.potions << ")\n";
     std::cout << "2. Le depouiller\n";
     std::cout << "3. Le laisser partir\n";
 
     int choix = lireChoix(1, 3);
     if (choix == 1) {
-        if (aylis.potions == 0) {
-            std::cout << "AYLIS n'a plus de potion. Le Haschen hoche la tete et s'enfuit.\n";
-            return;
+        if (aylis.potions > 0) {
+            aylis.potions = aylis.potions - 1;
+            std::cout << "Kerrak boit la potion. \"Vorgath fonce toujours droit sur ses ennemis. Et nos chefs\n";
+            std::cout << "cachent leurs tresors sous les pierres plates.\" AYLIS apprend beaucoup sur les Haschen.\n";
+            gagnerXp(aylis, 25);
+            depenserPoints(aylis);
+        } else {
+            std::cout << "AYLIS n'a plus de potion, mais bande la blessure de Kerrak avec un bout de sa cape.\n";
         }
-        aylis.potions = aylis.potions - 1;
-        std::cout << "\"Merci... Ecoute : Vorgath fonce toujours droit sur ses ennemis. Et nos chefs cachent\n";
-        std::cout << "leurs tresors sous les pierres plates.\" AYLIS apprend beaucoup sur les Haschen.\n";
-        gagnerXp(aylis, 25);
-        depenserPoints(aylis);
+        changerHonneur(aylis, 1);
+
+        if (!etat.avecCompagnon) {
+            std::cout << "\"Je te dois la vie. Laisse-moi t'aider a abattre Vorgath.\"\n";
+            //                  nom       pv  pvMax att def potions boss  xp or
+            Combattant kerrak = {"Kerrak", 26, 26,   9,  2,  0,      false, 0, 0};
+            recruter(etat, kerrak);
+        }
     } else if (choix == 2) {
-        std::cout << "Le Haschen lache sa bourse et s'enfuit en boitant.\n";
+        std::cout << "Kerrak lache sa bourse et s'enfuit en boitant.\n";
         gagnerOr(aylis, 30);
+        changerHonneur(aylis, -1);
     } else {
-        std::cout << "Le Haschen disparait dans les buissons. AYLIS se sent en paix.\n";
+        std::cout << "Kerrak disparait dans les buissons. AYLIS se sent en paix.\n";
         soigner(aylis, 5);
+        changerHonneur(aylis, 1);
     }
 }
 
-void evenementAleatoire(Combattant& aylis) {
-    std::cout << "\n??????????????????????????????????????????\n";
-    int tirage = std::rand() % 4;
-    if (tirage == 0) {
-        voyageurBlesse(aylis);
-    } else if (tirage == 1) {
-        coffrePiege(aylis);
-    } else if (tirage == 2) {
-        autelMysterieux(aylis);
-    } else {
-        deserteurHaschen(aylis);
+// ----- La mercenaire -----
+void mercenaire(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
+    const int prix = 40;
+    std::cout << "Une guerriere aux cheveux tresses aiguise sa lame pres d'un feu.\n";
+    std::cout << "\"Brenna, mercenaire. Tu vas chez Vorgath ? Pour " << prix << " pieces, je viens avec toi.\"\n\n";
+
+    if (etat.avecCompagnon) {
+        std::cout << "Elle jette un oeil a " << etat.compagnon.nom << ". \"Ah, tu es deja accompagne. Bonne route alors.\"\n";
+        return;
     }
-    std::cout << "??????????????????????????????????????????\n";
+
+    std::cout << "1. L'engager (" << prix << " or, tu en as " << aylis.pieces << ")\n";
+    std::cout << "2. Refuser poliment\n";
+
+    int choix = lireChoix(1, 2);
+    if (choix == 1) {
+        if (aylis.pieces < prix) {
+            std::cout << "\"Reviens quand tu auras de quoi payer.\"\n";
+            return;
+        }
+        aylis.pieces = aylis.pieces - prix;
+        //                  nom       pv  pvMax att def potions boss  xp or
+        Combattant brenna = {"Brenna", 30, 30,  11,  3,  0,      false, 0, 0};
+        recruter(etat, brenna);
+    } else {
+        std::cout << "\"Comme tu veux. Ne meurs pas trop vite.\"\n";
+    }
+}
+
+void evenementAleatoire(EtatPartie& etat) {
+    std::cout << "\n" << colorer("??????????????????????????????????????????", VIOLET) << "\n";
+    int tirage = std::rand() % 5;
+    if (tirage == 0) {
+        voyageurBlesse(etat);
+    } else if (tirage == 1) {
+        coffrePiege(etat);
+    } else if (tirage == 2) {
+        autelMysterieux(etat);
+    } else if (tirage == 3) {
+        deserteurHaschen(etat);
+    } else {
+        mercenaire(etat);
+    }
+    std::cout << colorer("??????????????????????????????????????????", VIOLET) << "\n";
 }

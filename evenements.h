@@ -3,5 +3,6 @@
 
 #include "types.h"
 
-// Tire un evenement au hasard et le joue
-void evenementAleatoire(Combattant& aylis);
+// Tire un evenement au hasard et le joue.
+// Les choix changent l'honneur d'AYLIS, et certains peuvent lui donner un compagnon.
+void evenementAleatoire(EtatPartie& etat);

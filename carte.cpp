@@ -10,6 +10,7 @@
 #include "marchands.h"
 #include "combat.h"
 #include "evenements.h"
+#include "sauvegarde.h"
 
 // Les sortes d'etapes sur la carte
 const int ETAPE_CHOIX = 0;      // AYLIS choisit son chemin
@@ -148,7 +149,9 @@ void afficherChemin(const Chemin& chemin) {
 }
 
 // Un combat contre un groupe, puis les recompenses de chaque ennemi. Renvoie false si AYLIS tombe.
-bool combatEtRecompenses(Combattant& aylis, std::vector<Combattant> groupe, int& rage, bool dernierCombat) {
+bool combatEtRecompenses(EtatPartie& etat, std::vector<Combattant> groupe, bool dernierCombat) {
+    Combattant& aylis = etat.aylis;
+
     std::cout << "\n==========================================\n";
     if (groupe[0].estBoss) {
         std::cout << colorer("  !!! BOSS : " + groupe[0].nom + " !!!", ROUGE + GRAS) << "\n";
@@ -159,7 +162,7 @@ bool combatEtRecompenses(Combattant& aylis, std::vector<Combattant> groupe, int&
     }
     std::cout << "==========================================\n";
 
-    if (!combattre(aylis, groupe, rage)) {
+    if (!combattre(aylis, groupe, etat.rage, etat.compagnon, etat.avecCompagnon)) {
         std::cout << "\n" << colorer("=== GAME OVER ===", ROUGE + GRAS) << "\n";
         std::cout << "AYLIS tombe au combat face a " << nomsDuGroupe(groupe) << ".\n";
         return false;
@@ -179,7 +182,37 @@ bool combatEtRecompenses(Combattant& aylis, std::vector<Combattant> groupe, int&
 
     soigner(aylis, 10);
     std::cout << "AYLIS souffle un peu : +10 pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
+
+    // Le compagnon se remet aussi (meme s'il etait K.O.)
+    if (etat.avecCompagnon) {
+        if (etat.compagnon.pv <= 0) {
+            etat.compagnon.pv = etat.compagnon.pvMax / 2;
+            std::cout << etat.compagnon.nom << " se releve peniblement (" << etat.compagnon.pv << " pv).\n";
+        } else {
+            soigner(etat.compagnon, 10);
+        }
+    }
     return true;
+}
+
+// Ashka est vaincue : AYLIS decide de son sort. C'est un choix qui compte pour la fin.
+void destinDAshka(EtatPartie& etat) {
+    std::cout << "\nAshka s'effondre a genoux, sa lance brisee. \"Acheve-moi, humain... ou laisse-moi\n";
+    std::cout << "ramener mon clan dans les collines. Nous n'avons jamais voulu de cette guerre.\"\n\n";
+    std::cout << "1. L'epargner\n";
+    std::cout << "2. L'achever et prendre ses bracelets d'or\n";
+
+    if (lireChoix(1, 2) == 1) {
+        std::cout << "Ashka se releve lentement, et s'eloigne avec ses guerriers vers les collines.\n";
+        etat.aylis.honneur = etat.aylis.honneur + 1;
+        std::cout << colorer("(Honneur +1)", VERT) << "\n";
+    } else {
+        std::cout << "La lame d'AYLIS s'abat. Les bracelets d'Ashka valent une petite fortune.\n";
+        etat.aylis.pieces = etat.aylis.pieces + 30;
+        std::cout << "+30 pieces d'or (" << etat.aylis.pieces << " en tout).\n";
+        etat.aylis.honneur = etat.aylis.honneur - 1;
+        std::cout << colorer("(Honneur -1)", ROUGE) << "\n";
+    }
 }
 
 // Ou en est l'histoire, pour les repliques des marchands
@@ -196,39 +229,44 @@ int momentDeLHistoire(bool ashkaVaincue, int prochaineEtape) {
     return MOMENT_DEBUT;
 }
 
-bool parcourirCarte(Combattant& aylis, const std::vector<Arme>& armes, const Bestiaire& bestiaire) {
+bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Bestiaire& bestiaire) {
     // Le plan de la route : deux choix, une halte, Ashka, deux choix, une halte, Vorgath
     const std::vector<int> plan = {
         ETAPE_CHOIX, ETAPE_CHOIX, ETAPE_HALTE, ETAPE_ASHKA,
         ETAPE_CHOIX, ETAPE_CHOIX, ETAPE_HALTE, ETAPE_VORGATH,
     };
-
-    int rage = 0;
-    int haltesVisitees = 0;     // les prix montent a chaque halte
-    bool ashkaVaincue = false;
     int nombreEtapes = plan.size();
+    Combattant& aylis = etat.aylis;
 
-    for (int etape = 0; etape < nombreEtapes; etape++) {
+    // On part de l'etape ou en est la partie (0 pour une nouvelle partie, plus loin si on reprend une sauvegarde)
+    for (int etape = etat.etape; etape < nombreEtapes; etape++) {
         int typeEtape = plan[etape];
+
+        // Sauvegarde automatique au debut de chaque etape
+        etat.etape = etape;
+        sauvegarder(etat);
 
         // L'etape d'apres, pour savoir ce que les marchands doivent raconter
         int prochaineEtape = ETAPE_CHOIX;
         if (etape + 1 < nombreEtapes) {
             prochaineEtape = plan[etape + 1];
         }
+        int moment = momentDeLHistoire(etat.ashkaVaincue, prochaineEtape);
 
-        std::cout << "\n\n######## ETAPE " << (etape + 1) << "/" << nombreEtapes << " ########\n";
+        std::cout << "\n\n######## ETAPE " << (etape + 1) << "/" << nombreEtapes << " ########  "
+                  << colorer("(partie sauvegardee)", GRIS) << "\n";
 
         if (typeEtape == ETAPE_ASHKA) {
-            if (!combatEtRecompenses(aylis, {bestiaire.ashka}, rage, false)) {
+            if (!combatEtRecompenses(etat, {bestiaire.ashka}, false)) {
                 return false;
             }
-            ashkaVaincue = true;
+            destinDAshka(etat);
+            etat.ashkaVaincue = true;
             continue;
         }
 
         if (typeEtape == ETAPE_VORGATH) {
-            return combatEtRecompenses(aylis, {bestiaire.vorgath}, rage, true);
+            return combatEtRecompenses(etat, {bestiaire.vorgath}, true);
         }
 
         if (typeEtape == ETAPE_HALTE) {
@@ -237,13 +275,13 @@ bool parcourirCarte(Combattant& aylis, const std::vector<Arme>& armes, const Bes
             } else {
                 std::cout << "La forteresse de Vorgath est en vue. Une derniere halte avant l'assaut.\n";
             }
-            halte(aylis, armes, haltesVisitees, momentDeLHistoire(ashkaVaincue, prochaineEtape));
-            haltesVisitees = haltesVisitees + 1;
+            halte(aylis, armes, etat.haltesVisitees, moment);
+            etat.haltesVisitees = etat.haltesVisitees + 1;
             continue;
         }
 
         // Une etape de choix : on propose trois chemins
-        std::vector<Chemin> chemins = proposerChemins(bestiaire, ashkaVaincue);
+        std::vector<Chemin> chemins = proposerChemins(bestiaire, etat.ashkaVaincue);
         int nombreChemins = chemins.size();
 
         std::cout << "Plusieurs chemins s'offrent a AYLIS :\n";
@@ -253,22 +291,30 @@ bool parcourirCarte(Combattant& aylis, const std::vector<Arme>& armes, const Bes
             std::cout << "\n";
         }
         std::cout << "(AYLIS : " << aylis.pv << "/" << aylis.pvMax << " pv, "
-                  << aylis.potions << " potions, " << aylis.pieces << " or)\n";
+                  << aylis.potions << " potions, " << aylis.pieces << " or";
+        if (etat.avecCompagnon) {
+            std::cout << ", avec " << etat.compagnon.nom;
+        }
+        std::cout << ")\n";
 
         const Chemin& chemin = chemins[lireChoix(1, nombreChemins) - 1];
 
         if (chemin.type == CHEMIN_COMBAT || chemin.type == CHEMIN_ELITE) {
-            if (!combatEtRecompenses(aylis, chemin.ennemis, rage, false)) {
+            if (!combatEtRecompenses(etat, chemin.ennemis, false)) {
                 return false;
             }
         } else if (chemin.type == CHEMIN_REPOS) {
             soigner(aylis, aylis.pvMax / 2);
             std::cout << "\nAYLIS se repose pres du feu. Retour a " << colorer(aylis.pv, VERT) << "/" << aylis.pvMax << " pv.\n";
+            if (etat.avecCompagnon) {
+                etat.compagnon.pv = etat.compagnon.pvMax;
+                std::cout << etat.compagnon.nom << " reprend aussi des forces.\n";
+            }
         } else if (chemin.type == CHEMIN_HALTE) {
-            halte(aylis, armes, haltesVisitees, momentDeLHistoire(ashkaVaincue, prochaineEtape));
-            haltesVisitees = haltesVisitees + 1;
+            halte(aylis, armes, etat.haltesVisitees, moment);
+            etat.haltesVisitees = etat.haltesVisitees + 1;
         } else {
-            evenementAleatoire(aylis);
+            evenementAleatoire(etat);
         }
     }
 

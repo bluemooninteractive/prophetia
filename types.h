@@ -68,14 +68,35 @@ struct Combattant {
     int pieces = 0;         // l'or ("or" est un mot reserve en C++, on ne peut pas l'utiliser)
     int mana = 10;
     int manaMax = 10;
-    int sortsConnus = 1;    // 1 = Boule de feu, 2 = + Soin, 3 = + Eclair
+    int sortsConnus = 1;    // 1 = Boule de feu, 2 = + Soin, 3 = + Eclair, 4 = + Bouclier
     Arme arme = {"Epee courte", false, 0, 10, 1, 0};
     std::vector<Objet> inventaire = {};
+
+    // Les etats : le nombre de tours qu'il leur reste (0 = pas d'etat)
+    int poison = 0;         // -3 pv par tour
+    int brulure = 0;        // -4 pv par tour
+    int saignement = 0;     // -3 pv par tour
+    int bouclier = 0;       // absorbe ce nombre de points de degats
+    bool attaquePoison = false;     // pour un ennemi : ses coups peuvent empoisonner
+
+    int honneur = 0;        // les bons (+1) et mauvais (-1) choix d'AYLIS : ils decident de la fin
 };
 
 const int rageMax = 100;
-const int nombreDeSorts = 3;
+const int nombreDeSorts = 4;
 const int distanceDepart = 2;       // 2 = loin, 1 = proche, 0 = au contact
+
+// Tout ce qui decrit une partie en cours : c'est ce qu'on ecrit dans le fichier de sauvegarde
+struct EtatPartie {
+    Combattant aylis;
+    Combattant compagnon;           // le compagnon d'AYLIS, s'il y en a un
+    bool avecCompagnon = false;
+    int rage = 0;
+    int etape = 0;                  // l'etape de la route ou on en est
+    int haltesVisitees = 0;         // les prix montent a chaque halte
+    bool ashkaVaincue = false;
+    int difficulte = 2;             // 1 = facile, 2 = normal, 3 = difficile
+};
 
 // Un marchand : son nom, son metier et ses repliques
 struct Marchand {

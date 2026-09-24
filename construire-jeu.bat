@@ -9,7 +9,7 @@ if not exist AYLIS-jeu mkdir AYLIS-jeu
 
 echo Compilation du jeu...
 rem Les fichiers a compiler (les memes que dans CMakeLists.txt)
-set FICHIERS=main.cpp outils.cpp progression.cpp marchands.cpp combat.cpp carte.cpp evenements.cpp couleurs.cpp accueil.cpp
+set FICHIERS=main.cpp outils.cpp progression.cpp marchands.cpp combat.cpp carte.cpp evenements.cpp couleurs.cpp accueil.cpp histoire.cpp sauvegarde.cpp
 
 "%MINGW%\g++.exe" -std=c++20 -O2 -static-libgcc -static-libstdc++ %FICHIERS% -o AYLIS-jeu\AYLIS.exe
 if errorlevel 1 (

@@ -13,4 +13,6 @@ add_executable(turn_based
     evenements.cpp
     couleurs.cpp
     accueil.cpp
+    histoire.cpp
+    sauvegarde.cpp
 )

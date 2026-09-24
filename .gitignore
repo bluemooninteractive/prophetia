@@ -7,3 +7,6 @@ cmake-build-*/
 
 # Le dossier du jeu pret a jouer (se refabrique a partir du code)
 AYLIS-jeu/
+
+# La sauvegarde de la partie en cours
+prophetia_sauvegarde.txt

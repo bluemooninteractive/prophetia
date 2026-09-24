@@ -10,6 +10,8 @@
 #include "couleurs.h"
 #include "carte.h"
 #include "accueil.h"
+#include "histoire.h"
+#include "sauvegarde.h"
 
 // Applique la difficulte a un ennemi (pourcentages : 125 = +25%)
 void appliquerDifficulte(Combattant& ennemi, int forceEnnemis, int orEnnemis) {
@@ -19,11 +21,9 @@ void appliquerDifficulte(Combattant& ennemi, int forceEnnemis, int orEnnemis) {
     ennemi.orDonne = ennemi.orDonne * orEnnemis / 100;
 }
 
-// Une partie complete : on prepare le heros, les armes et les ennemis, puis on part sur la route
-void jouerPartie() {
-    //                   nom            pv  pvMax att  def potions boss   xp  or
-    Combattant aylis = {"AYLIS",        40, 40,   12,  4,  3,      false, 0,  0};
-
+// Une partie : on prepare les armes et les ennemis, puis on part sur la route.
+// continuer = true pour reprendre la partie sauvegardee au lieu d'en commencer une nouvelle.
+void jouerPartie(bool continuer) {
     // Les armes vendues par Durgan
     //                       nom                 distance  bonus crit coups prix
     std::vector<Arme> armes = {
@@ -67,6 +67,7 @@ void jouerPartie() {
         {"Haschen chaman",      20, 20, 10, 1, 0, false,  25, 25,
             {{croc, 40}, {totem, 30}, {potion, 40}}},
     };
+    bestiaire.normaux[3].attaquePoison = true;      // les coups du chaman peuvent empoisonner
 
     // Les Haschen d'elite : plus durs, avec un objet RARE garanti
     bestiaire.elites = {
@@ -82,34 +83,50 @@ void jouerPartie() {
     bestiaire.vorgath = {"Vorgath le Destructeur", 60, 60, 17, 6, 2, true, 100, 0,
         {}, STYLE_CHARGEUR};
 
-    std::cout << "\n" << colorer("=== Une nouvelle partie commence ===", JAUNE + GRAS) << "\n";
-    std::cout << "Les Haschen deferlent sur la vallee, menes par Vorgath le Destructeur.\n";
-    std::cout << "AYLIS prend la route vers sa forteresse. Personne d'autre n'ose y aller.\n";
+    // L'etat de la partie : tout ce qui sera sauvegarde
+    EtatPartie etat = {};
 
-    // Le choix de l'arme de depart : melee ou distance
-    std::cout << "\nChoisis l'arme de depart d'AYLIS :\n";
-    std::cout << "1. ";
-    afficherArme(armes[0]);
-    std::cout << "\n   -> doit aller au contact, mais frappe fort une fois la-bas\n";
-    std::cout << "2. ";
-    afficherArme(armes[4]);
-    std::cout << "\n   -> tire pendant que les Haschen approchent, mais moins efficace au contact\n";
-    if (lireChoix(1, 2) == 1) {
-        aylis.arme = armes[0];
+    if (continuer) {
+        if (!charger(etat)) {
+            std::cout << "\n" << colorer("La sauvegarde est introuvable ou abimee.", ROUGE) << "\n";
+            attendreEntree();
+            return;
+        }
+        std::cout << "\n" << colorer("=== Reprise de la partie ===", JAUNE + GRAS) << "\n";
+        std::cout << "AYLIS reprend la route a l'etape " << (etat.etape + 1) << ", niveau " << etat.aylis.niveau
+                  << ", " << etat.aylis.pv << "/" << etat.aylis.pvMax << " pv.\n";
     } else {
-        aylis.arme = armes[4];
-    }
-    std::cout << "AYLIS part avec : " << aylis.arme.nom << ".\n";
+        //                         nom      pv  pvMax att def potions boss   xp or
+        etat.aylis = Combattant{"AYLIS",    40, 40,   12,  4,  3,      false, 0, 0};
 
-    // Le choix de la difficulte : change la force des ennemis et l'or qu'ils donnent
-    std::cout << "\nChoisis la difficulte :\n";
-    std::cout << "1. Facile     (ennemis -20% pv et attaque, +20% d'or)\n";
-    std::cout << "2. Normal\n";
-    std::cout << "3. Difficile  (ennemis +25% pv et attaque, -20% d'or)\n";
-    int difficulte = lireChoix(1, 3);
+        afficherIntro();
+
+        // Le choix de l'arme de depart : melee ou distance
+        std::cout << "\nChoisis l'arme de depart d'AYLIS :\n";
+        std::cout << "1. ";
+        afficherArme(armes[0]);
+        std::cout << "\n   -> doit aller au contact, mais frappe fort une fois la-bas\n";
+        std::cout << "2. ";
+        afficherArme(armes[4]);
+        std::cout << "\n   -> tire pendant que les Haschen approchent, mais moins efficace au contact\n";
+        if (lireChoix(1, 2) == 1) {
+            etat.aylis.arme = armes[0];
+        } else {
+            etat.aylis.arme = armes[4];
+        }
+        std::cout << "AYLIS part avec : " << etat.aylis.arme.nom << ".\n";
+
+        // Le choix de la difficulte : change la force des ennemis et l'or qu'ils donnent
+        std::cout << "\nChoisis la difficulte :\n";
+        std::cout << "1. Facile     (ennemis -20% pv et attaque, +20% d'or)\n";
+        std::cout << "2. Normal\n";
+        std::cout << "3. Difficile  (ennemis +25% pv et attaque, -20% d'or)\n";
+        etat.difficulte = lireChoix(1, 3);
+    }
 
     int forceEnnemis = 100;     // en pourcentage
     int orEnnemis = 100;
+    int difficulte = etat.difficulte;
     if (difficulte == 1) {
         forceEnnemis = 80;
         orEnnemis = 120;
@@ -129,9 +146,14 @@ void jouerPartie() {
     appliquerDifficulte(bestiaire.vorgath, forceEnnemis, orEnnemis);
 
     // En route !
-    if (parcourirCarte(aylis, armes, bestiaire)) {
+    bool victoire = parcourirCarte(etat, armes, bestiaire);
+
+    // La partie est finie (gagnee ou perdue) : la sauvegarde ne sert plus
+    effacerSauvegarde();
+
+    if (victoire) {
         std::cout << "\n" << colorer("=== VICTOIRE TOTALE ! ===", VERT + GRAS) << "\n";
-        std::cout << "Les Haschen sont en deroute : AYLIS a abattu Vorgath le Destructeur !\n";
+        afficherFin(etat);
     }
     // Sinon, le GAME OVER est deja affiche
 
@@ -145,10 +167,12 @@ int main() {
 
     // L'ecran d'accueil, jusqu'a ce que le joueur choisisse de quitter
     while (true) {
-        int choix = ecranTitre();
+        int choix = ecranTitre(sauvegardeExiste());
         if (choix == 1) {
-            jouerPartie();
+            jouerPartie(false);
         } else if (choix == 2) {
+            jouerPartie(true);
+        } else if (choix == 3) {
             afficherRegles();
         } else {
             std::cout << "\nA bientot sur la route, AYLIS !\n";

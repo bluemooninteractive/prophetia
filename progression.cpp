@@ -94,8 +94,10 @@ void depenserPoints(Combattant& aylis) {
                 aylis.sortsConnus = aylis.sortsConnus + 1;
                 if (aylis.sortsConnus == 2) {
                     std::cout << "Nouveau sort appris : SOIN !\n";
-                } else {
+                } else if (aylis.sortsConnus == 3) {
                     std::cout << "Nouveau sort appris : ECLAIR !\n";
+                } else {
+                    std::cout << "Nouveau sort appris : BOUCLIER !\n";
                 }
             }
             std::cout << "Mana max : " << aylis.manaMax << ".\n";
