@@ -15,4 +15,5 @@ add_executable(turn_based
     accueil.cpp
     histoire.cpp
     sauvegarde.cpp
+    jauge.cpp
 )

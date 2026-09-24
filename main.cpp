@@ -38,20 +38,20 @@ void jouerPartie(bool continuer) {
 
     // Les objets qu'on peut trouver sur les ennemis
     //                 nom                      type            rarete  valeur
-    Objet croc     = {"Croc de Haschen",        OBJET_MATERIAU, COMMUN,  8};
-    Objet peau     = {"Peau de Haschen",        OBJET_MATERIAU, COMMUN, 12};
-    Objet totem    = {"Totem de chaman",        OBJET_MATERIAU, RARE,   30};
-    Objet griffe   = {"Griffe de berserker",    OBJET_MATERIAU, RARE,   25};
-    Objet osGraves = {"Os graves de runes",     OBJET_MATERIAU, RARE,   25};
-    Objet couronne = {"Couronne d'os d'Ashka",  OBJET_MATERIAU, EPIQUE, 70};
-    Objet potion   = {"Potion",                 OBJET_POTION,   COMMUN,  7};
+    Objet croc     = {"Croc de Haschen",        TypeObjet::Materiau, Rarete::Commun,  8};
+    Objet peau     = {"Peau de Haschen",        TypeObjet::Materiau, Rarete::Commun, 12};
+    Objet totem    = {"Totem de chaman",        TypeObjet::Materiau, Rarete::Rare,   30};
+    Objet griffe   = {"Griffe de berserker",    TypeObjet::Materiau, Rarete::Rare,   25};
+    Objet osGraves = {"Os graves de runes",     TypeObjet::Materiau, Rarete::Rare,   25};
+    Objet couronne = {"Couronne d'os d'Ashka",  TypeObjet::Materiau, Rarete::Epique, 70};
+    Objet potion   = {"Potion",                 TypeObjet::Potion,   Rarete::Commun,  7};
 
     // Les armes qu'on peut trouver sur les ennemis
     //                                  nom                   distance bonus crit coups prix rarete
-    Objet arcDOs         = objetDepuisArme({"Arc d'os",           true,   3, 20, 1,  60, RARE});
-    Objet lance          = objetDepuisArme({"Lance de Haschen",   false,  3, 15, 1,  60, RARE});
-    Objet hacheBerserker = objetDepuisArme({"Hache du berserker", false,  6, 15, 1,  80, RARE});
-    Objet javelots       = objetDepuisArme({"Javelots d'Ashka",   true,   6, 20, 1, 120, EPIQUE});
+    Objet arcDOs         = objetDepuisArme({"Arc d'os",           true,   3, 20, 1,  60, Rarete::Rare});
+    Objet lance          = objetDepuisArme({"Lance de Haschen",   false,  3, 15, 1,  60, Rarete::Rare});
+    Objet hacheBerserker = objetDepuisArme({"Hache du berserker", false,  6, 15, 1,  80, Rarete::Rare});
+    Objet javelots       = objetDepuisArme({"Javelots d'Ashka",   true,   6, 20, 1, 120, Rarete::Epique});
 
     // Les ennemis. Apres l'XP et l'or : la table de loot (chaque objet avec sa chance sur 100), puis le style.
     Bestiaire bestiaire;
@@ -63,7 +63,7 @@ void jouerPartie(bool continuer) {
         {"Haschen guerrier",    22, 22,  9, 2, 0, false,  25, 25,
             {{croc, 60}, {peau, 50}, {potion, 20}, {lance, 12}}},
         {"Haschen traqueur",    20, 20,  9, 1, 0, false,  25, 22,
-            {{croc, 50}, {peau, 40}, {potion, 20}, {arcDOs, 12}}, STYLE_LANCEUR},
+            {{croc, 50}, {peau, 40}, {potion, 20}, {arcDOs, 12}}, Style::Lanceur},
         {"Haschen chaman",      20, 20, 10, 1, 0, false,  25, 25,
             {{croc, 40}, {totem, 30}, {potion, 40}}},
     };
@@ -79,9 +79,9 @@ void jouerPartie(bool continuer) {
 
     // Les boss
     bestiaire.ashka = {"Ashka, Matriarche des Haschen", 40, 40, 14, 4, 1, true, 50, 50,
-        {{couronne, 100}, {javelots, 100}, {potion, 50}}, STYLE_LANCEUR};
+        {{couronne, 100}, {javelots, 100}, {potion, 50}}, Style::Lanceur};
     bestiaire.vorgath = {"Vorgath le Destructeur", 60, 60, 17, 6, 2, true, 100, 0,
-        {}, STYLE_CHARGEUR};
+        {}, Style::Chargeur};
 
     // L'etat de la partie : tout ce qui sera sauvegarde
     EtatPartie etat = {};

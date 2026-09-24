@@ -180,16 +180,16 @@ bool combatEtRecompenses(EtatPartie& etat, std::vector<Combattant> groupe, bool 
     }
     depenserPoints(aylis);
 
-    soigner(aylis, 10);
+    aylis.soigner(10);
     std::cout << "AYLIS souffle un peu : +10 pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
 
     // Le compagnon se remet aussi (meme s'il etait K.O.)
     if (etat.avecCompagnon) {
-        if (etat.compagnon.pv <= 0) {
+        if (!etat.compagnon.estDebout()) {
             etat.compagnon.pv = etat.compagnon.pvMax / 2;
             std::cout << etat.compagnon.nom << " se releve peniblement (" << etat.compagnon.pv << " pv).\n";
         } else {
-            soigner(etat.compagnon, 10);
+            etat.compagnon.soigner(10);
         }
     }
     return true;
@@ -304,7 +304,7 @@ bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Best
                 return false;
             }
         } else if (chemin.type == CHEMIN_REPOS) {
-            soigner(aylis, aylis.pvMax / 2);
+            aylis.soigner(aylis.pvMax / 2);
             std::cout << "\nAYLIS se repose pres du feu. Retour a " << colorer(aylis.pv, VERT) << "/" << aylis.pvMax << " pv.\n";
             if (etat.avecCompagnon) {
                 etat.compagnon.pv = etat.compagnon.pvMax;

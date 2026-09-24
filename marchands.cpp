@@ -196,7 +196,7 @@ void forge(Combattant& aylis, const Marchand& durgan, int visite, int moment,
 
 // Silas paie 50% de plus pour les objets RARE et EPIQUE
 int prixDeRachat(const Objet& objet) {
-    if (objet.rarete == COMMUN) {
+    if (objet.rarete == Rarete::Commun) {
         return objet.valeur;
     }
     return objet.valeur * 150 / 100;
@@ -238,9 +238,9 @@ void collectionneur(Combattant& aylis, const Marchand& silas, int visite, int mo
             int gain = 0;
             bool epiqueVendu = false;
             for (int i = taille - 1; i >= 0; i--) {
-                if (aylis.inventaire[i].type == OBJET_MATERIAU) {
+                if (aylis.inventaire[i].type == TypeObjet::Materiau) {
                     gain = gain + prixDeRachat(aylis.inventaire[i]);
-                    if (aylis.inventaire[i].rarete == EPIQUE) {
+                    if (aylis.inventaire[i].rarete == Rarete::Epique) {
                         epiqueVendu = true;
                     }
                     aylis.inventaire.erase(aylis.inventaire.begin() + i);
@@ -266,7 +266,7 @@ void collectionneur(Combattant& aylis, const Marchand& silas, int visite, int mo
         aylis.pieces = aylis.pieces + gain;
         std::cout << objet.nom << " vendu : +" << gain << " or.\n";
 
-        if (objet.rarete == EPIQUE) {
+        if (objet.rarete == Rarete::Epique) {
             parler(silas, "Par tous les dieux... Une piece pareille ! Elle trouvera une place d'honneur dans ma collection.");
         } else {
             parler(silas, silas.merci);
@@ -296,7 +296,7 @@ void gererInventaire(Combattant& aylis) {
         }
 
         Objet& objet = aylis.inventaire[choix - 1];
-        if (objet.type != OBJET_ARME) {
+        if (objet.type != TypeObjet::Arme) {
             std::cout << objet.nom << " n'est pas une arme.\n";
             continue;
         }

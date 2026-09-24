@@ -22,7 +22,7 @@ void ramasserButin(Combattant& aylis, const Combattant& ennemi) {
             continue;   // pas de chance pour cet objet
         }
 
-        if (ligne.objet.type == OBJET_POTION) {
+        if (ligne.objet.type == TypeObjet::Potion) {
             aylis.potions = aylis.potions + 1;
             std::cout << "Butin : une potion ! (" << aylis.potions << " potions)\n";
         } else {

@@ -57,7 +57,7 @@ void voyageurBlesse(EtatPartie& etat) {
         if (std::rand() % 2 == 0) {
             gagnerOr(aylis, 35);
         } else {
-            Objet amulette = {"Amulette du voyageur", OBJET_MATERIAU, RARE, 40};
+            Objet amulette = {"Amulette du voyageur", TypeObjet::Materiau, Rarete::Rare, 40};
             aylis.inventaire.push_back(amulette);
             std::cout << "Butin : ";
             afficherObjet(amulette);
@@ -131,7 +131,7 @@ void autelMysterieux(EtatPartie& etat) {
             aylis.manaMax = aylis.manaMax + 5;
             std::cout << "Une douce lumiere enveloppe AYLIS. Mana max +5 (" << aylis.manaMax << ").\n";
         } else {
-            soigner(aylis, 10);
+            aylis.soigner(10);
             std::cout << "Rien ne se passe... ou presque. AYLIS se sent un peu mieux (" << aylis.pv << " pv).\n";
         }
     } else {
@@ -173,7 +173,7 @@ void deserteurHaschen(EtatPartie& etat) {
         changerHonneur(aylis, -1);
     } else {
         std::cout << "Kerrak disparait dans les buissons. AYLIS se sent en paix.\n";
-        soigner(aylis, 5);
+        aylis.soigner(5);
         changerHonneur(aylis, 1);
     }
 }

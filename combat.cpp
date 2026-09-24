@@ -12,7 +12,7 @@
 // Est-ce qu'il reste au moins un ennemi debout ?
 bool resteDesEnnemis(const std::vector<Combattant>& ennemis) {
     for (const Combattant& ennemi : ennemis) {
-        if (ennemi.pv > 0) {
+        if (ennemi.estDebout()) {
             return true;
         }
     }
@@ -36,7 +36,7 @@ int choisirCible(const std::vector<Combattant>& ennemis, bool seulementAuContact
     std::vector<int> possibles;
     int nombre = ennemis.size();
     for (int i = 0; i < nombre; i++) {
-        bool debout = ennemis[i].pv > 0;
+        bool debout = ennemis[i].estDebout();
         bool aPortee = !seulementAuContact || ennemis[i].distance == 0;
         if (debout && aPortee) {
             possibles.push_back(i);
@@ -63,7 +63,7 @@ int choisirCible(const std::vector<Combattant>& ennemis, bool seulementAuContact
 // Est-ce qu'il existe au moins une cible possible ? (meme regle que choisirCible, sans poser de question)
 bool quelquUnAPortee(const std::vector<Combattant>& ennemis, bool seulementAuContact) {
     for (const Combattant& ennemi : ennemis) {
-        bool debout = ennemi.pv > 0;
+        bool debout = ennemi.estDebout();
         bool aPortee = !seulementAuContact || ennemi.distance == 0;
         if (debout && aPortee) {
             return true;
@@ -77,7 +77,7 @@ int ennemiDeboutAuHasard(const std::vector<Combattant>& ennemis) {
     std::vector<int> debout;
     int nombre = ennemis.size();
     for (int i = 0; i < nombre; i++) {
-        if (ennemis[i].pv > 0) {
+        if (ennemis[i].estDebout()) {
             debout.push_back(i);
         }
     }
@@ -90,7 +90,7 @@ int ennemiDeboutAuHasard(const std::vector<Combattant>& ennemis) {
 // Annonce les ennemis qui viennent de tomber
 void annoncerChutes(std::vector<Combattant>& ennemis) {
     for (Combattant& ennemi : ennemis) {
-        if (ennemi.pv <= 0 && !ennemi.vaincu) {
+        if (!ennemi.estDebout() && !ennemi.vaincu) {
             ennemi.vaincu = true;
             std::cout << colorer(">> " + ennemi.nom + " tombe !", VERT) << "\n";
         }
@@ -166,7 +166,7 @@ int frapper(Combattant& aylis, Combattant& ennemi, int puissance) {
     }
     ennemi.pv = ennemi.pv - total;
 
-    if (faitSaigner && ennemi.pv > 0) {
+    if (faitSaigner && ennemi.estDebout()) {
         ennemi.saignement = 3;
         std::cout << colorer("(" + ennemi.nom + " saigne !) ", ROUGE);
     }
@@ -224,7 +224,7 @@ bool lancerSort(Combattant& aylis, std::vector<Combattant>& ennemis) {
     aylis.mana = aylis.mana - prixMana;
 
     if (choix == 2) {
-        soigner(aylis, 20);
+        aylis.soigner(20);
         aylis.poison = 0;
         aylis.brulure = 0;
         aylis.saignement = 0;
@@ -257,7 +257,7 @@ bool lancerSort(Combattant& aylis, std::vector<Combattant>& ennemis) {
 
 // Un coup d'ennemi touche sa victime (AYLIS ou son compagnon).
 // La garde d'AYLIS divise par 2, le bouclier absorbe, et les coups recus par AYLIS remplissent sa rage.
-void toucher(const Combattant& ennemi, Combattant& victime, bool estAylis, int degats, bool aylisEnGarde, int& rage) {
+void toucher(const Combattant& ennemi, Combattant& victime, bool estAylis, int degats, bool aylisEnGarde, Jauge& rage) {
     if (estAylis && aylisEnGarde) {
         degats = degats / 2;
         std::cout << "(AYLIS bloque la moitie du coup) ";
@@ -283,19 +283,16 @@ void toucher(const Combattant& ennemi, Combattant& victime, bool estAylis, int d
     }
 
     if (estAylis) {
-        rage = rage + degats * 4;
-        if (rage > rageMax) {
-            rage = rageMax;
-        }
+        rage.remplir(degats * 4);   // la jauge s'arrete toute seule a son maximum
     }
 }
 
 // Le tour d'un ennemi. Il attaque AYLIS, ou parfois son compagnon.
-void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& rage,
+void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, Jauge& rage,
                 Combattant& compagnon, bool avecCompagnon) {
     // Les etats font effet en premier
     subirEtats(ennemi);
-    if (ennemi.pv <= 0) {
+    if (!ennemi.estDebout()) {
         return;
     }
 
@@ -315,19 +312,19 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
 
     // Un boss en danger se soigne
     if (ennemi.estBoss && ennemi.pv <= 12 && ennemi.potions > 0) {
-        boirePotion(ennemi);
+        ennemi.boirePotion();
         return;
     }
 
     // Qui est vise ? Le compagnon une fois sur trois, s'il est encore debout.
     // (condition ? A : B) veut dire "A si la condition est vraie, sinon B".
-    bool viseCompagnon = avecCompagnon && compagnon.pv > 0 && std::rand() % 3 == 0;
+    bool viseCompagnon = avecCompagnon && compagnon.estDebout() && std::rand() % 3 == 0;
     Combattant& victime = viseCompagnon ? compagnon : aylis;
 
     // L'ennemi est encore loin : ce qu'il fait depend de son style
     if (ennemi.distance > 0) {
         // Un lanceur tire une fois sur deux au lieu d'avancer
-        if (ennemi.style == STYLE_LANCEUR && std::rand() % 2 == 0) {
+        if (ennemi.style == Style::Lanceur && std::rand() % 2 == 0) {
             std::cout << ennemi.nom << " lance un javelot ! ";
             int degats = calculerDegats(ennemi.attaque, 80, victime.defense, 10);
             toucher(ennemi, victime, !viseCompagnon, degats, aylisEnGarde, rage);
@@ -335,7 +332,7 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
         }
 
         // Un chargeur fonce directement au contact et frappe dans l'elan
-        if (ennemi.style == STYLE_CHARGEUR) {
+        if (ennemi.style == Style::Chargeur) {
             ennemi.distance = 0;
             std::cout << ennemi.nom << " CHARGE et arrive au contact ! ";
             int degats = calculerDegats(ennemi.attaque, 70, victime.defense, 10);
@@ -381,7 +378,7 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
 // Le compagnon subit ses etats, puis attaque un ennemi au hasard (il se bat a la fronde : a toute distance)
 void tourCompagnon(Combattant& compagnon, std::vector<Combattant>& ennemis) {
     subirEtats(compagnon);
-    if (compagnon.pv <= 0) {
+    if (!compagnon.estDebout()) {
         return;
     }
 
@@ -399,7 +396,7 @@ void tourCompagnon(Combattant& compagnon, std::vector<Combattant>& ennemis) {
 // ===================== La boucle de combat =====================
 
 // Affiche l'etat du combat : AYLIS, son compagnon, puis chaque ennemi encore debout
-void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemis, int rage,
+void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemis, const Jauge& rage,
                   const Combattant& compagnon, bool avecCompagnon) {
     std::cout << "AYLIS niv." << aylis.niveau << "  ";
     afficherBarre(aylis.pv, aylis.pvMax);
@@ -410,15 +407,15 @@ void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemi
     std::cout << " " << aylis.mana << "/" << aylis.manaMax << "\n";
 
     std::cout << "Rage         ";
-    afficherBarre(rage, rageMax, ROUGE);
-    if (rage >= rageMax) {
+    afficherBarre(rage.valeur(), rage.maximum(), ROUGE);
+    if (rage.estPleine()) {
         std::cout << " PLEINE !";
     }
     std::cout << "\n";
 
     if (avecCompagnon) {
         std::cout << colorer(compagnon.nom, CYAN + GRAS) << " (compagnon)\n             ";
-        if (compagnon.pv > 0) {
+        if (compagnon.estDebout()) {
             afficherBarre(compagnon.pv, compagnon.pvMax);
             std::cout << " " << compagnon.pv << "/" << compagnon.pvMax << " pv" << texteEtats(compagnon) << "\n";
         } else {
@@ -431,7 +428,7 @@ void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemi
     std::cout << "\n\n";
 
     for (const Combattant& ennemi : ennemis) {
-        if (ennemi.pv <= 0) {
+        if (!ennemi.estDebout()) {
             continue;
         }
         std::cout << ennemi.nom << "  (" << nomDistance(ennemi.distance) << ")" << texteEtats(ennemi) << "\n             ";
@@ -441,7 +438,7 @@ void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemi
     std::cout << "\n";
 }
 
-bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
+bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, Jauge& rage,
                Combattant& compagnon, bool avecCompagnon) {
     int tour = 1;
     aylis.mana = aylis.manaMax;     // le mana se recharge au debut de chaque combat
@@ -452,13 +449,13 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
 
     int dernierTourAffiche = 0;
 
-    while (aylis.pv > 0 && resteDesEnnemis(ennemis)) {
+    while (aylis.estDebout() && resteDesEnnemis(ennemis)) {
         // Au debut de chaque nouveau tour : les etats d'AYLIS, puis l'etat du combat.
         // Si une action est refusee, on redemande juste le choix.
         if (tour != dernierTourAffiche) {
             std::cout << "\n--- Tour " << tour << " ---\n";
             subirEtats(aylis);
-            if (aylis.pv <= 0) {
+            if (!aylis.estDebout()) {
                 break;
             }
             afficherEtat(aylis, ennemis, rage, compagnon, avecCompagnon);
@@ -468,7 +465,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
         // Est-ce qu'au moins un ennemi est encore a distance ?
         bool quelquUnEstLoin = false;
         for (const Combattant& ennemi : ennemis) {
-            if (ennemi.pv > 0 && ennemi.distance > 0) {
+            if (ennemi.estDebout() && ennemi.distance > 0) {
                 quelquUnEstLoin = true;
             }
         }
@@ -487,7 +484,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
         std::cout << "3. Attaque en garde  (petits degats, mais les ennemis tapent 2x moins fort)" << tropLoin << "\n";
         std::cout << "4. Boire une potion  (+15 pv, reste " << aylis.potions << ")\n";
         std::cout << "5. Lancer un sort\n";
-        if (rage >= rageMax) {
+        if (rage.estPleine()) {
             std::cout << "6. ATTAQUE SPECIALE  (degats x2.2, ne rate jamais)\n";
         }
         if (quelquUnEstLoin) {
@@ -496,7 +493,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
 
         int choix = lireChoix(1, 7);
 
-        if (choix == 6 && rage < rageMax) {
+        if (choix == 6 && !rage.estPleine()) {
             std::cout << "La rage n'est pas encore pleine !\n";
             continue;
         }
@@ -534,7 +531,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
                           << colorer(degats, JAUNE) << " pv.\n";
             } else {
                 int degats = frapper(aylis, cible, 220);
-                rage = 0;
+                rage.vider();
                 std::cout << "*** ATTAQUE SPECIALE ! *** " << cible.nom << " perd " << colorer(degats, JAUNE) << " pv !\n";
             }
         } else if (choix == 4) {
@@ -542,7 +539,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
                 std::cout << "Plus de potions ! Choisis autre chose.\n";
                 continue;
             }
-            boirePotion(aylis);
+            aylis.boirePotion();
         } else if (choix == 5) {
             if (!lancerSort(aylis, ennemis)) {
                 continue;   // pas de sort lance : on revient au menu sans perdre le tour
@@ -554,7 +551,7 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
             }
             // AYLIS avance : tous les ennemis encore loin se rapprochent d'un pas
             for (Combattant& ennemi : ennemis) {
-                if (ennemi.pv > 0 && ennemi.distance > 0) {
+                if (ennemi.estDebout() && ennemi.distance > 0) {
                     ennemi.distance = ennemi.distance - 1;
                 }
             }
@@ -564,24 +561,24 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
         annoncerChutes(ennemis);
 
         // ===== Tour du compagnon =====
-        if (avecCompagnon && compagnon.pv > 0 && resteDesEnnemis(ennemis)) {
+        if (avecCompagnon && compagnon.estDebout() && resteDesEnnemis(ennemis)) {
             tourCompagnon(compagnon, ennemis);
             annoncerChutes(ennemis);
         }
 
         // ===== Tour des ennemis : chacun a son tour =====
         for (Combattant& ennemi : ennemis) {
-            if (ennemi.pv <= 0) {
+            if (!ennemi.estDebout()) {
                 continue;
             }
             tourEnnemi(ennemi, aylis, enGarde, rage, compagnon, avecCompagnon);
             annoncerChutes(ennemis);    // un ennemi peut tomber a cause de ses etats
-            if (aylis.pv <= 0) {
+            if (!aylis.estDebout()) {
                 break;
             }
         }
 
-        if (avecCompagnon && compagnon.pv <= 0 && !compagnonKO) {
+        if (avecCompagnon && !compagnon.estDebout() && !compagnonKO) {
             compagnonKO = true;
             std::cout << colorer(compagnon.nom + " est K.O. et ne peut plus combattre !", GRIS) << "\n";
         }
@@ -592,5 +589,5 @@ bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage,
     // Fin du combat : les etats disparaissent
     effacerEtats(aylis);
     effacerEtats(compagnon);
-    return aylis.pv > 0;
+    return aylis.estDebout();
 }

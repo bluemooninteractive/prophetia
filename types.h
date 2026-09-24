@@ -3,21 +3,32 @@
 
 #include <string>
 #include <vector>
+#include "jauge.h"
+
+// Un "enum class" est un type qui ne peut prendre qu'une liste de valeurs precises.
+// C'est plus sur qu'un simple int : on ne peut pas melanger une rarete et un style par erreur,
+// et on ecrit Rarete::Rare au lieu d'un nombre qu'il faudrait retenir.
 
 // Les raretes des objets
-const int COMMUN = 0;
-const int RARE = 1;
-const int EPIQUE = 2;
+enum class Rarete {
+    Commun,
+    Rare,
+    Epique,
+};
 
 // Les types d'objets
-const int OBJET_MATERIAU = 0;   // ne sert qu'a etre revendu
-const int OBJET_ARME = 1;
-const int OBJET_POTION = 2;     // va directement dans les potions d'AYLIS
+enum class TypeObjet {
+    Materiau,   // ne sert qu'a etre revendu
+    Arme,
+    Potion,     // va directement dans les potions d'AYLIS
+};
 
 // Les styles de combat des ennemis quand ils sont loin
-const int STYLE_MELEE = 0;      // avance d'un pas par tour
-const int STYLE_LANCEUR = 1;    // lance des javelots une fois sur deux
-const int STYLE_CHARGEUR = 2;   // fonce au contact d'un coup et frappe
+enum class Style {
+    Melee,      // avance d'un pas par tour
+    Lanceur,    // lance des javelots une fois sur deux
+    Chargeur,   // fonce au contact d'un coup et frappe
+};
 
 // Une arme : de melee (corps a corps) ou a distance
 struct Arme {
@@ -27,14 +38,14 @@ struct Arme {
     int chanceCritique;     // sur 100 : 10 = 1 chance sur 10
     int nombreDeCoups;      // 2 = l'arme frappe deux fois par attaque
     int prix;               // le marchand la rachete a moitie prix
-    int rarete = COMMUN;
+    Rarete rarete = Rarete::Commun;
 };
 
 // Un objet de l'inventaire
 struct Objet {
     std::string nom;
-    int type;
-    int rarete;
+    TypeObjet type;
+    Rarete rarete;
     int valeur;             // le prix auquel le marchand l'achete
     Arme arme = {"", false, 0, 0, 1, 0};  // utilise seulement si c'est une arme
 };
@@ -57,7 +68,7 @@ struct Combattant {
     int xpDonne;            // l'XP que l'ennemi donne quand il est vaincu
     int orDonne;            // les pieces d'or que l'ennemi laisse tomber (en moyenne)
     std::vector<Butin> butin = {};      // la table de loot de l'ennemi
-    int style = STYLE_MELEE;            // comment l'ennemi se comporte quand il est loin
+    Style style = Style::Melee;         // comment l'ennemi se comporte quand il est loin
     bool enrage = false;    // un boss s'enrage une fois quand il passe sous la moitie de ses pv
     bool etourdi = false;   // un ennemi paralyse passe son prochain tour
     int distance = 0;       // la distance entre cet ennemi et AYLIS (2 = loin, 0 = au contact)
@@ -80,6 +91,13 @@ struct Combattant {
     bool attaquePoison = false;     // pour un ennemi : ses coups peuvent empoisonner
 
     int honneur = 0;        // les bons (+1) et mauvais (-1) choix d'AYLIS : ils decident de la fin
+
+    // Les methodes : des fonctions qui appartiennent au combattant.
+    // On les appelle avec un point : aylis.soigner(10), ennemi.boirePotion(), aylis.estDebout()...
+    // Elles sont ecrites dans outils.cpp.
+    void soigner(int quantite);
+    void boirePotion();
+    bool estDebout() const;     // "const" : cette methode ne modifie pas le combattant
 };
 
 const int rageMax = 100;
@@ -91,7 +109,7 @@ struct EtatPartie {
     Combattant aylis;
     Combattant compagnon;           // le compagnon d'AYLIS, s'il y en a un
     bool avecCompagnon = false;
-    int rage = 0;
+    Jauge rage = Jauge(rageMax);    // une classe : voir jauge.h
     int etape = 0;                  // l'etape de la route ou on en est
     int haltesVisitees = 0;         // les prix montent a chaque halte
     bool ashkaVaincue = false;

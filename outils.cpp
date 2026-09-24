@@ -89,12 +89,16 @@ void afficherBarre(int valeur, int maximum, const std::string& couleur) {
     std::cout << "[" << colorer(plein, couleurDuPlein) << colorer(vide, GRIS) << "]";
 }
 
-// La couleur d'une rarete : gris pour commun, bleu pour RARE, violet pour EPIQUE
-std::string couleurRarete(int rarete) {
-    if (rarete == EPIQUE) {
-        return VIOLET + GRAS;
-    } else if (rarete == RARE) {
-        return BLEU + GRAS;
+// La couleur d'une rarete : gris pour commun, bleu pour RARE, violet pour EPIQUE.
+// Un "switch" choisit un cas selon la valeur ; "return" sort directement de la fonction.
+std::string couleurRarete(Rarete rarete) {
+    switch (rarete) {
+        case Rarete::Commun:
+            return GRIS;
+        case Rarete::Rare:
+            return BLEU + GRAS;
+        case Rarete::Epique:
+            return VIOLET + GRAS;
     }
     return GRIS;
 }
@@ -118,24 +122,27 @@ void afficherArme(const Arme& arme) {
 }
 
 // Le nom d'une rarete
-std::string nomRarete(int rarete) {
-    if (rarete == EPIQUE) {
-        return "EPIQUE";
-    } else if (rarete == RARE) {
-        return "RARE";
+std::string nomRarete(Rarete rarete) {
+    switch (rarete) {
+        case Rarete::Commun:
+            return "commun";
+        case Rarete::Rare:
+            return "RARE";
+        case Rarete::Epique:
+            return "EPIQUE";
     }
     return "commun";
 }
 
 // Transforme une arme en objet d'inventaire (revendue a moitie prix)
 Objet objetDepuisArme(const Arme& arme) {
-    return {arme.nom, OBJET_ARME, arme.rarete, arme.prix / 2, arme};
+    return {arme.nom, TypeObjet::Arme, arme.rarete, arme.prix / 2, arme};
 }
 
 // Affiche un objet sur une ligne, par exemple : [RARE] Griffe de berserker (25 or)
 void afficherObjet(const Objet& objet) {
     std::cout << colorer("[" + nomRarete(objet.rarete) + "] ", couleurRarete(objet.rarete));
-    if (objet.type == OBJET_ARME) {
+    if (objet.type == TypeObjet::Arme) {
         afficherArme(objet.arme);
     } else {
         std::cout << objet.nom;
@@ -143,19 +150,29 @@ void afficherObjet(const Objet& objet) {
     std::cout << "  (" << objet.valeur << " or)";
 }
 
-// Soigne un combattant sans depasser ses pv max
-void soigner(Combattant& c, int quantite) {
-    c.pv = c.pv + quantite;
-    if (c.pv > c.pvMax) {
-        c.pv = c.pvMax;
+// ===================== Les methodes de Combattant =====================
+// "Combattant::soigner" veut dire : la methode soigner qui appartient a Combattant.
+// Dans une methode, on utilise directement pv, pvMax... : ce sont ceux du combattant
+// sur lequel on l'appelle (par exemple aylis.soigner(10) modifie les pv d'aylis).
+
+// Soigne sans depasser les pv max
+void Combattant::soigner(int quantite) {
+    pv = pv + quantite;
+    if (pv > pvMax) {
+        pv = pvMax;
     }
 }
 
 // Boire une potion : +15 pv
-void boirePotion(Combattant& c) {
-    c.potions = c.potions - 1;
-    soigner(c, 15);
-    std::cout << c.nom << " boit une potion ! Retour a " << colorer(c.pv, VERT) << " pv.\n";
+void Combattant::boirePotion() {
+    potions = potions - 1;
+    soigner(15);
+    std::cout << nom << " boit une potion ! Retour a " << colorer(pv, VERT) << " pv.\n";
+}
+
+// Est-ce que le combattant tient encore debout ?
+bool Combattant::estDebout() const {
+    return pv > 0;
 }
 
 // Attend que le joueur appuie sur Entree (pour lui laisser le temps de lire)

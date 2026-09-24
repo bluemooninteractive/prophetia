@@ -16,13 +16,10 @@ void afficherBarre(int valeur, int maximum, const std::string& couleur = "");
 
 // Affichages des armes et des objets
 void afficherArme(const Arme& arme);
-std::string nomRarete(int rarete);
+std::string nomRarete(Rarete rarete);
 Objet objetDepuisArme(const Arme& arme);
 void afficherObjet(const Objet& objet);
 
-// Les soins
-void soigner(Combattant& c, int quantite);
-void boirePotion(Combattant& c);
 
 // Attend que le joueur appuie sur Entree (pour lui laisser le temps de lire)
 void attendreEntree();

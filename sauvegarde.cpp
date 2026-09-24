@@ -24,7 +24,7 @@ void ecrireArme(std::ofstream& fichier, const Arme& arme) {
     fichier << arme.chanceCritique << "\n";
     fichier << arme.nombreDeCoups << "\n";
     fichier << arme.prix << "\n";
-    fichier << arme.rarete << "\n";
+    fichier << static_cast<int>(arme.rarete) << "\n";   // un enum s'ecrit sous forme de nombre...
 }
 
 // Un combattant : ses stats, son arme et son inventaire
@@ -43,8 +43,8 @@ void ecrireCombattant(std::ofstream& fichier, const Combattant& c) {
     fichier << c.inventaire.size() << "\n";
     for (const Objet& objet : c.inventaire) {
         fichier << objet.nom << "\n";
-        fichier << objet.type << "\n";
-        fichier << objet.rarete << "\n";
+        fichier << static_cast<int>(objet.type) << "\n";
+        fichier << static_cast<int>(objet.rarete) << "\n";
         fichier << objet.valeur << "\n";
         ecrireArme(fichier, objet.arme);
     }
@@ -61,7 +61,7 @@ void sauvegarder(const EtatPartie& etat) {
     fichier << etat.haltesVisitees << "\n";
     fichier << etat.ashkaVaincue << "\n";
     fichier << etat.difficulte << "\n";
-    fichier << etat.rage << "\n";
+    fichier << etat.rage.valeur() << "\n";
     ecrireCombattant(fichier, etat.aylis);
 
     fichier << etat.avecCompagnon << "\n";
@@ -92,7 +92,7 @@ void lireArme(std::ifstream& fichier, Arme& arme) {
     arme.chanceCritique = lireNombre(fichier);
     arme.nombreDeCoups = lireNombre(fichier);
     arme.prix = lireNombre(fichier);
-    arme.rarete = lireNombre(fichier);
+    arme.rarete = static_cast<Rarete>(lireNombre(fichier));     // ... et se relit a partir du nombre
 }
 
 void lireCombattant(std::ifstream& fichier, Combattant& c) {
@@ -117,8 +117,8 @@ void lireCombattant(std::ifstream& fichier, Combattant& c) {
     for (int i = 0; i < nombreObjets; i++) {
         Objet objet = {};
         objet.nom = lireTexte(fichier);
-        objet.type = lireNombre(fichier);
-        objet.rarete = lireNombre(fichier);
+        objet.type = static_cast<TypeObjet>(lireNombre(fichier));
+        objet.rarete = static_cast<Rarete>(lireNombre(fichier));
         objet.valeur = lireNombre(fichier);
         lireArme(fichier, objet.arme);
         c.inventaire.push_back(objet);
@@ -140,7 +140,7 @@ bool charger(EtatPartie& etat) {
     etat.haltesVisitees = lireNombre(fichier);
     etat.ashkaVaincue = lireNombre(fichier) == 1;
     etat.difficulte = lireNombre(fichier);
-    etat.rage = lireNombre(fichier);
+    etat.rage.fixer(lireNombre(fichier));
     lireCombattant(fichier, etat.aylis);
 
     etat.avecCompagnon = lireNombre(fichier) == 1;
