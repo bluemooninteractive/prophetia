@@ -10,4 +10,5 @@ add_executable(turn_based
     marchands.cpp
     combat.cpp
     carte.cpp
+    evenements.cpp
 )

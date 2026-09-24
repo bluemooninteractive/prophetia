@@ -1,17 +1,82 @@
-// combat.cpp : les attaques, les sorts, le tour de l'ennemi et la boucle de combat
+// combat.cpp : les attaques, les sorts, le tour des ennemis et la boucle de combat
 #include <iostream>
+#include <string>
+#include <vector>
 #include <cstdlib>
 #include "combat.h"
 #include "outils.h"
 
-// ===================== Le combat =====================
+// ===================== Les cibles =====================
+
+// Est-ce qu'il reste au moins un ennemi debout ?
+bool resteDesEnnemis(const std::vector<Combattant>& ennemis) {
+    for (const Combattant& ennemi : ennemis) {
+        if (ennemi.pv > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// Le mot qui decrit une distance
+std::string nomDistance(int distance) {
+    if (distance == 2) {
+        return "LOIN";
+    } else if (distance == 1) {
+        return "PROCHE";
+    }
+    return "AU CONTACT";
+}
+
+// Choisit la cible d'une attaque. Renvoie son numero dans la liste, ou -1 si aucune cible possible.
+// seulementAuContact = true pour une arme de melee : on ne peut frapper que les ennemis au contact.
+int choisirCible(const std::vector<Combattant>& ennemis, bool seulementAuContact) {
+    // On garde les numeros des ennemis qu'on a le droit de viser
+    std::vector<int> possibles;
+    int nombre = ennemis.size();
+    for (int i = 0; i < nombre; i++) {
+        bool debout = ennemis[i].pv > 0;
+        bool aPortee = !seulementAuContact || ennemis[i].distance == 0;
+        if (debout && aPortee) {
+            possibles.push_back(i);
+        }
+    }
+
+    int nombrePossibles = possibles.size();
+    if (nombrePossibles == 0) {
+        return -1;
+    }
+    if (nombrePossibles == 1) {
+        return possibles[0];    // une seule cible : pas besoin de demander
+    }
+
+    std::cout << "Quelle cible ?\n";
+    for (int i = 0; i < nombrePossibles; i++) {
+        const Combattant& ennemi = ennemis[possibles[i]];
+        std::cout << (i + 1) << ". " << ennemi.nom << " (" << ennemi.pv << " pv, "
+                  << nomDistance(ennemi.distance) << ")\n";
+    }
+    return possibles[lireChoix(1, nombrePossibles) - 1];
+}
+
+// Annonce les ennemis qui viennent de tomber
+void annoncerChutes(std::vector<Combattant>& ennemis) {
+    for (Combattant& ennemi : ennemis) {
+        if (ennemi.pv <= 0 && !ennemi.vaincu) {
+            ennemi.vaincu = true;
+            std::cout << ">> " << ennemi.nom << " tombe !\n";
+        }
+    }
+}
+
+// ===================== Les actions d'AYLIS =====================
 
 // AYLIS frappe avec son arme. Renvoie le total des degats.
 // Une arme a distance est moins efficace au contact (x0.6).
-int frapper(Combattant& aylis, Combattant& ennemi, int puissance, int distance) {
+int frapper(Combattant& aylis, Combattant& ennemi, int puissance) {
     const Arme& arme = aylis.arme;
 
-    if (arme.aDistance && distance == 0) {
+    if (arme.aDistance && ennemi.distance == 0) {
         puissance = puissance * 60 / 100;
         std::cout << "(tir a bout portant, moins efficace) ";
     }
@@ -27,7 +92,7 @@ int frapper(Combattant& aylis, Combattant& ennemi, int puissance, int distance) 
 
 // Le menu des sorts. Renvoie true si un sort a ete lance (le tour est utilise).
 // Les sorts marchent a n'importe quelle distance.
-bool lancerSort(Combattant& aylis, Combattant& ennemi) {
+bool lancerSort(Combattant& aylis, std::vector<Combattant>& ennemis) {
     const int coutBouleDeFeu = 4;
     const int coutSoin = 5;
     const int coutEclair = 7;
@@ -69,21 +134,28 @@ bool lancerSort(Combattant& aylis, Combattant& ennemi) {
     }
     aylis.mana = aylis.mana - prixMana;
 
-    if (choix == 1) {
-        int degats = calculerDegats(aylis.attaque, 150, 0, 10);
-        ennemi.pv = ennemi.pv - degats;
-        std::cout << "BOULE DE FEU ! " << ennemi.nom << " perd " << degats << " pv.\n";
-    } else if (choix == 2) {
+    if (choix == 2) {
         soigner(aylis, 20);
         std::cout << "SOIN ! AYLIS remonte a " << aylis.pv << " pv.\n";
+        return true;
+    }
+
+    // Les sorts d'attaque : on choisit la cible, a n'importe quelle distance
+    Combattant& cible = ennemis[choisirCible(ennemis, false)];
+    if (choix == 1) {
+        int degats = calculerDegats(aylis.attaque, 150, 0, 10);
+        cible.pv = cible.pv - degats;
+        std::cout << "BOULE DE FEU ! " << cible.nom << " perd " << degats << " pv.\n";
     } else {
-        int degats = calculerDegats(aylis.attaque, 100, ennemi.defense, 10);
-        ennemi.pv = ennemi.pv - degats;
-        ennemi.etourdi = true;
-        std::cout << "ECLAIR ! " << ennemi.nom << " perd " << degats << " pv. Paralysie !\n";
+        int degats = calculerDegats(aylis.attaque, 100, cible.defense, 10);
+        cible.pv = cible.pv - degats;
+        cible.etourdi = true;
+        std::cout << "ECLAIR ! " << cible.nom << " perd " << degats << " pv. Paralysie !\n";
     }
     return true;
 }
+
+// ===================== Le tour des ennemis =====================
 
 // AYLIS encaisse un coup : la garde divise par 2, et la rage se remplit
 void toucherAylis(const Combattant& ennemi, Combattant& aylis, int degats, bool aylisEnGarde, int& rage) {
@@ -101,8 +173,8 @@ void toucherAylis(const Combattant& ennemi, Combattant& aylis, int degats, bool 
     }
 }
 
-// Le tour de l'ennemi. Le & veut dire qu'on modifie les vrais combattants, pas des copies.
-void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& rage, int& distance) {
+// Le tour d'un ennemi. Le & veut dire qu'on modifie les vrais combattants, pas des copies.
+void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& rage) {
     // Un ennemi paralyse passe son tour
     if (ennemi.etourdi) {
         ennemi.etourdi = false;
@@ -124,7 +196,7 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
     }
 
     // L'ennemi est encore loin : ce qu'il fait depend de son style
-    if (distance > 0) {
+    if (ennemi.distance > 0) {
         // Un lanceur tire une fois sur deux au lieu d'avancer
         if (ennemi.style == STYLE_LANCEUR && std::rand() % 2 == 0) {
             std::cout << ennemi.nom << " lance un javelot ! ";
@@ -135,7 +207,7 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
 
         // Un chargeur fonce directement au contact et frappe dans l'elan
         if (ennemi.style == STYLE_CHARGEUR) {
-            distance = 0;
+            ennemi.distance = 0;
             std::cout << ennemi.nom << " CHARGE et arrive au contact ! ";
             int degats = calculerDegats(ennemi.attaque, 70, aylis.defense, 10);
             toucherAylis(ennemi, aylis, degats, aylisEnGarde, rage);
@@ -143,8 +215,8 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
         }
 
         // Les autres avancent d'un pas
-        distance = distance - 1;
-        if (distance == 0) {
+        ennemi.distance = ennemi.distance - 1;
+        if (ennemi.distance == 0) {
             std::cout << ennemi.nom << " arrive au contact !\n";
         } else {
             std::cout << ennemi.nom << " s'approche...\n";
@@ -175,66 +247,75 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
     toucherAylis(ennemi, aylis, degats, aylisEnGarde, rage);
 }
 
-// Un combat complet contre un ennemi. Renvoie true si AYLIS gagne.
-bool combattre(Combattant& aylis, Combattant& ennemi, int& rage) {
-    int tour = 1;
-    int distance = distanceDepart;  // chaque combat commence de loin
-    aylis.mana = aylis.manaMax;     // le mana se recharge au debut de chaque combat
+// ===================== La boucle de combat =====================
 
-    while (aylis.pv > 0 && ennemi.pv > 0) {
-        std::cout << "\n--- Tour " << tour << " ---\n";
+// Affiche l'etat du combat : AYLIS, puis chaque ennemi encore debout
+void afficherEtat(const Combattant& aylis, const std::vector<Combattant>& ennemis, int rage) {
+    std::cout << "AYLIS niv." << aylis.niveau << "  ";
+    afficherBarre(aylis.pv, aylis.pvMax);
+    std::cout << " " << aylis.pv << "/" << aylis.pvMax << " pv\n";
 
-        std::cout << "AYLIS niv." << aylis.niveau << "  ";
-        afficherBarre(aylis.pv, aylis.pvMax);
-        std::cout << " " << aylis.pv << "/" << aylis.pvMax << " pv\n";
+    std::cout << "Mana         ";
+    afficherBarre(aylis.mana, aylis.manaMax);
+    std::cout << " " << aylis.mana << "/" << aylis.manaMax << "\n";
 
-        std::cout << "Mana         ";
-        afficherBarre(aylis.mana, aylis.manaMax);
-        std::cout << " " << aylis.mana << "/" << aylis.manaMax << "\n";
+    std::cout << "Rage         ";
+    afficherBarre(rage, rageMax);
+    if (rage >= rageMax) {
+        std::cout << " PLEINE !";
+    }
+    std::cout << "\n";
 
-        std::cout << "Rage         ";
-        afficherBarre(rage, rageMax);
-        if (rage >= rageMax) {
-            std::cout << " PLEINE !";
+    std::cout << "Arme : ";
+    afficherArme(aylis.arme);
+    std::cout << "\n\n";
+
+    for (const Combattant& ennemi : ennemis) {
+        if (ennemi.pv <= 0) {
+            continue;
         }
-        std::cout << "\n";
-
-        std::cout << ennemi.nom << "\n             ";
+        std::cout << ennemi.nom << "  (" << nomDistance(ennemi.distance) << ")\n             ";
         afficherBarre(ennemi.pv, ennemi.pvMax);
         std::cout << " " << ennemi.pv << "/" << ennemi.pvMax << " pv\n";
+    }
+    std::cout << "\n";
+}
 
-        std::cout << "Distance : ";
-        if (distance == 2) {
-            std::cout << "LOIN";
-        } else if (distance == 1) {
-            std::cout << "PROCHE";
-        } else {
-            std::cout << "AU CONTACT";
+bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage) {
+    int tour = 1;
+    aylis.mana = aylis.manaMax;     // le mana se recharge au debut de chaque combat
+    for (Combattant& ennemi : ennemis) {
+        ennemi.distance = distanceDepart;   // chaque combat commence de loin
+    }
+
+    while (aylis.pv > 0 && resteDesEnnemis(ennemis)) {
+        std::cout << "\n--- Tour " << tour << " ---\n";
+        afficherEtat(aylis, ennemis, rage);
+
+        // Est-ce qu'au moins un ennemi est encore a distance ?
+        bool quelquUnEstLoin = false;
+        for (const Combattant& ennemi : ennemis) {
+            if (ennemi.pv > 0 && ennemi.distance > 0) {
+                quelquUnEstLoin = true;
+            }
         }
-        std::cout << "   |   Arme : ";
-        afficherArme(aylis.arme);
-        std::cout << "\n\n";
 
         std::cout << "1. Attaque normale   (degats normaux, ne rate jamais)\n";
         std::cout << "2. Attaque lourde    (degats x1.8, mais 40% de chances de rater)\n";
-        std::cout << "3. Attaque en garde  (petits degats, mais l'ennemi tape 2x moins fort)\n";
+        std::cout << "3. Attaque en garde  (petits degats, mais les ennemis tapent 2x moins fort)\n";
         std::cout << "4. Boire une potion  (+15 pv, reste " << aylis.potions << ")\n";
         std::cout << "5. Lancer un sort\n";
         if (rage >= rageMax) {
             std::cout << "6. ATTAQUE SPECIALE  (degats x2.2, ne rate jamais)\n";
         }
-        if (distance > 0) {
-            std::cout << "7. Avancer vers l'ennemi\n";
+        if (quelquUnEstLoin) {
+            std::cout << "7. Avancer vers les ennemis\n";
         }
 
         int choix = lireChoix(1, 7);
 
-        // Les choix 1, 2, 3 et 6 sont des attaques avec l'arme :
-        // une arme de melee ne peut pas frapper de loin
-        bool attaqueAvecArme = choix == 1 || choix == 2 || choix == 3 || choix == 6;
-        if (attaqueAvecArme && !aylis.arme.aDistance && distance > 0) {
-            std::cout << "Trop loin pour frapper avec " << aylis.arme.nom
-                      << " ! Avance d'abord (choix 7), ou utilise un sort.\n";
+        if (choix == 6 && rage < rageMax) {
+            std::cout << "La rage n'est pas encore pleine !\n";
             continue;
         }
 
@@ -242,21 +323,37 @@ bool combattre(Combattant& aylis, Combattant& ennemi, int& rage) {
         bool enGarde = false;
 
         // ===== Tour du joueur =====
-        if (choix == 1) {
-            int degats = frapper(aylis, ennemi, 100, distance);
-            std::cout << "Attaque normale ! " << ennemi.nom << " perd " << degats << " pv.\n";
-        } else if (choix == 2) {
-            // 60 chances sur 100 de toucher
-            if (std::rand() % 100 < 60) {
-                int degats = frapper(aylis, ennemi, 180, distance);
-                std::cout << "Attaque lourde ! BAM ! " << ennemi.nom << " perd " << degats << " pv.\n";
-            } else {
-                std::cout << "Attaque lourde... ratee ! " << ennemi.nom << " esquive.\n";
+        bool attaqueAvecArme = choix == 1 || choix == 2 || choix == 3 || choix == 6;
+        if (attaqueAvecArme) {
+            // Une arme de melee ne peut frapper que les ennemis au contact
+            int numeroCible = choisirCible(ennemis, !aylis.arme.aDistance);
+            if (numeroCible == -1) {
+                std::cout << "Personne a portee de " << aylis.arme.nom
+                          << " ! Avance d'abord (choix 7), ou utilise un sort.\n";
+                continue;
             }
-        } else if (choix == 3) {
-            int degats = frapper(aylis, ennemi, 60, distance);
-            enGarde = true;
-            std::cout << "AYLIS attaque en restant en garde. " << ennemi.nom << " perd " << degats << " pv.\n";
+            Combattant& cible = ennemis[numeroCible];
+
+            if (choix == 1) {
+                int degats = frapper(aylis, cible, 100);
+                std::cout << "Attaque normale ! " << cible.nom << " perd " << degats << " pv.\n";
+            } else if (choix == 2) {
+                // 60 chances sur 100 de toucher
+                if (std::rand() % 100 < 60) {
+                    int degats = frapper(aylis, cible, 180);
+                    std::cout << "Attaque lourde ! BAM ! " << cible.nom << " perd " << degats << " pv.\n";
+                } else {
+                    std::cout << "Attaque lourde... ratee ! " << cible.nom << " esquive.\n";
+                }
+            } else if (choix == 3) {
+                int degats = frapper(aylis, cible, 60);
+                enGarde = true;
+                std::cout << "AYLIS attaque en restant en garde. " << cible.nom << " perd " << degats << " pv.\n";
+            } else {
+                int degats = frapper(aylis, cible, 220);
+                rage = 0;
+                std::cout << "*** ATTAQUE SPECIALE ! *** " << cible.nom << " perd " << degats << " pv !\n";
+            }
         } else if (choix == 4) {
             if (aylis.potions == 0) {
                 std::cout << "Plus de potions ! Choisis autre chose.\n";
@@ -264,32 +361,35 @@ bool combattre(Combattant& aylis, Combattant& ennemi, int& rage) {
             }
             boirePotion(aylis);
         } else if (choix == 5) {
-            if (!lancerSort(aylis, ennemi)) {
+            if (!lancerSort(aylis, ennemis)) {
                 continue;   // pas de sort lance : on revient au menu sans perdre le tour
             }
-        } else if (choix == 6) {
-            if (rage < rageMax) {
-                std::cout << "La rage n'est pas encore pleine !\n";
-                continue;
-            }
-            int degats = frapper(aylis, ennemi, 220, distance);
-            rage = 0;
-            std::cout << "*** ATTAQUE SPECIALE ! *** " << ennemi.nom << " perd " << degats << " pv !\n";
         } else {
-            if (distance == 0) {
-                std::cout << "AYLIS est deja au contact !\n";
+            if (!quelquUnEstLoin) {
+                std::cout << "AYLIS est deja au contact de tout le monde !\n";
                 continue;
             }
-            distance = distance - 1;
-            std::cout << "AYLIS avance vers " << ennemi.nom << ".\n";
+            // AYLIS avance : tous les ennemis encore loin se rapprochent d'un pas
+            for (Combattant& ennemi : ennemis) {
+                if (ennemi.pv > 0 && ennemi.distance > 0) {
+                    ennemi.distance = ennemi.distance - 1;
+                }
+            }
+            std::cout << "AYLIS avance vers les ennemis.\n";
         }
 
-        if (ennemi.pv <= 0) {
-            break;
-        }
+        annoncerChutes(ennemis);
 
-        // ===== Tour de l'ennemi =====
-        tourEnnemi(ennemi, aylis, enGarde, rage, distance);
+        // ===== Tour des ennemis : chacun a son tour =====
+        for (Combattant& ennemi : ennemis) {
+            if (ennemi.pv <= 0) {
+                continue;
+            }
+            tourEnnemi(ennemi, aylis, enGarde, rage);
+            if (aylis.pv <= 0) {
+                break;
+            }
+        }
 
         tour = tour + 1;
     }

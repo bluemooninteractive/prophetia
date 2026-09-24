@@ -1,7 +1,9 @@
 // combat.h : le deroulement d'un combat
 #pragma once
 
+#include <vector>
 #include "types.h"
 
-// Un combat complet contre un ennemi. Renvoie true si AYLIS gagne.
-bool combattre(Combattant& aylis, Combattant& ennemi, int& rage);
+// Un combat complet contre un groupe d'ennemis (un seul ou plusieurs).
+// Renvoie true si AYLIS gagne.
+bool combattre(Combattant& aylis, std::vector<Combattant>& ennemis, int& rage);

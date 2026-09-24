@@ -60,6 +60,8 @@ struct Combattant {
     int style = STYLE_MELEE;            // comment l'ennemi se comporte quand il est loin
     bool enrage = false;    // un boss s'enrage une fois quand il passe sous la moitie de ses pv
     bool etourdi = false;   // un ennemi paralyse passe son prochain tour
+    int distance = 0;       // la distance entre cet ennemi et AYLIS (2 = loin, 0 = au contact)
+    bool vaincu = false;    // true une fois que sa chute a ete annoncee
     int niveau = 1;
     int xp = 0;
     int points = 0;         // points de competence a depenser
