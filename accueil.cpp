@@ -30,11 +30,12 @@ int ecranTitre(bool sauvegardeDisponible) {
     } else {
         std::cout << "  2. " << colorer("Continuer la partie (aucune sauvegarde)", GRIS) << "\n";
     }
-    std::cout << "  3. Regles du jeu\n";
-    std::cout << "  4. Quitter\n\n";
+    std::cout << "  3. " << colorer("Defi du jour", JAUNE) << colorer("   (la meme route pour tout le monde aujourd'hui)", GRIS) << "\n";
+    std::cout << "  4. Regles du jeu\n";
+    std::cout << "  5. Quitter\n\n";
 
     while (true) {
-        int choix = lireChoix(1, 4);
+        int choix = lireChoix(1, 5);
         if (choix == 2 && !sauvegardeDisponible) {
             std::cout << "Il n'y a pas de partie sauvegardee. Commence une nouvelle partie !\n";
             continue;
@@ -52,11 +53,16 @@ void afficherRegles() {
     titreRegles("REGLES 1/5 : LE BUT DU JEU");
     std::cout << "Les Haschen envahissent la vallee. AYLIS doit traverser la route jusqu'a la forteresse\n";
     std::cout << "de " << colorer("Vorgath le Destructeur", ROUGE + GRAS) << " et l'abattre.\n\n";
-    std::cout << "La route compte 8 etapes. A la plupart, tu choisis ton chemin parmi trois :\n";
+    std::cout << "Au depart, choisis ta voie : " << colorer("l'epee", JAUNE) << " (solide), " << colorer("l'arc", VERT)
+              << " (a distance) ou " << colorer("les arcanes", VIOLET) << " (sorts).\n\n";
+    std::cout << "La route compte 11 etapes. A la plupart, tu choisis ton chemin parmi trois :\n";
     std::cout << "  - un combat (parfois contre une " << colorer("MEUTE", JAUNE) << " de deux Haschen)\n";
     std::cout << "  - une " << colorer("ELITE", JAUNE) << " : plus dangereuse, mais avec un objet RARE garanti\n";
     std::cout << "  - un repos, une halte chez les marchands, ou un sentier " << colorer("???", VIOLET) << " plein de surprises\n";
-    std::cout << "A mi-chemin, " << colorer("Ashka, la Matriarche", ROUGE) << " t'attend. Une halte est toujours prevue avant chaque boss.\n";
+    std::cout << "Trois boss barrent la route : " << colorer("Ashka, la Matriarche", ROUGE) << ", "
+              << colorer("Skarn, le Tisseur d'ombres", VIOLET) << ", puis Vorgath.\n";
+    std::cout << "Une halte est toujours prevue avant chaque boss.\n";
+    std::cout << "Le " << colorer("Defi du jour", JAUNE) << " propose la meme route a tout le monde, le meme jour.\n";
     attendreEntree();
 
     titreRegles("REGLES 2/5 : LE COMBAT");

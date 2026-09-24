@@ -12,7 +12,7 @@
 const std::string fichierSauvegarde = "prophetia_sauvegarde.txt";
 
 // La premiere ligne du fichier : elle permet de verifier que c'est bien une sauvegarde du jeu
-const std::string entete = "PROPHETIA-SAUVEGARDE-1";
+const std::string entete = "PROPHETIA-SAUVEGARDE-2";
 
 // ===================== Ecrire =====================
 // std::ofstream = "output file stream" : un fichier dans lequel on ecrit, comme on ecrit dans std::cout
@@ -37,6 +37,7 @@ void ecrireCombattant(std::ofstream& fichier, const Combattant& c) {
     fichier << c.pieces << "\n";
     fichier << c.mana << "\n" << c.manaMax << "\n" << c.sortsConnus << "\n";
     fichier << c.honneur << "\n";
+    fichier << c.voie << "\n";
     ecrireArme(fichier, c.arme);
 
     // L'inventaire : d'abord le nombre d'objets, puis chaque objet
@@ -60,6 +61,7 @@ void sauvegarder(const EtatPartie& etat) {
     fichier << etat.etape << "\n";
     fichier << etat.haltesVisitees << "\n";
     fichier << etat.ashkaVaincue << "\n";
+    fichier << etat.skarnVaincu << "\n";
     fichier << etat.difficulte << "\n";
     fichier << etat.rage.valeur() << "\n";
     ecrireCombattant(fichier, etat.aylis);
@@ -110,6 +112,7 @@ void lireCombattant(std::ifstream& fichier, Combattant& c) {
     c.manaMax = lireNombre(fichier);
     c.sortsConnus = lireNombre(fichier);
     c.honneur = lireNombre(fichier);
+    c.voie = lireTexte(fichier);
     lireArme(fichier, c.arme);
 
     int nombreObjets = lireNombre(fichier);
@@ -139,6 +142,7 @@ bool charger(EtatPartie& etat) {
     etat.etape = lireNombre(fichier);
     etat.haltesVisitees = lireNombre(fichier);
     etat.ashkaVaincue = lireNombre(fichier) == 1;
+    etat.skarnVaincu = lireNombre(fichier) == 1;
     etat.difficulte = lireNombre(fichier);
     etat.rage.fixer(lireNombre(fichier));
     lireCombattant(fichier, etat.aylis);

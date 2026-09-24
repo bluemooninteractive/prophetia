@@ -8,7 +8,8 @@
 struct Bestiaire {
     std::vector<Combattant> normaux;    // tires au hasard sur les chemins normaux
     std::vector<Combattant> elites;     // tires au hasard sur les chemins d'elite
-    Combattant ashka;                   // boss du milieu
+    Combattant ashka;                   // premier boss
+    Combattant skarn;                   // deuxieme boss
     Combattant vorgath;                 // boss final
 };
 

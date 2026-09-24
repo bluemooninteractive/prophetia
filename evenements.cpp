@@ -208,9 +208,83 @@ void mercenaire(EtatPartie& etat) {
     }
 }
 
+// ----- Le puits aux souhaits -----
+void puitsAuxSouhaits(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
+    const int offrande = 20;
+    std::cout << "Un vieux puits couvert de mousse. On dit qu'il exauce les voeux de ceux qui y jettent de l'or.\n\n";
+    std::cout << "1. Jeter " << offrande << " pieces et faire un voeu (tu en as " << aylis.pieces << ")\n";
+    std::cout << "2. Boire son eau\n";
+    std::cout << "3. Passer son chemin\n";
+
+    int choix = lireChoix(1, 3);
+    if (choix == 1) {
+        if (aylis.pieces < offrande) {
+            std::cout << "Les poches d'AYLIS sont trop legeres pour un voeu.\n";
+            return;
+        }
+        aylis.pieces = aylis.pieces - offrande;
+        int voeu = std::rand() % 3;
+        if (voeu == 0) {
+            aylis.potions = aylis.potions + 1;
+            std::cout << "Une fiole remonte a la surface ! (" << aylis.potions << " potions)\n";
+        } else if (voeu == 1) {
+            aylis.pvMax = aylis.pvMax + 5;
+            aylis.soigner(5);
+            std::cout << "Une chaleur envahit AYLIS : pv max +5 (" << aylis.pvMax << ").\n";
+        } else {
+            std::cout << "Plouf. Rien ne se passe. Le puits garde l'or... et le voeu.\n";
+        }
+    } else if (choix == 2) {
+        if (std::rand() % 100 < 30) {
+            std::cout << "Beurk ! L'eau est croupie.\n";
+            blesser(aylis, 5);
+        } else {
+            aylis.soigner(15);
+            std::cout << "L'eau est fraiche et pure. AYLIS se sent mieux (" << aylis.pv << " pv).\n";
+        }
+    } else {
+        std::cout << "AYLIS n'a pas de temps pour les superstitions.\n";
+    }
+}
+
+// ----- Les villageois captifs -----
+void villageoisCaptifs(EtatPartie& etat) {
+    Combattant& aylis = etat.aylis;
+    const int pourboire = 30;
+    std::cout << "Deux gardes haschen jouent aux des devant une cage. A l'interieur, des villageois terrorises.\n";
+    std::cout << "Les gardes n'ont pas encore remarque AYLIS.\n\n";
+    std::cout << "1. Crocheter la cage en silence\n";
+    std::cout << "2. Soudoyer les gardes (" << pourboire << " or, tu en as " << aylis.pieces << ")\n";
+    std::cout << "3. Ne pas s'en meler\n";
+
+    int choix = lireChoix(1, 3);
+    if (choix == 1) {
+        if (std::rand() % 100 < 40) {
+            std::cout << "CRAC ! La serrure grince. Un garde lance sa hache avant de s'enfuir.\n";
+            blesser(aylis, 10);
+        }
+        std::cout << "La cage s'ouvre. Les villageois glissent une potion et quelques pieces dans les mains d'AYLIS.\n";
+        aylis.potions = aylis.potions + 1;
+        gagnerOr(aylis, 15);
+        changerHonneur(aylis, 1);
+    } else if (choix == 2) {
+        if (aylis.pieces < pourboire) {
+            std::cout << "Les gardes ricanent devant la maigre bourse d'AYLIS.\n";
+            return;
+        }
+        aylis.pieces = aylis.pieces - pourboire;
+        std::cout << "Les gardes empochent l'or et regardent ailleurs. Les villageois s'enfuient en remerciant AYLIS.\n";
+        changerHonneur(aylis, 1);
+    } else {
+        std::cout << "AYLIS passe son chemin. Les appels des villageois resonnent longtemps dans son dos.\n";
+        changerHonneur(aylis, -1);
+    }
+}
+
 void evenementAleatoire(EtatPartie& etat) {
     std::cout << "\n" << colorer("??????????????????????????????????????????", VIOLET) << "\n";
-    int tirage = std::rand() % 5;
+    int tirage = std::rand() % 7;
     if (tirage == 0) {
         voyageurBlesse(etat);
     } else if (tirage == 1) {
@@ -219,8 +293,12 @@ void evenementAleatoire(EtatPartie& etat) {
         autelMysterieux(etat);
     } else if (tirage == 3) {
         deserteurHaschen(etat);
-    } else {
+    } else if (tirage == 4) {
         mercenaire(etat);
+    } else if (tirage == 5) {
+        puitsAuxSouhaits(etat);
+    } else {
+        villageoisCaptifs(etat);
     }
     std::cout << colorer("??????????????????????????????????????????", VIOLET) << "\n";
 }

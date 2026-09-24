@@ -17,6 +17,7 @@ const int ETAPE_CHOIX = 0;      // AYLIS choisit son chemin
 const int ETAPE_HALTE = 1;      // une halte obligatoire, pour se preparer avant un boss
 const int ETAPE_ASHKA = 2;
 const int ETAPE_VORGATH = 3;
+const int ETAPE_SKARN = 4;
 
 // Les sortes de chemins proposes a une etape de choix
 const int CHEMIN_COMBAT = 0;
@@ -32,8 +33,16 @@ struct Chemin {
     std::vector<Combattant> ennemis;    // seulement pour les chemins de combat (un ou plusieurs)
 };
 
-// Apres Ashka, les Haschen sont plus forts : +20% de pv et d'attaque
-const int renfortApresAshka = 120;
+// Plus on avance, plus les Haschen sont forts : +20% apres Ashka, +40% apres Skarn
+int renfortDesHaschen(const EtatPartie& etat) {
+    if (etat.skarnVaincu) {
+        return 140;
+    }
+    if (etat.ashkaVaincue) {
+        return 120;
+    }
+    return 100;
+}
 
 // Choisit un element au hasard dans une liste
 std::string lieuAuHasard(const std::vector<std::string>& lieux) {
@@ -87,7 +96,7 @@ std::vector<Combattant> creerMeute(const Bestiaire& bestiaire) {
 
 // Prepare les 3 chemins d'une etape de choix :
 // un combat (seul ou en meute), une elite, et un repos, une halte ou un evenement
-std::vector<Chemin> proposerChemins(const Bestiaire& bestiaire, bool apresAshka) {
+std::vector<Chemin> proposerChemins(const Bestiaire& bestiaire, int renfort) {
     const std::vector<std::string> lieuxNormaux = {
         "La foret des Brumes", "Le marais puant", "Les ruines du vieux fort",
         "La riviere gelee", "Le champ de pierres",
@@ -105,11 +114,11 @@ std::vector<Chemin> proposerChemins(const Bestiaire& bestiaire, bool apresAshka)
     }
     std::vector<Combattant> elites = {ennemiAuHasard(bestiaire.elites)};
 
-    if (apresAshka) {
+    if (renfort != 100) {
         for (Combattant& haschen : normaux) {
-            renforcer(haschen, renfortApresAshka);
+            renforcer(haschen, renfort);
         }
-        renforcer(elites[0], renfortApresAshka);
+        renforcer(elites[0], renfort);
     }
 
     std::vector<Chemin> chemins;
@@ -220,6 +229,9 @@ int momentDeLHistoire(bool ashkaVaincue, int prochaineEtape) {
     if (prochaineEtape == ETAPE_VORGATH) {
         return MOMENT_AVANT_VORGATH;
     }
+    if (prochaineEtape == ETAPE_SKARN) {
+        return MOMENT_AVANT_SKARN;
+    }
     if (ashkaVaincue) {
         return MOMENT_APRES_ASHKA;
     }
@@ -233,7 +245,8 @@ bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Best
     // Le plan de la route : deux choix, une halte, Ashka, deux choix, une halte, Vorgath
     const std::vector<int> plan = {
         ETAPE_CHOIX, ETAPE_CHOIX, ETAPE_HALTE, ETAPE_ASHKA,
-        ETAPE_CHOIX, ETAPE_CHOIX, ETAPE_HALTE, ETAPE_VORGATH,
+        ETAPE_CHOIX, ETAPE_CHOIX, ETAPE_HALTE, ETAPE_SKARN,
+        ETAPE_CHOIX, ETAPE_HALTE, ETAPE_VORGATH,
     };
     int nombreEtapes = plan.size();
     Combattant& aylis = etat.aylis;
@@ -265,6 +278,18 @@ bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Best
             continue;
         }
 
+        if (typeEtape == ETAPE_SKARN) {
+            std::cout << "Un brouillard violet envahit le marais. Au centre, une silhouette voutee murmure des\n";
+            std::cout << "incantations : " << colorer("Skarn, le Tisseur d'ombres", VIOLET + GRAS)
+                      << ", le sorcier qui souffle la rage de Vorgath aux Haschen.\n";
+            if (!combatEtRecompenses(etat, {bestiaire.skarn}, false)) {
+                return false;
+            }
+            std::cout << "Le brouillard se dissipe. Sans Skarn, la rage des Haschen commence a vaciller...\n";
+            etat.skarnVaincu = true;
+            continue;
+        }
+
         if (typeEtape == ETAPE_VORGATH) {
             return combatEtRecompenses(etat, {bestiaire.vorgath}, true);
         }
@@ -272,6 +297,8 @@ bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Best
         if (typeEtape == ETAPE_HALTE) {
             if (prochaineEtape == ETAPE_ASHKA) {
                 std::cout << "Le col d'Ashka se dresse devant AYLIS. Une derniere halte avant l'affrontement.\n";
+            } else if (prochaineEtape == ETAPE_SKARN) {
+                std::cout << "Le marais de Skarn commence ici. Les marchands ont installe un dernier campement.\n";
             } else {
                 std::cout << "La forteresse de Vorgath est en vue. Une derniere halte avant l'assaut.\n";
             }
@@ -281,7 +308,7 @@ bool parcourirCarte(EtatPartie& etat, const std::vector<Arme>& armes, const Best
         }
 
         // Une etape de choix : on propose trois chemins
-        std::vector<Chemin> chemins = proposerChemins(bestiaire, etat.ashkaVaincue);
+        std::vector<Chemin> chemins = proposerChemins(bestiaire, renfortDesHaschen(etat));
         int nombreChemins = chemins.size();
 
         std::cout << "Plusieurs chemins s'offrent a AYLIS :\n";

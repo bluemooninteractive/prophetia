@@ -21,9 +21,68 @@ void appliquerDifficulte(Combattant& ennemi, int forceEnnemis, int orEnnemis) {
     ennemi.orDonne = ennemi.orDonne * orEnnemis / 100;
 }
 
+// Le choix de la voie au depart : elle donne les stats, l'arme et les sorts d'AYLIS
+Combattant choisirVoie(const std::vector<Arme>& armes) {
+    std::cout << "\nChoisis la voie d'AYLIS :\n\n";
+    std::cout << "1. " << colorer("La voie de l'epee", JAUNE + GRAS) << "   44 pv, attaque 13, defense 4, peu de mana\n";
+    std::cout << "   -> solide au corps a corps. Epee courte.\n";
+    std::cout << "2. " << colorer("La voie de l'arc", VERT + GRAS) << "    40 pv, attaque 12, defense 4\n";
+    std::cout << "   -> tire pendant que les Haschen approchent. Arc court.\n";
+    std::cout << "3. " << colorer("La voie des arcanes", VIOLET + GRAS) << " 34 pv, attaque 12, defense 3, beaucoup de mana\n";
+    std::cout << "   -> fragile, mais connait deja Boule de feu ET Soin. Baton de mage.\n";
+
+    //                   nom      pv  pvMax att def potions boss   xp or
+    Combattant aylis = {"AYLIS",  40, 40,   12,  4,  3,      false, 0, 0};
+
+    int choix = lireChoix(1, 3);
+    if (choix == 1) {
+        aylis.voie = "de l'epee";
+        aylis.pv = 44;
+        aylis.pvMax = 44;
+        aylis.attaque = 13;
+        aylis.defense = 4;
+        aylis.mana = 6;
+        aylis.manaMax = 6;
+        aylis.arme = armes[0];
+    } else if (choix == 2) {
+        aylis.voie = "de l'arc";
+        aylis.arme = armes[4];
+    } else {
+        aylis.voie = "des arcanes";
+        aylis.pv = 34;
+        aylis.pvMax = 34;
+        aylis.defense = 3;
+        aylis.potions = 2;
+        aylis.mana = 20;
+        aylis.manaMax = 20;
+        aylis.sortsConnus = 2;
+        //            nom              distance bonus crit coups prix
+        aylis.arme = {"Baton de mage", true,    0,    5,   1,    20};
+    }
+    std::cout << "AYLIS suit la voie " << aylis.voie << ", avec : " << aylis.arme.nom << ".\n";
+    return aylis;
+}
+
+// Le nombre du defi du jour : la date d'aujourd'hui, par exemple 20260925.
+// Tout le monde a le meme nombre le meme jour, donc les memes tirages au hasard.
+unsigned int nombreDuJour() {
+    std::time_t maintenant = std::time(nullptr);
+    std::tm* date = std::localtime(&maintenant);
+    return (date->tm_year + 1900) * 10000 + (date->tm_mon + 1) * 100 + date->tm_mday;
+}
+
 // Une partie : on prepare les armes et les ennemis, puis on part sur la route.
 // continuer = true pour reprendre la partie sauvegardee au lieu d'en commencer une nouvelle.
-void jouerPartie(bool continuer) {
+// defi = true pour le defi du jour : le hasard part de la date, la meme pour tout le monde.
+void jouerPartie(bool continuer, bool defi) {
+    if (defi) {
+        std::srand(nombreDuJour());
+        std::cout << "\n" << colorer("=== DEFI DU JOUR : " + std::to_string(nombreDuJour()) + " ===", JAUNE + GRAS) << "\n";
+        std::cout << "Aujourd'hui, tout le monde affronte la meme route. Qui ira le plus loin ?\n";
+    } else {
+        std::srand(std::time(nullptr));     // un hasard different a chaque partie
+    }
+
     // Les armes vendues par Durgan
     //                       nom                 distance  bonus crit coups prix
     std::vector<Arme> armes = {
@@ -44,6 +103,9 @@ void jouerPartie(bool continuer) {
     Objet griffe   = {"Griffe de berserker",    TypeObjet::Materiau, Rarete::Rare,   25};
     Objet osGraves = {"Os graves de runes",     TypeObjet::Materiau, Rarete::Rare,   25};
     Objet couronne = {"Couronne d'os d'Ashka",  TypeObjet::Materiau, Rarete::Epique, 70};
+    Objet collier  = {"Collier de crocs",       TypeObjet::Materiau, Rarete::Rare,   30};
+    Objet ecu      = {"Bouclier de Haschen",    TypeObjet::Materiau, Rarete::Rare,   35};
+    Objet masque   = {"Masque de Skarn",        TypeObjet::Materiau, Rarete::Epique, 80};
     Objet potion   = {"Potion",                 TypeObjet::Potion,   Rarete::Commun,  7};
 
     // Les armes qu'on peut trouver sur les ennemis
@@ -52,6 +114,7 @@ void jouerPartie(bool continuer) {
     Objet lance          = objetDepuisArme({"Lance de Haschen",   false,  3, 15, 1,  60, Rarete::Rare});
     Objet hacheBerserker = objetDepuisArme({"Hache du berserker", false,  6, 15, 1,  80, Rarete::Rare});
     Objet javelots       = objetDepuisArme({"Javelots d'Ashka",   true,   6, 20, 1, 120, Rarete::Epique});
+    Objet sceptre        = objetDepuisArme({"Sceptre d'ombre",    true,   5, 15, 2, 140, Rarete::Epique});
 
     // Les ennemis. Apres l'XP et l'or : la table de loot (chaque objet avec sa chance sur 100), puis le style.
     Bestiaire bestiaire;
@@ -66,6 +129,8 @@ void jouerPartie(bool continuer) {
             {{croc, 50}, {peau, 40}, {potion, 20}, {arcDOs, 12}}, Style::Lanceur},
         {"Haschen chaman",      20, 20, 10, 1, 0, false,  25, 25,
             {{croc, 40}, {totem, 30}, {potion, 40}}},
+        {"Haschen louvetier",   22, 22, 10, 2, 0, false,  25, 25,
+            {{croc, 60}, {peau, 50}, {collier, 20}}, Style::Chargeur},
     };
     bestiaire.normaux[3].attaquePoison = true;      // les coups du chaman peuvent empoisonner
 
@@ -75,11 +140,16 @@ void jouerPartie(bool continuer) {
             {{griffe, 100}, {croc, 50}, {hacheBerserker, 20}}},
         {"Haschen brise-os",    34, 34, 13, 6, 0, false,  35, 35,
             {{osGraves, 100}, {peau, 60}, {lance, 20}}},
+        {"Haschen porte-bouclier", 40, 40, 11, 9, 0, false, 40, 40,
+            {{ecu, 100}, {osGraves, 30}, {potion, 30}}},
     };
 
     // Les boss
     bestiaire.ashka = {"Ashka, Matriarche des Haschen", 40, 40, 14, 4, 1, true, 50, 50,
         {{couronne, 100}, {javelots, 100}, {potion, 50}}, Style::Lanceur};
+    bestiaire.skarn = {"Skarn, le Tisseur d'ombres", 50, 50, 15, 4, 1, true, 70, 60,
+        {{masque, 100}, {sceptre, 100}, {potion, 50}}, Style::Lanceur};
+    bestiaire.skarn.attaquePoison = true;           // ses sorts d'ombre empoisonnent
     bestiaire.vorgath = {"Vorgath le Destructeur", 60, 60, 17, 6, 2, true, 100, 0,
         {}, Style::Chargeur};
 
@@ -96,32 +166,21 @@ void jouerPartie(bool continuer) {
         std::cout << "AYLIS reprend la route a l'etape " << (etat.etape + 1) << ", niveau " << etat.aylis.niveau
                   << ", " << etat.aylis.pv << "/" << etat.aylis.pvMax << " pv.\n";
     } else {
-        //                         nom      pv  pvMax att def potions boss   xp or
-        etat.aylis = Combattant{"AYLIS",    40, 40,   12,  4,  3,      false, 0, 0};
-
         afficherIntro();
+        etat.aylis = choisirVoie(armes);
 
-        // Le choix de l'arme de depart : melee ou distance
-        std::cout << "\nChoisis l'arme de depart d'AYLIS :\n";
-        std::cout << "1. ";
-        afficherArme(armes[0]);
-        std::cout << "\n   -> doit aller au contact, mais frappe fort une fois la-bas\n";
-        std::cout << "2. ";
-        afficherArme(armes[4]);
-        std::cout << "\n   -> tire pendant que les Haschen approchent, mais moins efficace au contact\n";
-        if (lireChoix(1, 2) == 1) {
-            etat.aylis.arme = armes[0];
+        if (defi) {
+            // Le defi du jour : difficulte normale imposee, pour que tout le monde joue la meme partie
+            etat.difficulte = 2;
+            std::cout << "\nDefi du jour : difficulte " << colorer("Normale", JAUNE) << " imposee. Bonne chance !\n";
         } else {
-            etat.aylis.arme = armes[4];
+            // Le choix de la difficulte : change la force des ennemis et l'or qu'ils donnent
+            std::cout << "\nChoisis la difficulte :\n";
+            std::cout << "1. Facile     (ennemis -20% pv et attaque, +20% d'or)\n";
+            std::cout << "2. Normal\n";
+            std::cout << "3. Difficile  (ennemis +25% pv et attaque, -20% d'or)\n";
+            etat.difficulte = lireChoix(1, 3);
         }
-        std::cout << "AYLIS part avec : " << etat.aylis.arme.nom << ".\n";
-
-        // Le choix de la difficulte : change la force des ennemis et l'or qu'ils donnent
-        std::cout << "\nChoisis la difficulte :\n";
-        std::cout << "1. Facile     (ennemis -20% pv et attaque, +20% d'or)\n";
-        std::cout << "2. Normal\n";
-        std::cout << "3. Difficile  (ennemis +25% pv et attaque, -20% d'or)\n";
-        etat.difficulte = lireChoix(1, 3);
     }
 
     int forceEnnemis = 100;     // en pourcentage
@@ -143,6 +202,7 @@ void jouerPartie(bool continuer) {
         appliquerDifficulte(ennemi, forceEnnemis, orEnnemis);
     }
     appliquerDifficulte(bestiaire.ashka, forceEnnemis, orEnnemis);
+    appliquerDifficulte(bestiaire.skarn, forceEnnemis, orEnnemis);
     appliquerDifficulte(bestiaire.vorgath, forceEnnemis, orEnnemis);
 
     // En route !
@@ -169,10 +229,12 @@ int main() {
     while (true) {
         int choix = ecranTitre(sauvegardeExiste());
         if (choix == 1) {
-            jouerPartie(false);
+            jouerPartie(false, false);
         } else if (choix == 2) {
-            jouerPartie(true);
+            jouerPartie(true, false);
         } else if (choix == 3) {
+            jouerPartie(false, true);
+        } else if (choix == 4) {
             afficherRegles();
         } else {
             std::cout << "\nA bientot sur la route, AYLIS !\n";

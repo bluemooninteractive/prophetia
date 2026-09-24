@@ -9,7 +9,8 @@ void afficherIntro() {
     std::cout << "\n" << colorer("=== PROLOGUE ===", JAUNE + GRAS) << "\n\n";
     std::cout << "Autrefois, les Haschen vivaient en paix dans les collines de la vallee.\n";
     std::cout << "Puis " << colorer("Vorgath", ROUGE + GRAS) << " est arrive. Il a rassemble les clans, les a nourris de sa rage,\n";
-    std::cout << "et les a lances contre les villages.\n\n";
+    std::cout << "et les a lances contre les villages. Dans l'ombre, son sorcier " << colorer("Skarn", VIOLET + GRAS) << "\n";
+    std::cout << "souffle cette rage dans l'esprit de chaque Haschen.\n\n";
     std::cout << "Les soldats du roi ont fui. Les portes des villes sont fermees.\n";
     std::cout << "Sur la route qui mene a la forteresse de Vorgath, il ne reste qu'une silhouette :\n";
     std::cout << colorer("AYLIS", JAUNE + GRAS) << ".\n\n";
@@ -21,7 +22,11 @@ void afficherFin(const EtatPartie& etat) {
     const Combattant& aylis = etat.aylis;
 
     std::cout << "\n" << colorer("=== EPILOGUE ===", JAUNE + GRAS) << "\n\n";
-    std::cout << "Vorgath s'effondre dans la poussiere de sa forteresse. Sa rage s'eteint avec lui.\n\n";
+    std::cout << "Vorgath s'effondre dans la poussiere de sa forteresse. Sa rage s'eteint avec lui.\n";
+    if (aylis.voie != "") {
+        std::cout << "On se souviendra d'AYLIS, qui a suivi la voie " << aylis.voie << " jusqu'au bout.\n";
+    }
+    std::cout << "\n";
 
     // La fin depend de l'honneur : les bons choix (+1) et les mauvais (-1) faits en route
     if (aylis.honneur >= 2) {

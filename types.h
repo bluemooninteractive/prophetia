@@ -91,6 +91,7 @@ struct Combattant {
     bool attaquePoison = false;     // pour un ennemi : ses coups peuvent empoisonner
 
     int honneur = 0;        // les bons (+1) et mauvais (-1) choix d'AYLIS : ils decident de la fin
+    std::string voie = "";  // la voie choisie au depart : "de l'epee", "de l'arc" ou "des arcanes"
 
     // Les methodes : des fonctions qui appartiennent au combattant.
     // On les appelle avec un point : aylis.soigner(10), ennemi.boirePotion(), aylis.estDebout()...
@@ -113,6 +114,7 @@ struct EtatPartie {
     int etape = 0;                  // l'etape de la route ou on en est
     int haltesVisitees = 0;         // les prix montent a chaque halte
     bool ashkaVaincue = false;
+    bool skarnVaincu = false;
     int difficulte = 2;             // 1 = facile, 2 = normal, 3 = difficile
 };
 
