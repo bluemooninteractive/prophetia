@@ -35,6 +35,7 @@ struct Pion {
     int colonne;
     int ligne;
     Color couleur;
+    float flash = 0.0f;     // > 0 juste apres avoir ete touche : le pion clignote en rouge
 };
 
 // Les grandes etapes de l'ecran

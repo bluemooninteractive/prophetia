@@ -20,6 +20,7 @@ add_executable(prophetia_2d
     main.cpp
     regles.cpp
     dessin.cpp
+    sprites.cpp
     ../outils.cpp
     ../couleurs.cpp
     ../jauge.cpp

@@ -66,6 +66,12 @@ void mettreAJourTextes(Jeu& jeu, float secondes) {
     while (!jeu.textes.empty() && jeu.textes.front().tempsRestant <= 0) {
         jeu.textes.erase(jeu.textes.begin());
     }
+
+    // Le clignotement rouge des pions touches s'eteint peu a peu
+    jeu.aylis.flash = jeu.aylis.flash - secondes;
+    for (Pion& h : jeu.haschen) {
+        h.flash = h.flash - secondes;
+    }
 }
 
 // ===================== Les deplacements =====================
@@ -150,6 +156,7 @@ int calculerDegats2D(int attaque, int puissance, int defense, int chanceCritique
 // Un Haschen encaisse des degats
 void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique) {
     cible.stats.pv = cible.stats.pv - degats;
+    cible.flash = 0.25f;
     ajouterTexte(jeu, cible, (critique ? "CRIT -" : "-") + std::to_string(degats), critique ? ORANGE : YELLOW);
     if (!cible.stats.estDebout()) {
         ecrireJournal(jeu, cible.stats.nom + " tombe !");
@@ -168,6 +175,7 @@ void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique) {
         degats = degats - absorbe;
     }
     aylis.pv = aylis.pv - degats;
+    jeu.aylis.flash = 0.25f;
     jeu.rage.remplir(degats * 4);
     ajouterTexte(jeu, jeu.aylis, (critique ? "CRIT -" : "-") + std::to_string(degats), RED);
     ecrireJournal(jeu, attaquant.stats.nom + " touche AYLIS : -" + std::to_string(degats) + " pv");

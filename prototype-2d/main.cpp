@@ -8,6 +8,7 @@
 // on lit la souris et le clavier, on met a jour le jeu, puis on redessine tout l'ecran.
 #include "raylib.h"
 #include "jeu2d.h"
+#include "sprites.h"
 
 // Choisit une action de la barre (numero 0 a 8)
 void selectionnerAction(Jeu& jeu, int numero) {
@@ -78,6 +79,7 @@ int main() {
     SetConfigFlags(FLAG_WINDOW_HIGHDPI);
     InitWindow(LARGEUR_FENETRE, HAUTEUR_FENETRE, "PROPHETIA - prototype 2D");
     SetTargetFPS(60);
+    chargerSprites();       // fabrique les dessins (il faut que la fenetre soit ouverte)
 
     Jeu jeu;
 
@@ -120,6 +122,7 @@ int main() {
         EndDrawing();
     }
 
+    dechargerSprites();
     CloseWindow();
     return 0;
 }

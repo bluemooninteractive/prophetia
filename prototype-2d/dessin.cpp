@@ -1,13 +1,12 @@
 // dessin.cpp : tout ce qui s'affiche a l'ecran
 #include <string>
 #include <vector>
+#include <cmath>
 #include "jeu2d.h"
+#include "sprites.h"
 
 const Color FOND = {20, 18, 28, 255};
-const Color CASE_CLAIRE = {48, 44, 60, 255};
-const Color CASE_SOMBRE = {40, 37, 51, 255};
 const Color PANNEAU = {14, 12, 20, 255};
-const Color ROCHER = {100, 94, 88, 255};
 
 // ===================== Les boutons et les cartes =====================
 
@@ -102,26 +101,77 @@ void dessinerBarreDeVie(const Pion& pion) {
     DrawRectangle(x, y, remplie, 6, couleur);
 }
 
-void dessinerPion(const Pion& pion, bool estAylis) {
-    float x = pion.colonne * TAILLE_CASE + TAILLE_CASE / 2.0f;
-    float y = pion.ligne * TAILLE_CASE + TAILLE_CASE / 2.0f + 6;
+// Dessine un sprite a l'ecran, agrandi. versLaGauche = true le retourne comme dans un miroir.
+void dessinerSprite(const Texture2D& texture, Rectangle ecran, bool versLaGauche, Color teinte) {
+    // Une largeur negative dans le rectangle source retourne l'image horizontalement
+    Rectangle source = {0, 0, versLaGauche ? -(float)TAILLE_SPRITE : (float)TAILLE_SPRITE, (float)TAILLE_SPRITE};
+    DrawTexturePro(texture, source, ecran, {0, 0}, 0, teinte);
+}
+
+void dessinerPion(const Pion& pion, bool estAylis, int colonneAylis) {
+    const Sprites& s = sprites();
+    float centreX = pion.colonne * TAILLE_CASE + TAILLE_CASE / 2.0f;
+    float basY = pion.ligne * TAILLE_CASE + TAILLE_CASE - 6.0f;
+
+    // Les personnages "respirent" : ils montent et descendent un tout petit peu, chacun a son rythme
+    float respiration = std::sin(GetTime() * 3.0 + pion.colonne * 1.7 + pion.ligne) * 2.0f;
+    float taille = pion.stats.estBoss ? 80.0f : 64.0f;
+    Rectangle ecran = {centreX - taille / 2, basY - taille + respiration, taille, taille};
+
+    // Touche il y a un instant : il clignote en rouge
+    Color teinte = pion.flash > 0 ? Color{255, 90, 90, 255} : WHITE;
+
+    // Une ombre au sol
+    DrawEllipse(centreX, basY - 2, taille * 0.3f, 6, Fade(BLACK, 0.35f));
+
     if (estAylis) {
-        DrawCircle(x, y, TAILLE_CASE * 0.3f, pion.couleur);
-        DrawCircleLines(x, y, TAILLE_CASE * 0.3f, WHITE);
+        dessinerSprite(s.aylis, ecran, false, teinte);
+        const Arme& arme = pion.stats.arme;
+        const Texture2D* armeDessinee = &s.epee;
+        if (arme.nom.find("Baton") != std::string::npos) {
+            armeDessinee = &s.baton;
+        } else if (arme.aDistance) {
+            armeDessinee = &s.arc;
+        }
+        dessinerSprite(*armeDessinee, ecran, false, teinte);
     } else {
-        float cote = TAILLE_CASE * (pion.stats.estBoss ? 0.7f : 0.52f);
-        DrawRectangle(x - cote / 2, y - cote / 2, cote, cote, pion.couleur);
-        DrawRectangleLinesEx({x - cote / 2, y - cote / 2, cote, cote}, pion.stats.estBoss ? 3 : 1,
-                             pion.stats.estBoss ? WHITE : BLACK);
-        // Une petite marque pour les styles : un trait pour les lanceurs, une fleche pour les chargeurs
-        if (pion.stats.style == Style::Lanceur) {
-            DrawLine(x - cote / 2 + 4, y, x + cote / 2 - 4, y, BLACK);
-        } else if (pion.stats.style == Style::Chargeur) {
-            DrawTriangle({x - 6, y - 8}, {x - 6, y + 8}, {x + 8, y}, BLACK);
+        // Les Haschen regardent vers AYLIS
+        bool versLaGauche = colonneAylis < pion.colonne;
+        dessinerSprite(spriteHaschen(pion.stats.nom), ecran, versLaGauche, teinte);
+        const Texture2D* arme = spriteArmeHaschen(pion.stats.nom);
+        if (arme != nullptr) {
+            dessinerSprite(*arme, ecran, versLaGauche, teinte);
+        }
+        if (pion.stats.estBoss) {
+            dessinerSprite(s.couronne, ecran, versLaGauche, WHITE);
         }
     }
     dessinerBarreDeVie(pion);
     dessinerEtats(pion);
+}
+
+// L'ambiance du lieu, par-dessus l'arene : brume en foret, lueur du feu au camp, neige sur le col
+void dessinerAmbiance(int lieu) {
+    float temps = GetTime();
+    if (lieu == 0) {
+        for (int i = 0; i < 6; i++) {
+            float x = std::fmod(temps * (12 + i * 3) + i * 170, LARGEUR_FENETRE + 300) - 150;
+            float y = 60 + i * 85 + std::sin(temps * 0.5 + i) * 20;
+            DrawEllipse(x, y, 160, 40, Fade(WHITE, 0.045f));
+        }
+    } else if (lieu == 1) {
+        float pulsation = 0.05f + 0.02f * std::sin(temps * 6);
+        DrawRectangle(0, 0, LARGEUR_FENETRE, HAUTEUR_ARENE, Fade(ORANGE, pulsation));
+    } else {
+        for (int i = 0; i < 70; i++) {
+            float x = std::fmod(i * 97.0f + temps * (10 + i % 5 * 4), (float)LARGEUR_FENETRE);
+            float y = std::fmod(i * 53.0f + temps * (35 + i % 7 * 6), (float)HAUTEUR_ARENE);
+            DrawRectangle(x, y, i % 3 == 0 ? 3 : 2, i % 3 == 0 ? 3 : 2, Fade(WHITE, 0.8f));
+        }
+    }
+    // Les bords de l'arene un peu plus sombres : l'oeil se concentre sur le centre
+    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, 50, Fade(BLACK, 0.4f), BLANK);
+    DrawRectangleGradientV(0, HAUTEUR_ARENE - 50, LARGEUR_FENETRE, 50, BLANK, Fade(BLACK, 0.4f));
 }
 
 void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
@@ -130,15 +180,34 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     int portee = porteeAction(jeu, jeu.actionChoisie);
     bool actionVisee = tourJoueur && !actionSurSoi(jeu.actionChoisie) && actionDisponible(jeu, jeu.actionChoisie);
 
+    // Le lieu du combat decide des dessins : 0 = foret, 1 = camp, 2 = col
+    int lieu = jeu.combat < 3 ? jeu.combat : 2;
+    const Sprites& s = sprites();
+
     for (int l = 0; l < LIGNES; l++) {
         for (int c = 0; c < COLONNES; c++) {
             int x = c * TAILLE_CASE;
             int y = l * TAILLE_CASE;
-            DrawRectangle(x, y, TAILLE_CASE, TAILLE_CASE, (c + l) % 2 == 0 ? CASE_CLAIRE : CASE_SOMBRE);
+            Rectangle caseEcran = {(float)x, (float)y, (float)TAILLE_CASE, (float)TAILLE_CASE};
+            DrawTexturePro(s.sol[lieu][(c + l) % 2], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran, {0, 0}, 0, WHITE);
+
+            // Un "hasard" fixe, calcule a partir de la position : les decors restent toujours au meme endroit
+            int hasard = (c * 17 + l * 31 + jeu.combat * 7) % 11;
 
             if (estRocher(jeu, c, l)) {
-                DrawRectangle(x + 6, y + 6, TAILLE_CASE - 12, TAILLE_CASE - 12, ROCHER);
+                // Au milieu du camp, un obstacle est un feu de camp anime (2 images qui alternent)
+                if (lieu == 1 && c == 9 && l == 3) {
+                    int image = (int)(GetTime() * 5) % 2;
+                    DrawTexturePro(s.feu[image], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran, {0, 0}, 0, WHITE);
+                } else {
+                    DrawTexturePro(s.obstacle[lieu][hasard % 2], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran,
+                                   {0, 0}, 0, WHITE);
+                }
                 continue;
+            }
+            // Quelques decors par terre (ils ne bloquent pas le passage)
+            if (hasard < 2) {
+                DrawTexturePro(s.decor[lieu][hasard], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, caseEcran, {0, 0}, 0, WHITE);
             }
             // La portee de l'action choisie : une teinte rouge tres legere
             if (actionVisee && distanceCases(jeu.aylis.colonne, jeu.aylis.ligne, c, l) <= portee) {
@@ -176,12 +245,14 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
 
     for (const Pion& h : jeu.haschen) {
         if (h.stats.estDebout()) {
-            dessinerPion(h, false);
+            dessinerPion(h, false, jeu.aylis.colonne);
         }
     }
     if (jeu.aylis.stats.estDebout()) {
-        dessinerPion(jeu.aylis, true);
+        dessinerPion(jeu.aylis, true, jeu.aylis.colonne);
     }
+
+    dessinerAmbiance(lieu);
 
     for (const TexteFlottant& t : jeu.textes) {
         float transparence = t.tempsRestant > 1.0f ? 1.0f : t.tempsRestant;
