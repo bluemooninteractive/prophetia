@@ -296,7 +296,32 @@ void depenserPoints(Combattant& aylis) {
     }
 }
 
-// ===================== Le marche =====================
+// ===================== La halte et ses marchands =====================
+
+// Un marchand : son nom, son metier et ses repliques
+struct Marchand {
+    std::string nom;
+    std::string metier;
+    std::vector<std::string> accueil;       // une replique d'accueil par halte
+    std::vector<std::string> nouvelles;     // ce qu'il raconte quand on discute, par halte
+    std::string merci;                      // quand on lui achete ou vend quelque chose
+    std::string pasAssez;                   // quand AYLIS n'a pas assez d'or
+    std::string auRevoir;
+};
+
+// Un marchand dit une phrase
+void parler(const Marchand& marchand, const std::string& texte) {
+    std::cout << marchand.nom << " : \"" << texte << "\"\n";
+}
+
+// La replique qui correspond a cette halte (la derniere si on depasse la liste)
+std::string repliqueDuJour(const std::vector<std::string>& repliques, int visite) {
+    int nombre = repliques.size();
+    if (visite >= nombre) {
+        return repliques[nombre - 1];
+    }
+    return repliques[visite];
+}
 
 // Affiche l'inventaire numerote a partir de 1
 void afficherInventaire(const Combattant& aylis) {
@@ -308,41 +333,233 @@ void afficherInventaire(const Combattant& aylis) {
     }
 }
 
-// Vendre des objets au marchand
-void vendre(Combattant& aylis) {
+// Les prix montent a chaque halte : +10% par halte deja visitee
+int prixDuJour(int prixDeBase, int visite) {
+    return prixDeBase * (100 + 10 * visite) / 100;
+}
+
+// Le forgeron choisit au hasard quelques armes a vendre aujourd'hui
+std::vector<Arme> tirerStock(const std::vector<Arme>& armes, const Arme& armeEnMain, int nombre) {
+    // On part de toutes les armes, sauf celle qu'AYLIS a deja en main
+    std::vector<Arme> candidates;
+    int nombreArmes = armes.size();
+    for (int i = 0; i < nombreArmes; i++) {
+        if (armes[i].nom != armeEnMain.nom) {
+            candidates.push_back(armes[i]);
+        }
+    }
+
+    // On en tire "nombre" au hasard, sans prendre deux fois la meme
+    std::vector<Arme> stock;
+    for (int tirage = 0; tirage < nombre && !candidates.empty(); tirage++) {
+        int index = std::rand() % candidates.size();
+        stock.push_back(candidates[index]);
+        candidates.erase(candidates.begin() + index);
+    }
+    return stock;
+}
+
+// ----- Maren, l'herboriste : potions et mana -----
+void boutiqueHerboriste(Combattant& aylis, const Marchand& maren, int visite, int& potionsEnStock) {
+    const int prixPotion = prixDuJour(15, visite);
+    const int prixElixir = prixDuJour(30, visite);
+
+    std::cout << "\n";
+    parler(maren, repliqueDuJour(maren.accueil, visite));
+
     while (true) {
+        std::cout << "\n=== " << maren.nom << ", " << maren.metier << " ===   Tu as " << aylis.pieces << " pieces d'or\n";
+        std::cout << "1. Potion (+15 pv en combat) ....... " << prixPotion << " or  (tu en as " << aylis.potions
+                  << ", il en reste " << potionsEnStock << ")\n";
+        std::cout << "2. Elixir de mana (+5 mana max) .... " << prixElixir << " or\n";
+        std::cout << "3. Discuter\n";
+        std::cout << "4. Partir\n";
+
+        int choix = lireChoix(1, 4);
+        if (choix == 4) {
+            parler(maren, maren.auRevoir);
+            return;
+        }
+        if (choix == 3) {
+            parler(maren, repliqueDuJour(maren.nouvelles, visite));
+            continue;
+        }
+        if (choix == 1 && potionsEnStock == 0) {
+            parler(maren, "Desolee, je n'ai plus une seule potion. Reviens a la prochaine halte !");
+            continue;
+        }
+
+        int prix = prixPotion;
+        if (choix == 2) {
+            prix = prixElixir;
+        }
+        if (aylis.pieces < prix) {
+            parler(maren, maren.pasAssez);
+            std::cout << "(Il te manque " << (prix - aylis.pieces) << " pieces.)\n";
+            continue;
+        }
+        aylis.pieces = aylis.pieces - prix;
+
+        if (choix == 1) {
+            aylis.potions = aylis.potions + 1;
+            potionsEnStock = potionsEnStock - 1;
+            std::cout << "Achete ! " << aylis.potions << " potions.\n";
+        } else {
+            aylis.manaMax = aylis.manaMax + 5;
+            std::cout << "Achete ! Mana max : " << aylis.manaMax << ".\n";
+        }
+        parler(maren, maren.merci);
+    }
+}
+
+// ----- Durgan, le forgeron : armes et armure -----
+void forge(Combattant& aylis, const Marchand& durgan, int visite,
+           std::vector<Arme>& stock, const std::string& armeEnPromo) {
+    const int prixArmure = prixDuJour(35, visite);
+
+    std::cout << "\n";
+    parler(durgan, repliqueDuJour(durgan.accueil, visite));
+
+    while (true) {
+        std::cout << "\n=== " << durgan.nom << ", " << durgan.metier << " ===   Tu as " << aylis.pieces << " pieces d'or\n";
+        std::cout << "Arme en main : ";
+        afficherArme(aylis.arme);
+        std::cout << "\n\n";
+
+        // Les armes du jour, puis l'armure, puis discuter et partir
+        int nombreArmes = stock.size();
+        for (int i = 0; i < nombreArmes; i++) {
+            std::cout << (i + 1) << ". ";
+            afficherArme(stock[i]);
+            std::cout << "  ...  " << stock[i].prix << " or";
+            if (stock[i].nom == armeEnPromo) {
+                std::cout << "  ** PROMO -25% **";
+            }
+            std::cout << "\n";
+        }
+        int choixArmure = nombreArmes + 1;
+        int choixDiscuter = nombreArmes + 2;
+        int choixPartir = nombreArmes + 3;
+        std::cout << choixArmure << ". Armure renforcee (+1 defense) ..... " << prixArmure << " or\n";
+        std::cout << choixDiscuter << ". Discuter\n";
+        std::cout << choixPartir << ". Partir\n";
+
+        int choix = lireChoix(1, choixPartir);
+        if (choix == choixPartir) {
+            parler(durgan, durgan.auRevoir);
+            return;
+        }
+        if (choix == choixDiscuter) {
+            parler(durgan, repliqueDuJour(durgan.nouvelles, visite));
+            continue;
+        }
+
+        if (choix == choixArmure) {
+            if (aylis.pieces < prixArmure) {
+                parler(durgan, durgan.pasAssez);
+                continue;
+            }
+            aylis.pieces = aylis.pieces - prixArmure;
+            aylis.defense = aylis.defense + 1;
+            std::cout << "Achete ! Defense : " << aylis.defense << ".\n";
+            parler(durgan, durgan.merci);
+            continue;
+        }
+
+        // Sinon, c'est une arme du stock
+        const Arme arme = stock[choix - 1];     // une copie : on va l'enlever du stock
+        if (aylis.pieces < arme.prix) {
+            parler(durgan, durgan.pasAssez);
+            std::cout << "(Il te manque " << (arme.prix - aylis.pieces) << " pieces.)\n";
+            continue;
+        }
+        aylis.pieces = aylis.pieces - arme.prix;
+        stock.erase(stock.begin() + (choix - 1));   // le forgeron n'en avait qu'une
+
+        aylis.inventaire.push_back(objetDepuisArme(aylis.arme));
+        std::cout << aylis.arme.nom << " va dans le sac.\n";
+        aylis.arme = arme;
+        std::cout << "AYLIS s'equipe : " << arme.nom << " !\n";
+        parler(durgan, durgan.merci);
+    }
+}
+
+// Silas paie 50% de plus pour les objets RARE et EPIQUE
+int prixDeRachat(const Objet& objet) {
+    if (objet.rarete == COMMUN) {
+        return objet.valeur;
+    }
+    return objet.valeur * 150 / 100;
+}
+
+// ----- Silas, le collectionneur : rachete le butin -----
+void collectionneur(Combattant& aylis, const Marchand& silas, int visite) {
+    std::cout << "\n";
+    parler(silas, repliqueDuJour(silas.accueil, visite));
+
+    while (true) {
+        std::cout << "\n=== " << silas.nom << ", " << silas.metier << " ===   Tu as " << aylis.pieces << " pieces d'or\n";
+        std::cout << "(Silas paie 50% de plus pour les objets RARE et EPIQUE)\n";
+
         int taille = aylis.inventaire.size();
-        if (taille == 0) {
-            std::cout << "\nL'inventaire est vide, plus rien a vendre.\n";
-            return;
+        for (int i = 0; i < taille; i++) {
+            std::cout << (i + 1) << ". Vendre ";
+            afficherObjet(aylis.inventaire[i]);
+            std::cout << "  -> Silas en donne " << prixDeRachat(aylis.inventaire[i]) << " or\n";
         }
+        int choixTout = taille + 1;
+        int choixDiscuter = taille + 2;
+        std::cout << choixTout << ". Vendre tous les materiaux d'un coup\n";
+        std::cout << choixDiscuter << ". Discuter\n";
+        std::cout << "0. Partir\n";
 
-        std::cout << "\n=== VENDRE ===   Tu as " << aylis.pieces << " pieces d'or\n";
-        afficherInventaire(aylis);
-        std::cout << (taille + 1) << ". Vendre tous les materiaux d'un coup\n";
-        std::cout << "0. Retour\n";
-
-        int choix = lireChoix(0, taille + 1);
+        int choix = lireChoix(0, choixDiscuter);
         if (choix == 0) {
+            parler(silas, silas.auRevoir);
             return;
         }
+        if (choix == choixDiscuter) {
+            parler(silas, repliqueDuJour(silas.nouvelles, visite));
+            continue;
+        }
 
-        if (choix == taille + 1) {
+        if (choix == choixTout) {
             // On parcourt a l'envers : effacer un objet ne decale pas ceux qu'il reste a voir
             int gain = 0;
+            bool epiqueVendu = false;
             for (int i = taille - 1; i >= 0; i--) {
                 if (aylis.inventaire[i].type == OBJET_MATERIAU) {
-                    gain = gain + aylis.inventaire[i].valeur;
+                    gain = gain + prixDeRachat(aylis.inventaire[i]);
+                    if (aylis.inventaire[i].rarete == EPIQUE) {
+                        epiqueVendu = true;
+                    }
                     aylis.inventaire.erase(aylis.inventaire.begin() + i);
                 }
             }
+            if (gain == 0) {
+                parler(silas, "Tu n'as aucun materiau a me vendre...");
+                continue;
+            }
             aylis.pieces = aylis.pieces + gain;
             std::cout << "Materiaux vendus : +" << gain << " or.\n";
+            if (epiqueVendu) {
+                parler(silas, "Par tous les dieux... Une piece pareille ! Elle trouvera une place d'honneur dans ma collection.");
+            } else {
+                parler(silas, silas.merci);
+            }
+            continue;
+        }
+
+        const Objet objet = aylis.inventaire[choix - 1];   // une copie : on va l'effacer
+        aylis.inventaire.erase(aylis.inventaire.begin() + (choix - 1));
+        int gain = prixDeRachat(objet);
+        aylis.pieces = aylis.pieces + gain;
+        std::cout << objet.nom << " vendu : +" << gain << " or.\n";
+
+        if (objet.rarete == EPIQUE) {
+            parler(silas, "Par tous les dieux... Une piece pareille ! Elle trouvera une place d'honneur dans ma collection.");
         } else {
-            const Objet objet = aylis.inventaire[choix - 1];   // une copie : on va l'effacer
-            aylis.inventaire.erase(aylis.inventaire.begin() + (choix - 1));
-            aylis.pieces = aylis.pieces + objet.valeur;
-            std::cout << objet.nom << " vendu : +" << objet.valeur << " or.\n";
+            parler(silas, silas.merci);
         }
     }
 }
@@ -382,88 +599,70 @@ void gererInventaire(Combattant& aylis) {
     }
 }
 
-// Les prix montent a chaque visite : +10% par marche deja visite
-int prixDuJour(int prixDeBase, int visite) {
-    return prixDeBase * (100 + 10 * visite) / 100;
-}
+// La halte entre deux combats. "visite" = combien de haltes AYLIS a deja faites (0 a la premiere).
+void halte(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
+    const Marchand maren = {
+        "Maren", "l'herboriste",
+        {
+            "Oh ! Quelqu'un d'encore debout sur cette route ? Je suis Maren. Les Haschen ont brule mon jardin, mais pas mes potions !",
+            "Te revoila, AYLIS ! Mes potions t'ont servi ? J'en ai prepare de nouvelles.",
+            "Tu as abattu Ashka ?! Toute la vallee ne parle que de ca !",
+            "Derniere halte avant la forteresse de Vorgath... Prends tout ce qu'il te faut.",
+        },
+        {
+            "Un guerrier Haschen rode plus loin. Plus solide qu'un eclaireur, mais rien d'impossible.",
+            "Ashka, la Matriarche, garde le col. Elle lance ses javelots bien avant d'arriver au contact. Garde des potions.",
+            "Un berserker barre le pont. Il frappe tres fort : ne pars pas sans de quoi te soigner.",
+            "Vorgath ne marche pas vers ses ennemis : il CHARGE. Tu n'auras pas le temps de tirer de loin.",
+        },
+        "Bon choix ! Ca soigne meme les blessures de Haschen.",
+        "Je voudrais bien te faire credit, mais les Haschen ont vide ma caisse...",
+        "Prends soin de toi, AYLIS.",
+    };
 
-// Le marchand choisit au hasard quelques armes a vendre aujourd'hui
-std::vector<Arme> tirerStock(const std::vector<Arme>& armes, const Arme& armeEnMain, int nombre) {
-    // On part de toutes les armes, sauf celle qu'AYLIS a deja en main
-    std::vector<Arme> candidates;
-    int nombreArmes = armes.size();
-    for (int i = 0; i < nombreArmes; i++) {
-        if (armes[i].nom != armeEnMain.nom) {
-            candidates.push_back(armes[i]);
-        }
-    }
+    const Marchand durgan = {
+        "Durgan", "le forgeron",
+        {
+            "Hmpf. Durgan, forgeron. Ta lame est emoussee. Regarde plutot ce que j'ai forge.",
+            "Encore toi. Bien. Les clients vivants sont les meilleurs clients.",
+            "La Matriarche est tombee ? ... Je retire ce que j'ai dit sur ta lame.",
+            "Pour Vorgath, il te faut du solide. Je t'ai garde mes meilleures pieces.",
+        },
+        {
+            "Les dagues et les couteaux frappent deux fois. Parfait contre les Haschen sans armure.",
+            "Contre quelqu'un qui tire de loin, une arme a distance te permet de repondre.",
+            "Le berserker a une bonne defense. Une arme lourde passe mieux qu'une arme rapide.",
+            "Vorgath porte une armure epaisse. Les petits coups vont rebondir dessus. Frappe fort.",
+        },
+        "Du bon travail. Tu verras.",
+        "Pas d'or, pas d'acier. C'est la regle.",
+        "Ne casse pas mon travail.",
+    };
 
-    // On en tire "nombre" au hasard, sans prendre deux fois la meme
-    std::vector<Arme> stock;
-    for (int tirage = 0; tirage < nombre && !candidates.empty(); tirage++) {
-        int index = std::rand() % candidates.size();
-        stock.push_back(candidates[index]);
-        candidates.erase(candidates.begin() + index);
-    }
-    return stock;
-}
+    const Marchand silas = {
+        "Silas", "le collectionneur",
+        {
+            "Silas, collectionneur. Crocs, peaux, trophees... je rachete tout ce que les Haschen laissent derriere eux.",
+            "Ah, AYLIS ! Qu'est-ce que tu m'as ramene cette fois ?",
+            "Tu... tu as quelque chose d'Ashka ? Montre-moi. MONTRE-MOI !",
+            "Si tu rapportes un souvenir de Vorgath, je te rends riche. Enfin... si tu reviens.",
+        },
+        {
+            "Les Haschen etaient un peuple calme, autrefois. C'est Vorgath qui les a rassembles et rendus fous de rage.",
+            "Ashka etait la mere de tout un clan. On dit que sa couronne est taillee dans les os de ses ancetres.",
+            "Sans Ashka, beaucoup de Haschen fuient vers les montagnes. Vorgath est seul, maintenant. Et furieux.",
+            "Personne n'est jamais ressorti de la forteresse de Vorgath. Tu serais la premiere personne a le faire.",
+        },
+        "Marche conclu ! Toujours un plaisir.",
+        "Tu n'as rien qui m'interesse... pour l'instant.",
+        "Reviens avec de belles pieces !",
+    };
 
-// L'armurerie : acheter une arme du stock. L'ancienne va dans l'inventaire.
-void armurerie(Combattant& aylis, std::vector<Arme>& stock, const std::string& armeEnPromo) {
-    while (true) {
-        std::cout << "\n=== ARMURERIE ===   Tu as " << aylis.pieces << " pieces d'or\n";
-        std::cout << "Arme actuelle : ";
-        afficherArme(aylis.arme);
-        std::cout << "\n\n";
-
-        int nombreArmes = stock.size();
-        if (nombreArmes == 0) {
-            std::cout << "Le marchand n'a plus d'armes aujourd'hui.\n";
-            return;
-        }
-
-        for (int i = 0; i < nombreArmes; i++) {
-            std::cout << (i + 1) << ". ";
-            afficherArme(stock[i]);
-            std::cout << "  ...  " << stock[i].prix << " or";
-            if (stock[i].nom == armeEnPromo) {
-                std::cout << "  ** PROMO -25% **";
-            }
-            std::cout << "\n";
-        }
-        std::cout << (nombreArmes + 1) << ". Retour\n";
-
-        int choix = lireChoix(1, nombreArmes + 1);
-        if (choix == nombreArmes + 1) {
-            return;
-        }
-
-        const Arme arme = stock[choix - 1];     // une copie : on va l'enlever du stock
-        if (aylis.pieces < arme.prix) {
-            std::cout << "Pas assez d'or ! Il te manque " << (arme.prix - aylis.pieces) << " pieces.\n";
-            continue;
-        }
-        aylis.pieces = aylis.pieces - arme.prix;
-        stock.erase(stock.begin() + (choix - 1));   // le marchand n'en avait qu'une
-
-        aylis.inventaire.push_back(objetDepuisArme(aylis.arme));
-        std::cout << aylis.arme.nom << " va dans le sac.\n";
-        aylis.arme = arme;
-        std::cout << "AYLIS s'equipe : " << arme.nom << " !\n";
-    }
-}
-
-// Le marche. "visite" = combien de marches AYLIS a deja visites (0 au premier).
-void marche(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
-    const int prixPotion = prixDuJour(15, visite);
-    const int prixArmure = prixDuJour(35, visite);
-    const int prixElixir = prixDuJour(30, visite);
-
-    // Le stock du jour : 1 a 3 potions et 3 armes au hasard
+    // Le stock du jour : 1 a 3 potions chez Maren, 3 armes au hasard chez Durgan
     int potionsEnStock = 1 + std::rand() % 3;
     std::vector<Arme> stock = tirerStock(armes, aylis.arme, 3);
 
-    // Les armes suivent aussi la hausse des prix, et l'une d'elles est en promo
+    // Les armes suivent la hausse des prix, et l'une d'elles est en promo
     int nombreArmes = stock.size();
     for (int i = 0; i < nombreArmes; i++) {
         stock[i].prix = prixDuJour(stock[i].prix, visite);
@@ -475,70 +674,31 @@ void marche(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
         armeEnPromo = stock[index].nom;
     }
 
+    std::cout << "\n~~~ Une halte au bord de la route. Trois marchands ont installe leurs etals. ~~~\n";
     if (visite > 0) {
-        std::cout << "\nLe marchand soupire : \"La guerre contre les Haschen fait monter les prix...\" (+"
-                  << (10 * visite) << "%)\n";
+        std::cout << "(La guerre contre les Haschen fait monter les prix : +" << (10 * visite) << "%)\n";
     }
 
     while (true) {
-        std::cout << "\n=== LE MARCHE ===   Tu as " << aylis.pieces << " pieces d'or\n";
-        std::cout << "1. Potion (+15 pv en combat) ......... " << prixPotion << " or  (tu en as " << aylis.potions
-                  << ", il en reste " << potionsEnStock << ")\n";
-        std::cout << "2. Armure renforcee (+1 defense) ..... " << prixArmure << " or\n";
-        std::cout << "3. Elixir de mana (+5 mana max) ...... " << prixElixir << " or\n";
-        std::cout << "4. Armurerie (" << stock.size() << " armes en stock aujourd'hui)\n";
-        std::cout << "5. Vendre des objets (" << aylis.inventaire.size() << " dans le sac)\n";
-        std::cout << "6. Inventaire (changer d'arme)\n";
-        std::cout << "7. Reprendre la route\n";
+        std::cout << "\n=== LA HALTE ===   Tu as " << aylis.pieces << " pieces d'or\n";
+        std::cout << "1. " << maren.nom << ", " << maren.metier << "        (potions, mana)\n";
+        std::cout << "2. " << durgan.nom << ", " << durgan.metier << "        (armes, armure)\n";
+        std::cout << "3. " << silas.nom << ", " << silas.metier << "   (rachete ton butin, "
+                  << aylis.inventaire.size() << " objets dans le sac)\n";
+        std::cout << "4. Inventaire (changer d'arme)\n";
+        std::cout << "5. Reprendre la route\n";
 
-        int choix = lireChoix(1, 7);
-        if (choix == 7) {
-            return;
-        }
-        if (choix == 4) {
-            armurerie(aylis, stock, armeEnPromo);
-            continue;
-        }
-        if (choix == 5) {
-            vendre(aylis);
-            continue;
-        }
-        if (choix == 6) {
+        int choix = lireChoix(1, 5);
+        if (choix == 1) {
+            boutiqueHerboriste(aylis, maren, visite, potionsEnStock);
+        } else if (choix == 2) {
+            forge(aylis, durgan, visite, stock, armeEnPromo);
+        } else if (choix == 3) {
+            collectionneur(aylis, silas, visite);
+        } else if (choix == 4) {
             gererInventaire(aylis);
-            continue;
-        }
-
-        if (choix == 1 && potionsEnStock == 0) {
-            std::cout << "Rupture de stock ! Plus de potions aujourd'hui.\n";
-            continue;
-        }
-
-        // Le prix de l'objet choisi
-        int prix = 0;
-        if (choix == 1) {
-            prix = prixPotion;
-        } else if (choix == 2) {
-            prix = prixArmure;
         } else {
-            prix = prixElixir;
-        }
-
-        if (aylis.pieces < prix) {
-            std::cout << "Pas assez d'or ! Il te manque " << (prix - aylis.pieces) << " pieces.\n";
-            continue;
-        }
-        aylis.pieces = aylis.pieces - prix;
-
-        if (choix == 1) {
-            aylis.potions = aylis.potions + 1;
-            potionsEnStock = potionsEnStock - 1;
-            std::cout << "Achete ! " << aylis.potions << " potions.\n";
-        } else if (choix == 2) {
-            aylis.defense = aylis.defense + 1;
-            std::cout << "Achete ! Defense : " << aylis.defense << ".\n";
-        } else {
-            aylis.manaMax = aylis.manaMax + 5;
-            std::cout << "Achete ! Mana max : " << aylis.manaMax << ".\n";
+            return;
         }
     }
 }
@@ -964,7 +1124,7 @@ int main() {
         soigner(aylis, 10);
         std::cout << "AYLIS souffle un peu : +10 pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
 
-        marche(aylis, armes, i);
+        halte(aylis, armes, i);
     }
 
     std::cout << "\n=== VICTOIRE TOTALE ! ===\n";
