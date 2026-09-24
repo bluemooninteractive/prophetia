@@ -516,7 +516,7 @@ void dessinerPanneau(const Jeu& jeu) {
     dessinerPortraitAylis(a.arme, {20, (float)y0 + 14, 96, 96}, teinte);
     texteCentre("AYLIS", {8, (float)y0 + 114, 120, 24}, 20, Color{120, 180, 255, 255});
     texteCentre("voie " + a.voie, {8, (float)y0 + 140, 120, 16}, 10, TEXTE_GRIS);
-    texteCentre(TextFormat("potions : %i", a.potions), {8, (float)y0 + 158, 120, 16}, 10, Color{120, 220, 120, 255});
+    texteCentre(TextFormat("%i potions - %i or", a.potions, a.pieces), {8, (float)y0 + 158, 120, 16}, 10, Color{230, 200, 110, 255});
 
     // ----- Les jauges -----
     float x = 140;
@@ -539,7 +539,7 @@ void dessinerPanneau(const Jeu& jeu) {
 
     // ----- L'arme et les effets en cours -----
     DrawText(a.arme.nom.c_str(), x, y0 + 102, 20, RAYWHITE);
-    std::string portee = a.arme.aDistance ? "portee 4 cases" : "corps a corps";
+    std::string portee = a.arme.aDistance ? TextFormat("portee %i cases", PORTEE_DISTANCE + jeu.porteeBonus) : "corps a corps";
     DrawText(portee.c_str(), x, y0 + 126, 10, TEXTE_GRIS);
 
     std::string effets = "";
@@ -697,10 +697,10 @@ Rectangle dessinerCarteChoix(int numero, int nombre, Color couleur) {
 }
 
 // En bas : ce que possede AYLIS (pv, stats, runes)
-void dessinerResumeAylis(const Jeu& jeu, const std::string& aide) {
+void dessinerResumeAylis(const Jeu& jeu, const std::string& aide, float yMessage = 150) {
     const Combattant& a = jeu.aylis.stats;
-    std::string stats = TextFormat("AYLIS   %i/%i pv   attaque %i   defense %i   potions %i   deplacement %i",
-                                   a.pv, a.pvMax, a.attaque, a.defense, a.potions, jeu.deplacement);
+    std::string stats = TextFormat("AYLIS   %i/%i pv   attaque %i   defense %i   potions %i   %i or",
+                                   a.pv, a.pvMax, a.attaque, a.defense, a.potions, a.pieces);
     texteCentre(stats, {0, 590, (float)LARGEUR_FENETRE, 24}, 20, RAYWHITE);
     std::string runes = "Runes : ";
     if (jeu.runes.empty()) {
@@ -710,12 +710,12 @@ void dessinerResumeAylis(const Jeu& jeu, const std::string& aide) {
         runes = runes + (i > 0 ? ", " : "") + jeu.runes[i].nom;
     }
     texteCentre(runes, {0, 620, (float)LARGEUR_FENETRE, 24}, 20, VIOLET_VISION);
-    texteCentre(jeu.messageRoute, {0, 150, (float)LARGEUR_FENETRE, 24}, 20, Color{120, 220, 140, 255});
+    texteCentre(jeu.messageRoute, {0, yMessage, (float)LARGEUR_FENETRE, 24}, 20, Color{120, 220, 140, 255});
     texteCentre(aide, {0, 700, (float)LARGEUR_FENETRE, 24}, 20, TEXTE_GRIS);
 }
 
 // L'image d'une salle, au milieu de sa carte
-void dessinerImageSalle(TypeSalle type, Rectangle zone) {
+void dessinerImageSalle(TypeSalle type, int lieu, Rectangle zone) {
     const Sprites& s = sprites();
     Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
     float centreX = zone.x + zone.width / 2;
@@ -730,6 +730,14 @@ void dessinerImageSalle(TypeSalle type, Rectangle zone) {
     } else if (type == TypeSalle::Repos) {
         DrawCircle(centreX, centreY + 10, 50, Fade(ORANGE, 0.12f + 0.05f * std::sin(GetTime() * 6)));
         DrawTexturePro(s.feu[(int)(GetTime() * 5) % 2], source, ecran, {0, 0}, 0, WHITE);
+    } else if (type == TypeSalle::Marchand) {
+        // Le marchand du lieu : Maren en foret, Durgan au camp, Silas sur le col
+        DrawCircle(centreX, centreY, 50, Fade(OR, 0.15f));
+        DrawTexturePro(s.marchands[lieu], source, ecran, {0, 0}, 0, WHITE);
+    } else if (type == TypeSalle::Rencontre) {
+        DrawCircle(centreX, centreY, 50, Fade(SKYBLUE, 0.12f));
+        float saut = 4 * std::sin(GetTime() * 3);
+        texteCentre("?", {centreX - 40, centreY - 40 + saut, 80, 80}, 80, Color{120, 200, 230, 255});
     } else if (type == TypeSalle::Oracle) {
         // Un oeil ouvert, entoure de la lumiere de la prophetie
         DrawCircle(centreX, centreY, 50, Fade(VIOLET_VISION, 0.15f));
@@ -751,6 +759,8 @@ Color couleurSalle(TypeSalle type) {
         case TypeSalle::Elite: return OR_EPIQUE;
         case TypeSalle::Repos: return Color{120, 210, 120, 255};
         case TypeSalle::Oracle: return VIOLET_VISION;
+        case TypeSalle::Marchand: return Color{230, 200, 110, 255};
+        case TypeSalle::Rencontre: return Color{120, 200, 230, 255};
         case TypeSalle::Boss: return RED;
     }
     return WHITE;
@@ -794,7 +804,7 @@ void dessinerChoixSalle(const Jeu& jeu) {
         TypeSalle type = jeu.propositions[i].type;
         Color couleur = couleurSalle(type);
         Rectangle carte = dessinerCarteChoix(i, nombre, couleur);
-        dessinerImageSalle(type, {carte.x, carte.y + 30, carte.width, 120});
+        dessinerImageSalle(type, jeu.lieu, {carte.x, carte.y + 30, carte.width, 120});
         texteCentre(nomTypeSalle(type), {carte.x, carte.y + 165, carte.width, 30}, 30, couleur);
         texteSurPlusieursLignes(descriptionSalle(type), {carte.x + 18, carte.y + 215, carte.width - 36, 60}, 20, RAYWHITE);
     }
@@ -826,6 +836,105 @@ void dessinerChoixRune(const Jeu& jeu) {
     dessinerResumeAylis(jeu, "Clique sur une rune, ou tape son numero");
 }
 
+// ===================== Les haltes : la boutique et les rencontres =====================
+
+// Le bouton pour quitter la boutique ou continuer apres une rencontre
+Rectangle rectangleBoutonRoute() {
+    return {LARGEUR_FENETRE / 2.0f - 140, 648, 280, 40};
+}
+
+Rectangle rectangleCarteReponse(int numero) {
+    return {LARGEUR_FENETRE / 2.0f - 380 + numero * 390, 270, 370, 180};
+}
+
+void dessinerBoutonRoute(const std::string& texte) {
+    Rectangle bouton = rectangleBoutonRoute();
+    bool survol = CheckCollisionPointRec(GetMousePosition(), bouton);
+    dessinerCadre(bouton, survol ? CADRE_CLAIR : CADRE, OR, survol ? 3 : 2);
+    texteCentre(texte, bouton, 20, OR);
+}
+
+// Un fond chaud, avec des braises qui montent
+void dessinerFondHalte() {
+    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, HAUTEUR_FENETRE, Color{40, 26, 18, 255}, Color{12, 9, 8, 255});
+    float temps = GetTime();
+    for (int i = 0; i < 30; i++) {
+        float x = std::fmod(i * 151.0f + std::sin(temps + i) * 10, (float)LARGEUR_FENETRE);
+        float y = HAUTEUR_FENETRE - std::fmod(i * 67.0f + temps * (18 + i % 4 * 6), (float)HAUTEUR_FENETRE);
+        DrawCircle(x, y, i % 3 == 0 ? 2.0f : 1.2f, Fade(ORANGE, 0.3f + 0.2f * std::sin(temps * 3 + i)));
+    }
+}
+
+void dessinerBoutique(const Jeu& jeu) {
+    dessinerFondHalte();
+    const Sprites& s = sprites();
+
+    // Le marchand et ce qu'il dit
+    DrawCircle(110, 100, 66, Fade(OR, 0.12f));
+    DrawTexturePro(s.marchands[jeu.marchand], {0, 0, TAILLE_SPRITE, TAILLE_SPRITE}, {46, 36, 128, 128}, {0, 0}, 0, WHITE);
+    DrawText(nomMarchand(jeu.marchand).c_str(), 200, 36, 40, OR);
+    DrawText(titreMarchand(jeu.marchand).c_str(), 204, 80, 20, TEXTE_GRIS);
+    Rectangle bulle = {200, 110, LARGEUR_FENETRE - 240.0f, 76};
+    dessinerCadre(bulle, Fade(PANNEAU, 0.9f), Fade(OR, 0.6f), 2);
+    texteSurPlusieursLignes("\"" + paroleMarchand(jeu.marchand) + "\"", {bulle.x + 14, bulle.y + 12, bulle.width - 28, 60}, 20,
+                            RAYWHITE);
+
+    int nombre = jeu.articles.size();
+    for (int i = 0; i < nombre; i++) {
+        const Article& article = jeu.articles[i];
+        bool assezDOr = jeu.aylis.stats.pieces >= article.prix;
+        Color couleur = article.vendu ? BORD : (assezDOr ? OR : Color{190, 90, 80, 255});
+        Rectangle carte = dessinerCarteChoix(i, nombre, couleur);
+        texteSurPlusieursLignes(article.nom, {carte.x + 14, carte.y + 50, carte.width - 28, 70}, 30,
+                                article.vendu ? TEXTE_GRIS : RAYWHITE);
+        texteSurPlusieursLignes(article.description, {carte.x + 18, carte.y + 140, carte.width - 36, 80}, 20, TEXTE_GRIS);
+        if (article.vendu) {
+            texteCentre("VENDU", {carte.x, carte.y + 235, carte.width, 40}, 30, BORD);
+        } else {
+            // Le prix, avec une petite piece d'or
+            std::string prix = std::to_string(article.prix) + " or";
+            int largeur = MeasureText(prix.c_str(), 30) + 30;
+            float x = carte.x + (carte.width - largeur) / 2;
+            DrawCircle(x + 11, carte.y + 255, 11, OR);
+            DrawCircle(x + 11, carte.y + 255, 6, Color{190, 150, 50, 255});
+            DrawText(prix.c_str(), x + 30, carte.y + 240, 30, couleur);
+        }
+    }
+    dessinerResumeAylis(jeu, "", 212);
+    dessinerBoutonRoute(TextFormat("%i. Reprendre la route", nombre + 1));
+}
+
+void dessinerRencontre(const Jeu& jeu) {
+    dessinerFondVision();
+    const Color BLEU = {120, 200, 230, 255};
+    texteCentre(titreRencontre(jeu.rencontre), {0, 36, (float)LARGEUR_FENETRE, 44}, 40, BLEU);
+    Rectangle recit = {90, 100, LARGEUR_FENETRE - 180.0f, 100};
+    dessinerCadre(recit, Fade(PANNEAU, 0.9f), Fade(BLEU, 0.6f), 2);
+    texteSurPlusieursLignes(texteRencontre(jeu.rencontre), {recit.x + 20, recit.y + 16, recit.width - 40, 70}, 20, RAYWHITE);
+
+    if (jeu.resultatRencontre.empty()) {
+        for (int i = 0; i < 2; i++) {
+            Rectangle carte = rectangleCarteReponse(i);
+            bool survol = CheckCollisionPointRec(GetMousePosition(), carte);
+            if (survol) {
+                carte.y = carte.y - 4;
+            }
+            dessinerCadre(carte, survol ? CADRE_CLAIR : CADRE, BLEU, survol ? 3 : 2);
+            DrawText(TextFormat("%i", i + 1), carte.x + 14, carte.y + 10, 20, Fade(BLEU, 0.8f));
+            texteSurPlusieursLignes(reponseRencontre(jeu, jeu.rencontre, i), {carte.x + 24, carte.y + 50, carte.width - 48, 80},
+                                    30, RAYWHITE);
+        }
+        dessinerResumeAylis(jeu, "Que fait AYLIS ? Clique sur un choix, ou tape 1 ou 2", 212);
+    } else {
+        Rectangle resultat = {120, 280, LARGEUR_FENETRE - 240.0f, 150};
+        dessinerCadre(resultat, Fade(PANNEAU, 0.95f), Color{120, 220, 140, 255}, 3);
+        texteSurPlusieursLignes(jeu.resultatRencontre, {resultat.x + 24, resultat.y + 40, resultat.width - 48, 80}, 20,
+                                Color{120, 220, 140, 255});
+        dessinerResumeAylis(jeu, "", 212);
+        dessinerBoutonRoute("ENTREE : continuer");
+    }
+}
+
 void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     ClearBackground(FOND);
 
@@ -839,6 +948,14 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     }
     if (jeu.phase == Phase::ChoixRune) {
         dessinerChoixRune(jeu);
+        return;
+    }
+    if (jeu.phase == Phase::Marchand) {
+        dessinerBoutique(jeu);
+        return;
+    }
+    if (jeu.phase == Phase::Rencontre) {
+        dessinerRencontre(jeu);
         return;
     }
 

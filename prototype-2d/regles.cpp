@@ -174,6 +174,12 @@ void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique, float dela
     if (!cible.stats.estDebout()) {
         ecrireJournal(jeu, cible.stats.nom + " tombe !");
         animerChute(jeu, cible, delai);
+        // Le Haschen laisse tomber quelques pieces d'or
+        int pieces = cible.stats.orDonne / 2 + GetRandomValue(0, 4);
+        gagnerOr(jeu, pieces);
+        TexteFlottant texteOr = {"+" + std::to_string(pieces) + " or", cible.colonne * TAILLE_CASE + 10.0f,
+                                 cible.ligne * TAILLE_CASE + 20.0f, 1.4f, GOLD, delai + 0.3f};
+        jeu.textes.push_back(texteOr);
         // La rune de Seve : chaque Haschen abattu rend un peu de vie
         if (jeu.runeSeve && jeu.aylis.stats.estDebout()) {
             jeu.aylis.stats.soigner(5);

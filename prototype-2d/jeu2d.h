@@ -120,6 +120,8 @@ enum class Phase {
     CombatGagne,    // le combat vient d'etre gagne
     ChoixRune,      // AYLIS choisit une rune de prophetie (sa recompense)
     ChoixSalle,     // la vision : AYLIS choisit la prochaine salle
+    Marchand,       // la boutique d'un marchand
+    Rencontre,      // une rencontre sur la route (un choix a faire)
     Victoire,
     Defaite,
 };
@@ -134,6 +136,8 @@ enum class TypeSalle {
     Elite,      // un Haschen d'elite et un compagnon : plus dur, mais une rune EPIQUE
     Repos,      // un feu de camp : AYLIS se soigne
     Oracle,     // une rune gratuite... mais la prophetie coute un peu de vie
+    Marchand,   // Maren, Durgan ou Silas (selon le lieu)
+    Rencontre,  // "???" : une surprise, avec un choix a faire
     Boss,       // Ashka
 };
 
@@ -149,6 +153,15 @@ struct Rune {
     std::string nom;
     std::string description;
     bool epique;
+};
+
+// Un article dans la boutique d'un marchand (haltes.cpp)
+struct Article {
+    int numero;             // quel effet il a (voir acheter)
+    std::string nom;
+    std::string description;
+    int prix;
+    bool vendu = false;
 };
 
 // Les actions d'AYLIS (la barre en bas de l'ecran)
@@ -200,7 +213,14 @@ struct Jeu {
     bool runeFlamme = false;                // les attaques peuvent bruler
     bool runeSeve = false;                  // AYLIS se soigne a chaque Haschen abattu
     bool runeFureur = false;                // la rage monte 2 fois plus vite
-    std::string messageRoute;           // ce qui vient de se passer sur la route (affiche sur les ecrans de choix)
+    // Les haltes : marchands et rencontres
+    int marchand = 0;                   // 0 = Maren, 1 = Durgan, 2 = Silas
+    std::vector<Article> articles;
+    int rencontre = 0;                  // le numero de la rencontre en cours
+    std::string resultatRencontre;      // vide tant que le choix n'est pas fait
+    bool runeOfferte = false;           // la rencontre se termine par le choix d'une rune
+    std::vector<int> rencontresVues;    // pour ne pas vivre deux fois la meme rencontre dans une course
+    std::string messageRoute;          // ce qui vient de se passer sur la route (affiche sur les ecrans de choix)
     std::string nomDuLieu;
     int ennemiQuiJoue = 0;
     float minuteur = 0.0f;
@@ -248,6 +268,26 @@ void choisirSalle(Jeu& jeu, int numero);
 std::string nomLieu(int lieu);
 std::string nomTypeSalle(TypeSalle type);
 std::string descriptionSalle(TypeSalle type);
+const std::vector<Rune>& catalogueRunes();
+bool runeDisponible(const Jeu& jeu, const Rune& rune);
+void proposerRunes(Jeu& jeu, bool epique);
+void appliquerRune(Jeu& jeu, const Rune& rune);
+void allerPlusLoin(Jeu& jeu);                           // la salle est finie : la vision montre la suite
+
+// ===================== haltes.cpp : les marchands et les rencontres =====================
+
+void ouvrirBoutique(Jeu& jeu);
+void acheter(Jeu& jeu, int numero);
+std::string nomMarchand(int marchand);
+std::string titreMarchand(int marchand);
+std::string paroleMarchand(int marchand);
+void commencerRencontre(Jeu& jeu);
+std::string titreRencontre(int rencontre);
+std::string texteRencontre(int rencontre);
+std::string reponseRencontre(const Jeu& jeu, int rencontre, int reponse);   // le texte des 2 choix
+void repondreRencontre(Jeu& jeu, int reponse);          // 0 ou 1
+void finirRencontre(Jeu& jeu);                          // apres avoir lu le resultat
+void gagnerOr(Jeu& jeu, int pieces);
 
 // Le tour d'AYLIS
 void deplacerAylis(Jeu& jeu, int colonne, int ligne);
@@ -270,3 +310,5 @@ Rectangle rectangleBouton(int numero);
 const std::vector<Action>& actionsDeLaBarre();
 Rectangle rectangleCarteVoie(int voie);                 // les 3 cartes de l'ecran de depart
 Rectangle rectangleCarteChoix(int numero, int nombre);  // les cartes des salles et des runes
+Rectangle rectangleCarteReponse(int numero);            // les 2 choix d'une rencontre
+Rectangle rectangleBoutonRoute();                       // "reprendre la route" (boutique, rencontre)

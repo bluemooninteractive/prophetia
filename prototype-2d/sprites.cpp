@@ -116,6 +116,67 @@ const std::vector<std::string> DESSIN_AYLIS = {
     "....kkkk.kkkk...",
 };
 
+// Les marchands de la route
+// Maren, l'herboriste : un capuchon vert et une fiole de potion
+const std::vector<std::string> DESSIN_MAREN = {
+    "................",
+    ".....kkkkkk.....",
+    "....kVVVVVVk....",
+    "...kVvvvvvvVk...",
+    "...kVvssssvVk...",
+    "...kvskssksvk...",
+    "...kvvssssvvk...",
+    "....kvvvvvvk....",
+    "...kvvvvvvvvk.k.",
+    "..kvvvvnvvvvkkrk",
+    "..ksvvvnvvvvskrk",
+    "...kvvvvvvvvk.k.",
+    "...kvvvvvvvvk...",
+    "...kVVVVVVVVk...",
+    "....knnk.knnk...",
+    "....kkkk.kkkk...",
+};
+
+// Durgan, le forgeron : une grande barbe, un tablier de cuir et un marteau
+const std::vector<std::string> DESSIN_DURGAN = {
+    "..........kkk...",
+    "..........kGGk..",
+    "....kkkkkkkGGk..",
+    "...kNNNNNNkkkk..",
+    "...kNssssNk.kk..",
+    "...kskssksk.kn..",
+    "...kssssssk.kn..",
+    "...koooooooknk..",
+    "..kgoooooooosk..",
+    "..ksnoooooonkk..",
+    "..ksnnooooonnk..",
+    "...knnnnnnnnk...",
+    "...knnnnnnnnk...",
+    "...kNNNNNNNNk...",
+    "....kNNk.kNNk...",
+    "....kkkk.kkkk...",
+};
+
+// Silas, le collectionneur : une cape violette, un visage dans l'ombre et une lanterne
+const std::vector<std::string> DESSIN_SILAS = {
+    "................",
+    ".....kkkkkk.....",
+    "....kppppppk....",
+    "...kppkkkkppk...",
+    "...kpkkkkkkpk...",
+    "...kpkYkkYkpk...",
+    "...kpkkkkkkpk...",
+    "....kppppppk....",
+    "...kppppppppk...",
+    "..kppppyypppkk..",
+    "..kspppyyppkYk..",
+    "...kppppppppkoYk",
+    "...kppppppppkYk.",
+    "...kppppppppk...",
+    "....kNNk.kNNk...",
+    "....kkkk.kkkk...",
+};
+
 // Les armes, dessinees par-dessus le personnage (dans sa main droite)
 const std::vector<std::string> DESSIN_EPEE = {
     "................",
@@ -441,6 +502,9 @@ void chargerSprites() {
     lesSprites.arc = creerTexture(DESSIN_ARC, aucune);
     lesSprites.baton = creerTexture(DESSIN_BATON, aucune);
     lesSprites.couronne = creerTexture(DESSIN_COURONNE, aucune);
+    lesSprites.marchands[0] = creerTexture(DESSIN_MAREN, aucune);
+    lesSprites.marchands[1] = creerTexture(DESSIN_DURGAN, aucune);
+    lesSprites.marchands[2] = creerTexture(DESSIN_SILAS, aucune);
 
     // Le meme lievre, avec une tenue differente pour chaque type de Haschen
     lesSprites.eclaireur = creerTexture(DESSIN_HASCHEN, {230, 140, 40, 255});   // orange
@@ -486,6 +550,7 @@ void dechargerSprites() {
         lesSprites.aylis, lesSprites.epee, lesSprites.arc, lesSprites.baton, lesSprites.couronne,
         lesSprites.eclaireur, lesSprites.guerrier, lesSprites.traqueur, lesSprites.chaman,
         lesSprites.louvetier, lesSprites.ashka, lesSprites.feu[0], lesSprites.feu[1],
+        lesSprites.marchands[0], lesSprites.marchands[1], lesSprites.marchands[2],
     };
     for (const Texture2D& texture : textures) {
         UnloadTexture(texture);

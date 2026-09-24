@@ -122,6 +122,34 @@ int main() {
                     break;
                 }
             }
+        } else if (jeu.phase == Phase::Marchand) {
+            // Les touches 1, 2, 3 achetent ; la derniere touche (ou ENTREE) repart sur la route
+            int nombre = jeu.articles.size();
+            bool clic = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+            for (int numero = 0; numero < nombre; numero++) {
+                if ((clic && CheckCollisionPointRec(souris, rectangleCarteChoix(numero, nombre)))
+                    || IsKeyPressed(KEY_ONE + numero) || IsKeyPressed(KEY_KP_1 + numero)) {
+                    acheter(jeu, numero);
+                }
+            }
+            if ((clic && CheckCollisionPointRec(souris, rectangleBoutonRoute())) || IsKeyPressed(KEY_ENTER)
+                || IsKeyPressed(KEY_ONE + nombre) || IsKeyPressed(KEY_KP_1 + nombre)) {
+                jeu.messageRoute = "";
+                allerPlusLoin(jeu);
+            }
+        } else if (jeu.phase == Phase::Rencontre) {
+            bool clic = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+            if (jeu.resultatRencontre.empty()) {
+                for (int numero = 0; numero < 2; numero++) {
+                    if ((clic && CheckCollisionPointRec(souris, rectangleCarteReponse(numero)))
+                        || IsKeyPressed(KEY_ONE + numero) || IsKeyPressed(KEY_KP_1 + numero)) {
+                        repondreRencontre(jeu, numero);
+                        break;
+                    }
+                }
+            } else if ((clic && CheckCollisionPointRec(souris, rectangleBoutonRoute())) || IsKeyPressed(KEY_ENTER)) {
+                finirRencontre(jeu);
+            }
         } else if ((jeu.phase == Phase::Victoire || jeu.phase == Phase::Defaite) && IsKeyPressed(KEY_R) && !animationsEnCours(jeu)) {
             jeu.phase = Phase::ChoixVoie;
         }

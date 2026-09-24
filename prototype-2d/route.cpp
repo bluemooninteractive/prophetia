@@ -21,6 +21,8 @@ std::string nomTypeSalle(TypeSalle type) {
         case TypeSalle::Elite: return "Elite";
         case TypeSalle::Repos: return "Feu de camp";
         case TypeSalle::Oracle: return "Oracle";
+        case TypeSalle::Marchand: return "Marchand";
+        case TypeSalle::Rencontre: return "???";
         case TypeSalle::Boss: return "Ashka";
     }
     return "";
@@ -32,6 +34,8 @@ std::string descriptionSalle(TypeSalle type) {
         case TypeSalle::Elite: return "Un Haschen d'elite. Dur... mais une rune EPIQUE.";
         case TypeSalle::Repos: return "AYLIS se repose : +60% pv et une potion.";
         case TypeSalle::Oracle: return "Une rune sans combat. La vision coute 6 pv.";
+        case TypeSalle::Marchand: return "De quoi depenser ton or.";
+        case TypeSalle::Rencontre: return "Une surprise... bonne ou mauvaise ?";
         case TypeSalle::Boss: return "La cheffe de guerre des Haschen t'attend.";
     }
     return "";
@@ -157,14 +161,18 @@ void proposerSalles(Jeu& jeu) {
     int essais = 0;
     while ((int)jeu.propositions.size() < nombre && essais < 50) {
         essais = essais + 1;
-        // Un tirage "pondere" : sur 100, 45 chances pour un combat, 20 pour une elite...
+        // Un tirage "pondere" : sur 100, 38 chances pour un combat, 16 pour une elite...
         int tirage = GetRandomValue(1, 100);
         TypeSalle type = TypeSalle::Combat;
-        if (tirage > 80) {
+        if (tirage > 89) {
+            type = TypeSalle::Rencontre;
+        } else if (tirage > 78) {
+            type = TypeSalle::Marchand;
+        } else if (tirage > 66) {
             type = TypeSalle::Oracle;
-        } else if (tirage > 60) {
+        } else if (tirage > 54) {
             type = TypeSalle::Repos;
-        } else if (tirage > 40) {
+        } else if (tirage > 38) {
             type = TypeSalle::Elite;
         }
         // Pas d'elite ni de repos tout au debut
@@ -214,6 +222,10 @@ void choisirSalle(Jeu& jeu, int numero) {
         aylis.pv = aylis.pv > 7 ? aylis.pv - 6 : 1;
         jeu.messageRoute = "La vision brule les yeux d'AYLIS (-6 pv)... et montre trois runes.";
         proposerRunes(jeu, GetRandomValue(1, 100) <= 35);
+    } else if (salle.type == TypeSalle::Marchand) {
+        ouvrirBoutique(jeu);
+    } else if (salle.type == TypeSalle::Rencontre) {
+        commencerRencontre(jeu);
     } else {
         jeu.messageRoute = "";
         preparerCombat(jeu);
@@ -265,8 +277,10 @@ void choisirVoie(Jeu& jeu, int voie) {
         aylis.sortsConnus = 4;      // dans le prototype, la voie des arcanes connait deja tous les sorts
         aylis.arme = {"Baton de mage", true, 0, 5, 1, 20};
     }
+    aylis.pieces = 15;
     jeu.aylis.stats = aylis;
     jeu.aylis.couleur = SKYBLUE;
+    jeu.rencontresVues.clear();
     jeu.rage.vider();
 
     // Une nouvelle course : aucune rune, et la premiere salle est toujours un combat en foret
@@ -332,7 +346,7 @@ void preparerCombat(Jeu& jeu) {
     Combattant traqueur   = {"Haschen traqueur",    20, 20,   9,  1, 0,      false, 25, 22};
     Combattant chaman     = {"Haschen chaman",      20, 20,  10,  1, 0,      false, 25, 25};
     Combattant louvetier  = {"Haschen louvetier",   22, 22,  10,  2, 0,      false, 25, 25};
-    Combattant ashka      = {"Ashka",               60, 60,  15,  4, 1,      true,  50, 50};
+    Combattant ashka      = {"Ashka",               55, 55,  15,  4, 1,      true,  50, 50};
     traqueur.style = Style::Lanceur;
     chaman.attaquePoison = true;
     louvetier.style = Style::Chargeur;
@@ -394,10 +408,11 @@ void preparerCombat(Jeu& jeu) {
         // Un Haschen d'elite (un guerrier en foret, un louvetier ensuite), et deux compagnons
         Combattant elite = jeu.lieu == 0 ? guerrier : louvetier;
         elite.nom = elite.nom + " d'elite";
-        elite.pvMax = elite.pvMax * 2;
+        elite.pvMax = elite.pvMax * 17 / 10;
         elite.pv = elite.pvMax;
-        elite.attaque = elite.attaque + 3;
+        elite.attaque = elite.attaque + 2;
         elite.defense = elite.defense + 1;
+        elite.orDonne = elite.orDonne * 3;
         placerHaschen(jeu, elite, GOLD);
         for (int i = 0; i < 2; i++) {
             const auto& h = groupe[GetRandomValue(0, (int)groupe.size() - 1)];
