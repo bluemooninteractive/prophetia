@@ -117,9 +117,38 @@ enum class Phase {
     Deplacement,    // tour d'AYLIS : deplacement encore possible
     Action,         // tour d'AYLIS : deplacement fait, il reste l'action
     TourEnnemi,     // les Haschen jouent, un par un
-    CombatGagne,    // entre deux combats
+    CombatGagne,    // le combat vient d'etre gagne
+    ChoixRune,      // AYLIS choisit une rune de prophetie (sa recompense)
+    ChoixSalle,     // la vision : AYLIS choisit la prochaine salle
     Victoire,
     Defaite,
+};
+
+// ===================== La route (route.cpp) =====================
+
+const int NOMBRE_SALLES = 7;        // la derniere salle est celle du boss
+
+// Les sortes de salles que la vision peut montrer
+enum class TypeSalle {
+    Combat,     // quelques Haschen
+    Elite,      // un Haschen d'elite et un compagnon : plus dur, mais une rune EPIQUE
+    Repos,      // un feu de camp : AYLIS se soigne
+    Oracle,     // une rune gratuite... mais la prophetie coute un peu de vie
+    Boss,       // Ashka
+};
+
+// Une salle proposee par la vision
+struct Salle {
+    TypeSalle type;
+    int lieu;       // 0 = foret, 1 = camp, 2 = col
+};
+
+// Une rune de prophetie : un bonus qu'AYLIS garde jusqu'a la fin de l'aventure
+struct Rune {
+    int numero;
+    std::string nom;
+    std::string description;
+    bool epique;
 };
 
 // Les actions d'AYLIS (la barre en bas de l'ecran)
@@ -155,7 +184,23 @@ struct Jeu {
     Action actionChoisie = Action::Attaque;
     Jauge rage = Jauge(rageMax);        // la classe du jeu console
     bool enGarde = false;               // attaque en garde ce tour-ci : les coups recus sont divises par 2
-    int combat = 0;                     // le numero du combat en cours (0, 1, 2)
+    // La route
+    int salle = 1;                      // le numero de la salle en cours (1 a NOMBRE_SALLES)
+    int lieu = 0;                       // le decor : 0 = foret, 1 = camp, 2 = col
+    TypeSalle typeSalle = TypeSalle::Combat;
+    std::vector<Salle> propositions;    // les salles montrees par la vision
+    std::vector<Rune> runesProposees;   // les runes parmi lesquelles choisir
+    std::vector<Rune> runes;            // les runes qu'AYLIS possede
+    int feuColonne = -1;                // la case du feu de camp (dans le camp haschen)
+    int feuLigne = -1;
+
+    // Les effets des runes
+    int deplacement = DEPLACEMENT_AYLIS;    // cases par tour (la rune du Vent l'augmente)
+    int porteeBonus = 0;                    // la rune de l'Oeil : +1 de portee a distance
+    bool runeFlamme = false;                // les attaques peuvent bruler
+    bool runeSeve = false;                  // AYLIS se soigne a chaque Haschen abattu
+    bool runeFureur = false;                // la rage monte 2 fois plus vite
+    std::string messageRoute;           // ce qui vient de se passer sur la route (affiche sur les ecrans de choix)
     std::string nomDuLieu;
     int ennemiQuiJoue = 0;
     float minuteur = 0.0f;
@@ -196,9 +241,13 @@ bool actionSurSoi(Action action);                       // potion, soin, bouclie
 
 // Les grandes etapes
 void choisirVoie(Jeu& jeu, int voie);                   // 1 = epee, 2 = arc, 3 = arcanes
-void preparerCombat(Jeu& jeu);                          // place AYLIS et les Haschen du combat jeu.combat
-void combatSuivant(Jeu& jeu);
-int nombreDeCombats();
+void preparerCombat(Jeu& jeu);                          // place AYLIS et les Haschen de la salle en cours
+void apresCombat(Jeu& jeu);                             // apres "combat gagne" : la recompense (une rune)
+void choisirRune(Jeu& jeu, int numero);                 // numero = 0, 1 ou 2
+void choisirSalle(Jeu& jeu, int numero);
+std::string nomLieu(int lieu);
+std::string nomTypeSalle(TypeSalle type);
+std::string descriptionSalle(TypeSalle type);
 
 // Le tour d'AYLIS
 void deplacerAylis(Jeu& jeu, int colonne, int ligne);
@@ -220,3 +269,4 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris);
 Rectangle rectangleBouton(int numero);
 const std::vector<Action>& actionsDeLaBarre();
 Rectangle rectangleCarteVoie(int voie);                 // les 3 cartes de l'ecran de depart
+Rectangle rectangleCarteChoix(int numero, int nombre);  // les cartes des salles et des runes

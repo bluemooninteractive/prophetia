@@ -99,7 +99,7 @@ std::vector<int> casesAtteignables(const Jeu& jeu) {
         int caseActuelle = aVisiter[i];
         int colonne = caseActuelle % COLONNES;
         int ligne = caseActuelle / COLONNES;
-        if (pas[caseActuelle] == DEPLACEMENT_AYLIS) {
+        if (pas[caseActuelle] == jeu.deplacement) {
             continue;   // on ne peut pas aller plus loin
         }
         for (const auto& dir : directions) {
@@ -174,6 +174,11 @@ void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique, float dela
     if (!cible.stats.estDebout()) {
         ecrireJournal(jeu, cible.stats.nom + " tombe !");
         animerChute(jeu, cible, delai);
+        // La rune de Seve : chaque Haschen abattu rend un peu de vie
+        if (jeu.runeSeve && jeu.aylis.stats.estDebout()) {
+            jeu.aylis.stats.soigner(5);
+            ajouterTexte(jeu, jeu.aylis, "+5", GREEN, delai);
+        }
     }
 }
 
@@ -190,7 +195,7 @@ void toucherAylis(Jeu& jeu, const Pion& attaquant, int degats, bool critique, fl
     }
     aylis.pv = aylis.pv - degats;
     jeu.aylis.flash = 0.25f + delai;
-    jeu.rage.remplir(degats * 4);
+    jeu.rage.remplir(degats * (jeu.runeFureur ? 8 : 4));     // la rune de Fureur double la rage
     ajouterTexte(jeu, jeu.aylis, (critique ? "CRIT -" : "-") + std::to_string(degats), RED, delai);
     animerImpact(jeu, -1, delai, critique, RED);
     ecrireJournal(jeu, attaquant.stats.nom + " touche AYLIS : -" + std::to_string(degats) + " pv");
@@ -268,10 +273,10 @@ int porteeAction(const Jeu& jeu, Action action) {
         case Action::AttaqueLourde:
         case Action::Garde:
         case Action::Speciale:
-            return jeu.aylis.stats.arme.aDistance ? PORTEE_DISTANCE : PORTEE_MELEE;
+            return jeu.aylis.stats.arme.aDistance ? PORTEE_DISTANCE + jeu.porteeBonus : PORTEE_MELEE;
         case Action::BouleDeFeu:
         case Action::Eclair:
-            return PORTEE_SORT;
+            return PORTEE_SORT + jeu.porteeBonus;     // la rune de l'Oeil allonge la portee
         default:
             return 0;   // potion, soin, bouclier : sur AYLIS
     }
@@ -345,6 +350,11 @@ void frapper(Jeu& jeu, Pion& cible, int puissance) {
     blesserHaschen(jeu, cible, total, unCritique, delai);
     if (faitSaigner && cible.stats.estDebout()) {
         cible.stats.saignement = 3;
+    }
+    // La rune de Flamme : une chance sur 3 de mettre le feu
+    if (jeu.runeFlamme && cible.stats.estDebout() && GetRandomValue(1, 3) == 1) {
+        cible.stats.brulure = 2;
+        ajouterTexte(jeu, cible, "brule", ORANGE, delai + 0.2f);
     }
 }
 
@@ -459,7 +469,7 @@ void deplacerAylis(Jeu& jeu, int colonne, int ligne) {
 
 void finirTourAylis(Jeu& jeu) {
     if (!resteDesHaschen(jeu)) {
-        if (jeu.combat + 1 >= nombreDeCombats()) {
+        if (jeu.typeSalle == TypeSalle::Boss) {
             jeu.phase = Phase::Victoire;
         } else {
             jeu.phase = Phase::CombatGagne;
@@ -575,132 +585,4 @@ void mettreAJourTourEnnemi(Jeu& jeu, float secondes) {
     } else if (!resteDesHaschen(jeu)) {
         finirTourAylis(jeu);    // un Haschen a succombe a ses etats pendant son tour
     }
-}
-
-// ===================== Les voies et les combats =====================
-
-void choisirVoie(Jeu& jeu, int voie) {
-    //                   nom      pv  pvMax att def potions boss   xp or
-    Combattant aylis = {"AYLIS",  40, 40,   12,  4,  3,      false, 0, 0};
-    if (voie == 1) {
-        aylis.voie = "de l'epee";
-        aylis.pv = 44;
-        aylis.pvMax = 44;
-        aylis.attaque = 13;
-        aylis.mana = 6;
-        aylis.manaMax = 6;
-        aylis.arme = {"Epee courte", false, 0, 10, 1, 20};
-    } else if (voie == 2) {
-        aylis.voie = "de l'arc";
-        aylis.arme = {"Arc court", true, 0, 15, 1, 45};
-    } else {
-        aylis.voie = "des arcanes";
-        aylis.pv = 34;
-        aylis.pvMax = 34;
-        aylis.defense = 3;
-        aylis.potions = 2;
-        aylis.mana = 20;
-        aylis.manaMax = 20;
-        aylis.sortsConnus = 4;      // dans le prototype, la voie des arcanes connait deja tous les sorts
-        aylis.arme = {"Baton de mage", true, 0, 5, 1, 20};
-    }
-    jeu.aylis.stats = aylis;
-    jeu.aylis.couleur = SKYBLUE;
-    jeu.combat = 0;
-    jeu.rage.vider();
-    preparerCombat(jeu);
-}
-
-int nombreDeCombats() {
-    return 3;
-}
-
-void preparerCombat(Jeu& jeu) {
-    jeu.rochers.assign(COLONNES * LIGNES, false);
-    jeu.haschen.clear();
-    jeu.journal.clear();
-    jeu.textes.clear();
-
-    // On repart d'un ecran calme : plus de particules, de projectiles ni de secousse
-    jeu.particules.clear();
-    jeu.projectiles.clear();
-    jeu.effets.clear();
-    jeu.eclairs.clear();
-    jeu.secousse = 0.0f;
-    jeu.arretSurImage = 0.0f;
-    jeu.aylis.xAffiche = -1.0f;     // AYLIS apparait directement a sa place de depart
-    jeu.aylis.pvAffiches = -1.0f;
-    jeu.aylis.elan = 0.0f;
-    jeu.aylis.recul = 0.0f;
-    jeu.aylis.flash = 0.0f;
-
-    Combattant& aylis = jeu.aylis.stats;
-    aylis.mana = aylis.manaMax;     // le mana se recharge a chaque combat
-    aylis.poison = 0;
-    aylis.brulure = 0;
-    aylis.saignement = 0;
-    aylis.bouclier = 0;
-    jeu.aylis.colonne = 1;
-    jeu.aylis.ligne = 3;
-
-    // Les memes Haschen que dans le jeu console (sans le butin, pour le prototype)
-    //                        nom                   pv  pvMax att def potions boss   xp  or
-    Combattant eclaireur  = {"Haschen eclaireur",   18, 18,   8,  1, 0,      false, 20, 20};
-    Combattant guerrier   = {"Haschen guerrier",    22, 22,   9,  2, 0,      false, 25, 25};
-    Combattant traqueur   = {"Haschen traqueur",    20, 20,   9,  1, 0,      false, 25, 22};
-    Combattant chaman     = {"Haschen chaman",      20, 20,  10,  1, 0,      false, 25, 25};
-    Combattant louvetier  = {"Haschen louvetier",   22, 22,  10,  2, 0,      false, 25, 25};
-    Combattant ashka      = {"Ashka",               40, 40,  14,  4, 1,      true,  50, 50};
-    traqueur.style = Style::Lanceur;
-    chaman.attaquePoison = true;
-    louvetier.style = Style::Chargeur;
-    ashka.style = Style::Lanceur;
-
-    std::vector<std::pair<int, int>> rochers;
-    if (jeu.combat == 0) {
-        jeu.nomDuLieu = "La foret des Brumes";
-        rochers = {{5, 1}, {5, 2}, {6, 5}, {6, 6}, {3, 5}, {8, 3}};
-        jeu.haschen = {
-            {eclaireur, 9, 1, ORANGE},
-            {guerrier, 10, 4, RED},
-            {traqueur, 9, 6, GREEN},
-        };
-    } else if (jeu.combat == 1) {
-        jeu.nomDuLieu = "Le camp de guerre haschen";
-        rochers = {{4, 3}, {4, 4}, {7, 1}, {7, 6}, {9, 3}};
-        jeu.haschen = {
-            {louvetier, 10, 2, BROWN},
-            {chaman, 9, 5, PURPLE},
-            {guerrier, 11, 4, RED},
-        };
-    } else {
-        jeu.nomDuLieu = "Le col d'Ashka";
-        rochers = {{4, 1}, {4, 6}, {6, 3}, {6, 4}, {8, 1}, {8, 6}};
-        jeu.haschen = {
-            {ashka, 10, 3, GOLD},
-            {traqueur, 11, 6, GREEN},
-            {eclaireur, 11, 0, ORANGE},
-        };
-    }
-    for (const auto& rocher : rochers) {
-        jeu.rochers[rocher.second * COLONNES + rocher.first] = true;
-    }
-
-    jeu.tour = 1;
-    jeu.enGarde = false;
-    jeu.actionChoisie = Action::Attaque;
-    jeu.phase = Phase::Deplacement;
-    jeu.banniere = jeu.nomDuLieu;
-    jeu.tempsBanniere = 2.0f;
-    ecrireJournal(jeu, "Combat " + std::to_string(jeu.combat + 1) + "/" + std::to_string(nombreDeCombats())
-                       + " : " + jeu.nomDuLieu);
-}
-
-void combatSuivant(Jeu& jeu) {
-    // Entre deux combats, AYLIS se repose (tous ses pv) et trouve une potion
-    jeu.aylis.stats.soigner(jeu.aylis.stats.pvMax);
-    jeu.aylis.stats.potions = jeu.aylis.stats.potions + 1;
-    jeu.combat = jeu.combat + 1;
-    preparerCombat(jeu);
-    ecrireJournal(jeu, "AYLIS a recupere des forces et trouve une potion.");
 }

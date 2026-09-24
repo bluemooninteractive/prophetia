@@ -106,7 +106,22 @@ int main() {
         } else if (jeu.phase == Phase::Deplacement || jeu.phase == Phase::Action) {
             commandesJoueur(jeu, colonneSouris, ligneSouris);
         } else if (jeu.phase == Phase::CombatGagne && IsKeyPressed(KEY_ENTER) && !animationsEnCours(jeu)) {
-            combatSuivant(jeu);
+            apresCombat(jeu);
+        } else if (jeu.phase == Phase::ChoixRune || jeu.phase == Phase::ChoixSalle) {
+            // Une carte choisie a la souris ou avec les touches 1, 2, 3
+            bool runes = jeu.phase == Phase::ChoixRune;
+            int nombre = runes ? jeu.runesProposees.size() : jeu.propositions.size();
+            for (int numero = 0; numero < nombre; numero++) {
+                bool clic = IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && CheckCollisionPointRec(souris, rectangleCarteChoix(numero, nombre));
+                if (clic || IsKeyPressed(KEY_ONE + numero) || IsKeyPressed(KEY_KP_1 + numero)) {
+                    if (runes) {
+                        choisirRune(jeu, numero);
+                    } else {
+                        choisirSalle(jeu, numero);
+                    }
+                    break;
+                }
+            }
         } else if ((jeu.phase == Phase::Victoire || jeu.phase == Phase::Defaite) && IsKeyPressed(KEY_R) && !animationsEnCours(jeu)) {
             jeu.phase = Phase::ChoixVoie;
         }
