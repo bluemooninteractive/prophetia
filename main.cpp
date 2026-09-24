@@ -14,6 +14,11 @@ const int OBJET_MATERIAU = 0;   // ne sert qu'a etre revendu
 const int OBJET_ARME = 1;
 const int OBJET_POTION = 2;     // va directement dans les potions d'AYLIS
 
+// Les styles de combat des ennemis quand ils sont loin
+const int STYLE_MELEE = 0;      // avance d'un pas par tour
+const int STYLE_LANCEUR = 1;    // lance des javelots une fois sur deux
+const int STYLE_CHARGEUR = 2;   // fonce au contact d'un coup et frappe
+
 // Une arme : de melee (corps a corps) ou a distance
 struct Arme {
     std::string nom;
@@ -52,6 +57,7 @@ struct Combattant {
     int xpDonne;            // l'XP que l'ennemi donne quand il est vaincu
     int orDonne;            // les pieces d'or que l'ennemi laisse tomber (en moyenne)
     std::vector<Butin> butin = {};      // la table de loot de l'ennemi
+    int style = STYLE_MELEE;            // comment l'ennemi se comporte quand il est loin
     bool enrage = false;    // un boss s'enrage une fois quand il passe sous la moitie de ses pv
     bool etourdi = false;   // un ennemi paralyse passe son prochain tour
     int niveau = 1;
@@ -618,6 +624,22 @@ bool lancerSort(Combattant& aylis, Combattant& ennemi) {
     return true;
 }
 
+// AYLIS encaisse un coup : la garde divise par 2, et la rage se remplit
+void toucherAylis(const Combattant& ennemi, Combattant& aylis, int degats, bool aylisEnGarde, int& rage) {
+    if (aylisEnGarde) {
+        degats = degats / 2;
+        std::cout << "(AYLIS bloque la moitie du coup) ";
+    }
+    aylis.pv = aylis.pv - degats;
+    std::cout << ennemi.nom << " touche ! AYLIS perd " << degats << " pv.\n";
+
+    // Chaque coup recu remplit la rage
+    rage = rage + degats * 4;
+    if (rage > rageMax) {
+        rage = rageMax;
+    }
+}
+
 // Le tour de l'ennemi. Le & veut dire qu'on modifie les vrais combattants, pas des copies.
 void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& rage, int& distance) {
     // Un ennemi paralyse passe son tour
@@ -640,8 +662,26 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
         return;
     }
 
-    // Les Haschen se battent au corps a corps : s'ils sont loin, ils s'approchent
+    // L'ennemi est encore loin : ce qu'il fait depend de son style
     if (distance > 0) {
+        // Un lanceur tire une fois sur deux au lieu d'avancer
+        if (ennemi.style == STYLE_LANCEUR && std::rand() % 2 == 0) {
+            std::cout << ennemi.nom << " lance un javelot ! ";
+            int degats = calculerDegats(ennemi.attaque, 80, aylis.defense, 10);
+            toucherAylis(ennemi, aylis, degats, aylisEnGarde, rage);
+            return;
+        }
+
+        // Un chargeur fonce directement au contact et frappe dans l'elan
+        if (ennemi.style == STYLE_CHARGEUR) {
+            distance = 0;
+            std::cout << ennemi.nom << " CHARGE et arrive au contact ! ";
+            int degats = calculerDegats(ennemi.attaque, 70, aylis.defense, 10);
+            toucherAylis(ennemi, aylis, degats, aylisEnGarde, rage);
+            return;
+        }
+
+        // Les autres avancent d'un pas
         distance = distance - 1;
         if (distance == 0) {
             std::cout << ennemi.nom << " arrive au contact !\n";
@@ -671,18 +711,7 @@ void tourEnnemi(Combattant& ennemi, Combattant& aylis, bool aylisEnGarde, int& r
         degats = calculerDegats(ennemi.attaque, 100, aylis.defense, 10);
     }
 
-    if (aylisEnGarde) {
-        degats = degats / 2;
-        std::cout << "(AYLIS bloque la moitie du coup) ";
-    }
-    aylis.pv = aylis.pv - degats;
-    std::cout << ennemi.nom << " frappe ! AYLIS perd " << degats << " pv.\n";
-
-    // Chaque coup recu remplit la rage
-    rage = rage + degats * 4;
-    if (rage > rageMax) {
-        rage = rageMax;
-    }
+    toucherAylis(ennemi, aylis, degats, aylisEnGarde, rage);
 }
 
 // Un combat complet contre un ennemi. Renvoie true si AYLIS gagne.
@@ -843,17 +872,18 @@ int main() {
     Objet javelots       = objetDepuisArme({"Javelots d'Ashka",   true,   6, 20, 1, 120, EPIQUE});
 
     // La liste des ennemis, dans l'ordre.
-    // Apres l'XP et l'or : la table de loot, chaque objet avec sa chance sur 100.
+    // Apres l'XP et l'or : la table de loot (chaque objet avec sa chance sur 100), puis le style.
     std::vector<Combattant> ennemis = {
         {"Haschen eclaireur",              18, 18,  8, 1, 0, false,  20, 20,
             {{croc, 70}, {peau, 30}, {potion, 20}, {arcDOs, 10}}},
         {"Haschen guerrier",               22, 22,  9, 2, 0, false,  25, 25,
             {{croc, 60}, {peau, 50}, {potion, 20}, {lance, 12}}},
         {"Ashka, Matriarche des Haschen",  40, 40, 14, 4, 1, true,   50, 50,
-            {{couronne, 100}, {javelots, 100}, {potion, 50}}},
+            {{couronne, 100}, {javelots, 100}, {potion, 50}}, STYLE_LANCEUR},
         {"Haschen berserker",              30, 30, 15, 5, 0, false,  30, 30,
             {{croc, 50}, {griffe, 60}, {hacheBerserker, 15}}},
-        {"Vorgath le Destructeur",         60, 60, 17, 6, 2, true,  100,  0},
+        {"Vorgath le Destructeur",         60, 60, 17, 6, 2, true,  100,  0,
+            {}, STYLE_CHARGEUR},
     };
 
     std::cout << "=== AYLIS contre les Haschen : la route vers Vorgath le Destructeur ===\n";
@@ -872,6 +902,31 @@ int main() {
         aylis.arme = armes[4];
     }
     std::cout << "AYLIS part avec : " << aylis.arme.nom << ".\n";
+
+    // Le choix de la difficulte : change la force des ennemis et l'or qu'ils donnent
+    std::cout << "\nChoisis la difficulte :\n";
+    std::cout << "1. Facile     (ennemis -20% pv et attaque, +20% d'or)\n";
+    std::cout << "2. Normal\n";
+    std::cout << "3. Difficile  (ennemis +25% pv et attaque, -20% d'or)\n";
+    int difficulte = lireChoix(1, 3);
+
+    int forceEnnemis = 100;     // en pourcentage
+    int orEnnemis = 100;
+    if (difficulte == 1) {
+        forceEnnemis = 80;
+        orEnnemis = 120;
+    } else if (difficulte == 3) {
+        forceEnnemis = 125;
+        orEnnemis = 80;
+    }
+
+    // On applique la difficulte a chaque ennemi. Le & modifie le vrai ennemi de la liste.
+    for (Combattant& ennemi : ennemis) {
+        ennemi.pvMax = ennemi.pvMax * forceEnnemis / 100;
+        ennemi.pv = ennemi.pvMax;
+        ennemi.attaque = ennemi.attaque * forceEnnemis / 100;
+        ennemi.orDonne = ennemi.orDonne * orEnnemis / 100;
+    }
 
     int nombreEnnemis = ennemis.size();
 
