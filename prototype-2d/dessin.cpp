@@ -92,7 +92,7 @@ Rectangle rectangleCarteVoie(int voie) {
 // ===================== L'ecran de depart =====================
 
 void dessinerChoixVoie() {
-    const char* titre = "PROPHETIA";
+    const char* titre = "VESPERANCE";
     DrawText(titre, (LARGEUR_FENETRE - MeasureText(titre, 70)) / 2, 40, 70, Color{170, 110, 240, 255});
     const char* sousTitre = "Choisis la voie d'AYLIS";
     DrawText(sousTitre, (LARGEUR_FENETRE - MeasureText(sousTitre, 20)) / 2, 125, 20, LIGHTGRAY);

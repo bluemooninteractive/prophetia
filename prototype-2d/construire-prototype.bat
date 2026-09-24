@@ -18,7 +18,7 @@ copy /Y "%CLION%\mingw\bin\libwinpthread-1.dll" build\ >nul
 
 echo.
 echo C'est pret ! Lancement du prototype...
-start "" /D build build\prophetia_2d.exe
+start "" /D build build\vesperance_2d.exe
 exit /b 0
 
 :erreur

@@ -9,16 +9,16 @@ int ecranTitre(bool sauvegardeDisponible) {
     // Le titre en grandes lettres. R"TITRE( ... )TITRE" est une "chaine brute" :
     // on peut y ecrire des \ et des " sans rien echapper, et les retours a la ligne sont gardes.
     const std::string titre = R"TITRE(
-  ____  ____   ___  ____  _   _ _____ _____ ___    _
- |  _ \|  _ \ / _ \|  _ \| | | | ____|_   _|_ _|  / \
- | |_) | |_) | | | | |_) | |_| |  _|   | |  | |  / _ \
- |  __/|  _ <| |_| |  __/|  _  | |___  | |  | | / ___ \
- |_|   |_| \_\\___/|_|   |_| |_|_____| |_| |___/_/   \_\
+ __     __ _____  ____   ____   _____  ____      _     _   _   ____  _____
+ \ \   / /| ____|/ ___| |  _ \ | ____||  _ \    / \   | \ | | / ___|| ____|
+  \ \ / / |  _|  \___ \ | |_) ||  _|  | |_) |  / _ \  |  \| || |    |  _|
+   \ V /  | |___  ___) ||  __/ | |___ |  _ <  / ___ \ | |\  || |___ | |___
+    \_/   |_____||____/ |_|    |_____||_| \_\/_/   \_\|_| \_| \____||_____|
 )TITRE";
 
     std::cout << "\n\n" << colorer(titre, VIOLET + GRAS) << "\n";
-    std::cout << "           " << colorer("AYLIS contre les Haschen", JAUNE + GRAS) << "\n";
-    std::cout << "        " << colorer("la route vers Vorgath le Destructeur", GRIS) << "\n\n";
+    std::cout << "                         " << colorer("AYLIS contre les Haschen", JAUNE + GRAS) << "\n";
+    std::cout << "                   " << colorer("la route vers Vorgath le Destructeur", GRIS) << "\n\n";
 
     std::cout << "  1. Nouvelle partie";
     if (sauvegardeDisponible) {

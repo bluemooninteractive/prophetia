@@ -6,7 +6,7 @@
 //   - la secousse : tout l'ecran tremble un peu,
 //   - l'arret sur image : sur un coup critique, le jeu se fige une fraction de seconde,
 //   - les particules : des dizaines de petits points qui volent et s'effacent.
-// La touche propre a PROPHETIA : les runes violettes de la prophetie, qui suivent AYLIS.
+// La touche propre a VESPERANCE : les runes violettes de la prophetie, qui suivent AYLIS.
 #include <cmath>
 #include "animations.h"
 

@@ -1,4 +1,4 @@
-// PROPHETIA 2D - prototype en vue du dessus, au tour par tour
+// VESPERANCE 2D - prototype en vue du dessus, au tour par tour
 //
 // main.cpp : la boucle de jeu et les commandes (souris et clavier).
 // Les regles sont dans regles.cpp, l'affichage dans dessin.cpp,
@@ -78,7 +78,7 @@ void commandesJoueur(Jeu& jeu, int colonneSouris, int ligneSouris) {
 int main() {
     // Sur les ecrans "agrandis" par Windows (125%, 150%, 200%...), le jeu occupe bien toute la fenetre
     SetConfigFlags(FLAG_WINDOW_HIGHDPI);
-    InitWindow(LARGEUR_FENETRE, HAUTEUR_FENETRE, "PROPHETIA - prototype 2D");
+    InitWindow(LARGEUR_FENETRE, HAUTEUR_FENETRE, "VESPERANCE - prototype 2D");
     SetTargetFPS(60);
     chargerSprites();       // fabrique les dessins (il faut que la fenetre soit ouverte)
 

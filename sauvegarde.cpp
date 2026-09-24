@@ -9,10 +9,10 @@
 #include "sauvegarde.h"
 
 // Le nom du fichier, cree a cote du jeu
-const std::string fichierSauvegarde = "prophetia_sauvegarde.txt";
+const std::string fichierSauvegarde = "vesperance_sauvegarde.txt";
 
 // La premiere ligne du fichier : elle permet de verifier que c'est bien une sauvegarde du jeu
-const std::string entete = "PROPHETIA-SAUVEGARDE-2";
+const std::string entete = "VESPERANCE-SAUVEGARDE-2";
 
 // ===================== Ecrire =====================
 // std::ofstream = "output file stream" : un fichier dans lequel on ecrit, comme on ecrit dans std::cout

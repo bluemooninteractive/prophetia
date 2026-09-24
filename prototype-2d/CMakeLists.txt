@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(prophetia_2d)
+project(vesperance_2d)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -16,7 +16,7 @@ FetchContent_MakeAvailable(raylib)
 
 # Le prototype REUTILISE du code du jeu console (le dossier du dessus) :
 # les structures de types.h, la classe Jauge, et les methodes de Combattant (dans outils.cpp).
-add_executable(prophetia_2d
+add_executable(vesperance_2d
     main.cpp
     regles.cpp
     dessin.cpp
@@ -26,10 +26,10 @@ add_executable(prophetia_2d
     ../couleurs.cpp
     ../jauge.cpp
 )
-target_include_directories(prophetia_2d PRIVATE ..)
-target_link_libraries(prophetia_2d raylib)
+target_include_directories(vesperance_2d PRIVATE ..)
+target_link_libraries(vesperance_2d raylib)
 
 # Sous Windows : le jeu fonctionne sans les DLL du compilateur (sauf libwinpthread, copiee a cote)
 if (MINGW)
-    target_link_options(prophetia_2d PRIVATE -static-libgcc -static-libstdc++)
+    target_link_options(vesperance_2d PRIVATE -static-libgcc -static-libstdc++)
 endif()
