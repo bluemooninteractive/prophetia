@@ -273,9 +273,18 @@ RenderTexture2D carteLumiere;
 bool carteLumiereCreee = false;
 
 // La couleur de la penombre de chaque lieu : nuit bleutee en foret, braise au camp, glace sur le col
-const Color PENOMBRE[3] = {{42, 54, 84, 255}, {74, 48, 62, 255}, {56, 60, 100, 255}};
+const Color PENOMBRE[NOMBRE_LIEUX] = {
+    {42, 54, 84, 255},      // foret : nuit bleutee
+    {84, 62, 80, 255},      // village : un crepuscule mauve
+    {44, 70, 94, 255},      // gue : bleu d'eau
+    {28, 32, 42, 255},      // bois des Pendus : presque le noir
+    {74, 48, 62, 255},      // camp : la braise
+    {58, 54, 78, 255},      // forteresse : pierre froide
+    {56, 60, 100, 255},     // col : la glace
+};
 // La couleur des sources de lumiere de chaque lieu
-const Color LUEUR[3] = {{90, 230, 240, 255}, {255, 150, 60, 255}, {190, 120, 255, 255}};
+const Color LUEUR[NOMBRE_LIEUX] = {{90, 230, 240, 255}, {255, 196, 120, 255}, {140, 240, 215, 255}, {170, 255, 110, 255},
+                                   {255, 150, 60, 255}, {255, 165, 80, 255}, {190, 120, 255, 255}};
 
 // Une tache de lumiere ronde, forte au centre et qui s'efface vers le bord
 void tacheDeLumiere(float x, float y, float rayon, Color couleur, float force) {
@@ -305,7 +314,7 @@ void preparerLumiere(const Jeu& jeu) {
     BeginBlendMode(BLEND_ADDITIVE);     // les lumieres s'ajoutent les unes aux autres
 
     // Sur le col, un clair de lune qui tombe d'en haut
-    if (lieu == 2) {
+    if (lieu == 6) {
         tacheDeLumiere(LARGEUR_FENETRE / 2.0f, -120, 620, Color{150, 170, 255, 255}, 0.35f);
     }
     // En foret, les rayons de lune qui percent les arbres
@@ -329,10 +338,13 @@ void preparerLumiere(const Jeu& jeu) {
             tacheDeLumiere(p.x, p.y, 95, Color{255, 190, 170, 255}, h.stats.estBoss ? 0.5f : 0.35f);
         }
     }
+    // Les fenetres allumees du village
+    ajouterLumieresDuDecor(jeu);
     // Les sources de lumiere du lieu
     for (int i = 0; i < (int)jeu.lumieres.size(); i++) {
         Vector2 p = centreDeCase(jeu.lumieres[i].first, jeu.lumieres[i].second);
-        float force = lieu == 1 ? vacillement(9, i * 2.1f) : 0.8f + 0.2f * std::sin(GetTime() * 1.5f + i);
+        bool flamme = lieu == 1 || lieu == 4 || lieu == 5;      // lanternes, braseros, torches : ca vacille
+        float force = flamme ? vacillement(9, i * 2.1f) : 0.8f + 0.2f * std::sin(GetTime() * 1.5f + i);
         tacheDeLumiere(p.x, p.y, 200, LUEUR[lieu], 0.8f * force);
     }
     // Le grand feu du camp
@@ -449,67 +461,124 @@ void dessinerSourcesDeLumiere(const Jeu& jeu, bool halo) {
     }
 }
 
+// ----- Les petits morceaux d'ambiance, reutilises par plusieurs lieux -----
+
+// Des lucioles qui errent et clignotent
+void dessinerLucioles(int nombre, Color couleur) {
+    float temps = GetTime();
+    for (int i = 0; i < nombre; i++) {
+        float x = hasardFixe(i) * LARGEUR_FENETRE + std::sin(temps * 0.6f + i) * 40;
+        float y = hasardFixe(i + 100) * HAUTEUR_ARENE + std::cos(temps * 0.45f + i * 1.3f) * 30;
+        float eclat = std::fmax(0.0f, std::sin(temps * 2.2f + i * 0.9f));
+        DrawCircleGradient(x, y, 9, Fade(couleur, 0.35f * eclat), BLANK);
+        DrawCircle(x, y, 1.6f, Fade(WHITE, eclat * 0.9f));
+    }
+}
+
+// Des braises qui montent des feux, des braseros et des torches
+void dessinerBraises(const Jeu& jeu) {
+    float temps = GetTime();
+    std::vector<Vector2> foyers;
+    for (const auto& l : jeu.lumieres) {
+        foyers.push_back(centreDeCase(l.first, l.second));
+    }
+    if (jeu.feuColonne >= 0) {
+        foyers.push_back(centreDeCase(jeu.feuColonne, jeu.feuLigne));
+    }
+    for (int f = 0; f < (int)foyers.size(); f++) {
+        for (int i = 0; i < 10; i++) {
+            int n = f * 10 + i;
+            float montee = std::fmod(temps * (30 + hasardFixe(n) * 40) + hasardFixe(n + 50) * 200, 160.0f);
+            float x = foyers[f].x + std::sin(temps * 2 + n) * 10 + (hasardFixe(n + 7) - 0.5f) * 30;
+            float y = foyers[f].y - 20 - montee;
+            float vie = 1.0f - montee / 160.0f;
+            DrawCircle(x, y, 1.5f + vie, Fade(Color{255, 170, 70, 255}, vie));
+        }
+    }
+}
+
+// Des chauves-souris qui traversent l'ecran en battant des ailes
+void dessinerChauvesSouris() {
+    float temps = GetTime();
+    for (int i = 0; i < 4; i++) {
+        float x = std::fmod(temps * (60 + i * 15) + i * 300, LARGEUR_FENETRE + 200.0f) - 100;
+        float y = 60 + i * 110 + std::sin(temps * 2 + i) * 30;
+        float battement = std::sin(temps * 18 + i * 2) * 6;
+        Color noir = {12, 10, 18, 230};
+        DrawTriangle({x, y}, {x - 12, y - 4 + battement}, {x - 4, y + 3}, noir);
+        DrawTriangle({x, y}, {x + 4, y + 3}, {x + 12, y - 4 + battement}, noir);
+        DrawCircle(x, y + 1, 3, noir);
+    }
+}
+
+// Des yeux rouges qui s'ouvrent un instant dans l'obscurite, tout autour du bois des Pendus
+void dessinerYeuxDansLeNoir() {
+    float temps = GetTime();
+    for (int i = 0; i < 9; i++) {
+        // Toujours pres des bords, la ou il fait le plus noir
+        float x = i % 2 == 0 ? 20 + hasardFixe(i) * 70 : LARGEUR_FENETRE - 90 + hasardFixe(i) * 70;
+        float y = 40 + hasardFixe(i + 30) * (HAUTEUR_ARENE - 80);
+        float cycle = std::fmod(temps * 0.35f + hasardFixe(i + 60) * 7, 7.0f);
+        float ouverture = cycle < 2.5f ? std::sin(cycle / 2.5f * PI) : 0;
+        if (ouverture <= 0.05f) {
+            continue;
+        }
+        Color rouge = {255, 50, 50, 255};
+        DrawCircleGradient(x, y, 14, Fade(rouge, 0.3f * ouverture), BLANK);
+        DrawCircleGradient(x + 16, y, 14, Fade(rouge, 0.3f * ouverture), BLANK);
+        DrawRectangleRec({x - 3, y - 1.5f * ouverture, 6, 3 * ouverture}, Fade(rouge, ouverture));
+        DrawRectangleRec({x + 13, y - 1.5f * ouverture, 6, 3 * ouverture}, Fade(rouge, ouverture));
+    }
+}
+
 void dessinerAmbiance(const Jeu& jeu) {
     int lieu = jeu.lieu;
     float temps = GetTime();
     BeginBlendMode(BLEND_ADDITIVE);
 
     if (lieu == 0) {
-        // Des rayons de lune, en biais, qui ondulent doucement
+        // La foret : des rayons de lune en biais, et des lucioles
         for (int i = 0; i < 3; i++) {
             float x = 120.0f + i * 290 + std::sin(temps * 0.3f + i) * 20;
             float force = 0.022f + 0.012f * std::sin(temps * 0.7f + i * 2);
-            Vector2 haut1 = {x, 0};
-            Vector2 haut2 = {x + 70, 0};
-            Vector2 bas1 = {x + 150, (float)HAUTEUR_ARENE};
-            Vector2 bas2 = {x + 290, (float)HAUTEUR_ARENE};
             Color couleur = Fade(Color{200, 240, 220, 255}, force);
-            DrawTriangle(haut1, bas1, bas2, couleur);
-            DrawTriangle(haut1, bas2, haut2, couleur);
+            DrawTriangle({x, 0}, {x + 150, (float)HAUTEUR_ARENE}, {x + 290, (float)HAUTEUR_ARENE}, couleur);
+            DrawTriangle({x, 0}, {x + 290, (float)HAUTEUR_ARENE}, {x + 70, 0}, couleur);
         }
-        // Des lucioles qui errent et clignotent
-        for (int i = 0; i < 28; i++) {
-            float x = hasardFixe(i) * LARGEUR_FENETRE + std::sin(temps * 0.6f + i) * 40;
-            float y = hasardFixe(i + 100) * HAUTEUR_ARENE + std::cos(temps * 0.45f + i * 1.3f) * 30;
-            float eclat = std::fmax(0.0f, std::sin(temps * 2.2f + i * 0.9f));
-            DrawCircleGradient(x, y, 9, Fade(Color{200, 255, 120, 255}, 0.35f * eclat), BLANK);
-            DrawCircle(x, y, 1.6f, Fade(Color{235, 255, 170, 255}, eclat));
-        }
+        dessinerLucioles(28, Color{200, 255, 120, 255});
     } else if (lieu == 1) {
-        // Des braises qui montent des feux et des braseros
-        std::vector<Vector2> foyers;
-        for (const auto& l : jeu.lumieres) {
-            foyers.push_back(centreDeCase(l.first, l.second));
-        }
-        if (jeu.feuColonne >= 0) {
-            foyers.push_back(centreDeCase(jeu.feuColonne, jeu.feuLigne));
-        }
-        for (int f = 0; f < (int)foyers.size(); f++) {
-            for (int i = 0; i < 10; i++) {
-                int n = f * 10 + i;
-                float montee = std::fmod(temps * (30 + hasardFixe(n) * 40) + hasardFixe(n + 50) * 200, 160.0f);
-                float x = foyers[f].x + std::sin(temps * 2 + n) * 10 + (hasardFixe(n + 7) - 0.5f) * 30;
-                float y = foyers[f].y - 10 - montee;
-                float vie = 1.0f - montee / 160.0f;
-                DrawCircle(x, y, 1.5f + vie, Fade(Color{255, 170, 70, 255}, vie));
+        // Le village : des papillons de nuit, et des braises au-dessus des maisons brulees
+        dessinerLucioles(14, Color{255, 220, 150, 255});
+        for (const Vector2& f : cheminsDeFumee(jeu)) {
+            for (int i = 0; i < 6; i++) {
+                float montee = std::fmod(temps * 25 + i * 20, 120.0f);
+                DrawCircle(f.x + std::sin(temps * 3 + i) * 8, f.y + 14 - montee, 1.8f, Fade(ORANGE, 1 - montee / 120));
             }
         }
+    } else if (lieu == 2) {
+        // Le gue : des feux follets bleus qui dansent au-dessus de l'eau
+        dessinerLucioles(22, Color{120, 240, 255, 255});
+    } else if (lieu == 3) {
+        // Le bois des Pendus : des feux follets verdatres, et des yeux dans le noir
+        dessinerLucioles(10, Color{170, 255, 110, 255});
+        dessinerYeuxDansLeNoir();
+    } else if (lieu == 4 || lieu == 5) {
+        // Le camp et la forteresse : des braises qui montent des feux et des torches
+        dessinerBraises(jeu);
     } else {
-        // Une aurore violette et verte, qui ondule tout en haut
+        // Le col : une aurore violette et verte, et des volutes autour des cristaux
         for (int x = 0; x < LARGEUR_FENETRE; x = x + 6) {
             float onde = std::sin(x * 0.012f + temps * 0.6f) * 0.5f + 0.5f;
             float hauteur = 70 + 50 * std::sin(x * 0.02f + temps * 0.4f);
             Color couleur = onde > 0.5f ? Color{140, 90, 255, 255} : Color{80, 230, 170, 255};
             DrawRectangleGradientV(x, 0, 6, hauteur, Fade(couleur, 0.10f * onde + 0.03f), BLANK);
         }
-        // Des volutes violettes qui tournent autour des cristaux
         for (int f = 0; f < (int)jeu.lumieres.size(); f++) {
             Vector2 c = centreDeCase(jeu.lumieres[f].first, jeu.lumieres[f].second);
             for (int i = 0; i < 6; i++) {
                 float angle = temps * (0.8f + i * 0.1f) + i * PI / 3 + f;
-                float x = c.x + std::cos(angle) * (22 + i * 3);
-                float y = c.y - 4 + std::sin(angle) * 10 - i * 3;
-                DrawCircle(x, y, 1.8f, Fade(Color{220, 180, 255, 255}, 0.8f));
+                DrawCircle(c.x + std::cos(angle) * (22 + i * 3), c.y - 4 + std::sin(angle) * 10 - i * 3, 1.8f,
+                           Fade(Color{220, 180, 255, 255}, 0.8f));
             }
         }
     }
@@ -524,26 +593,52 @@ void dessinerAmbiance(const Jeu& jeu) {
     }
     EndBlendMode();
 
-    // Une brume basse qui glisse au ras du sol (et plus epaisse en foret)
-    for (int i = 0; i < 7; i++) {
-        float x = std::fmod(temps * (10 + i * 3) + i * 170, LARGEUR_FENETRE + 400.0f) - 200;
-        float y = 90 + i * 75 + std::sin(temps * 0.5f + i) * 20;
-        DrawEllipse(x, y, 190, 36, Fade(lieu == 0 ? Color{190, 220, 230, 255} : Color{200, 190, 220, 255},
-                                        lieu == 0 ? 0.06f : 0.035f));
+    // ----- Ce qui est dessine "normalement" (pas en lumiere) -----
+    // La fumee grise qui monte des maisons brulees du village
+    if (lieu == 1) {
+        for (const Vector2& f : cheminsDeFumee(jeu)) {
+            for (int i = 0; i < 7; i++) {
+                float montee = std::fmod(temps * 16 + i * 26, 180.0f);
+                float vie = 1 - montee / 180;
+                DrawCircle(f.x + std::sin(temps * 0.8f + i) * 14 + montee * 0.3f, f.y - montee, 10 + montee * 0.12f,
+                           Fade(Color{70, 66, 74, 255}, 0.35f * vie));
+            }
+        }
     }
-    // Le neige sur le col
-    if (lieu == 2) {
+    // Des feuilles mortes qui tombent en se balancant, dans le bois des Pendus
+    if (lieu == 3) {
+        for (int i = 0; i < 16; i++) {
+            float chute = std::fmod(temps * (20 + i % 5 * 6) + hasardFixe(i + 200) * HAUTEUR_ARENE, (float)HAUTEUR_ARENE);
+            float x = hasardFixe(i + 210) * LARGEUR_FENETRE + std::sin(temps * 1.5f + i) * 20;
+            DrawRectangleRec({x, chute, 5, 3}, Fade(i % 2 ? Color{150, 90, 40, 255} : Color{100, 70, 40, 255}, 0.8f));
+        }
+    }
+    if (lieu == 5) {
+        dessinerChauvesSouris();
+    }
+    // La brume : au ras du sol partout, epaisse en foret, sur le gue et dans le bois des Pendus
+    bool brumeEpaisse = lieu == 0 || lieu == 2 || lieu == 3;
+    int nappes = lieu == 3 ? 11 : 7;
+    for (int i = 0; i < nappes; i++) {
+        float x = std::fmod(temps * (10 + i * 3) + i * 170, LARGEUR_FENETRE + 400.0f) - 200;
+        float y = 60 + i * (HAUTEUR_ARENE - 80.0f) / nappes + std::sin(temps * 0.5f + i) * 20;
+        Color couleur = lieu == 3 ? Color{150, 170, 160, 255} : Color{190, 215, 230, 255};
+        DrawEllipse(x, y, 190, 36, Fade(couleur, brumeEpaisse ? 0.065f : 0.03f));
+    }
+    // La neige sur le col
+    if (lieu == 6) {
         for (int i = 0; i < 60; i++) {
             float x = std::fmod(i * 97.0f + temps * (10 + i % 5 * 4), (float)LARGEUR_FENETRE);
             float y = std::fmod(i * 53.0f + temps * (35 + i % 7 * 6), (float)HAUTEUR_ARENE);
             DrawRectangle(x, y, i % 3 == 0 ? 3 : 2, i % 3 == 0 ? 3 : 2, Fade(WHITE, 0.7f));
         }
     }
-    // Un vignettage : les bords s'enfoncent dans le noir, l'oeil reste au centre
-    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, 70, Fade(BLACK, 0.55f), BLANK);
-    DrawRectangleGradientV(0, HAUTEUR_ARENE - 70, LARGEUR_FENETRE, 70, BLANK, Fade(BLACK, 0.55f));
-    DrawRectangleGradientH(0, 0, 70, HAUTEUR_ARENE, Fade(BLACK, 0.5f), BLANK);
-    DrawRectangleGradientH(LARGEUR_FENETRE - 70, 0, 70, HAUTEUR_ARENE, BLANK, Fade(BLACK, 0.5f));
+    // Un vignettage : les bords s'enfoncent dans le noir, l'oeil reste au centre (plus fort dans le bois)
+    float vignette = lieu == 3 ? 0.75f : 0.55f;
+    DrawRectangleGradientV(0, 0, LARGEUR_FENETRE, 70, Fade(BLACK, vignette), BLANK);
+    DrawRectangleGradientV(0, HAUTEUR_ARENE - 70, LARGEUR_FENETRE, 70, BLANK, Fade(BLACK, vignette));
+    DrawRectangleGradientH(0, 0, 70, HAUTEUR_ARENE, Fade(BLACK, vignette - 0.05f), BLANK);
+    DrawRectangleGradientH(LARGEUR_FENETRE - 70, 0, 70, HAUTEUR_ARENE, BLANK, Fade(BLACK, vignette - 0.05f));
 }
 
 void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
@@ -552,48 +647,8 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     int portee = porteeAction(jeu, jeu.actionChoisie);
     bool actionVisee = tourJoueur && !actionSurSoi(jeu.actionChoisie) && actionDisponible(jeu, jeu.actionChoisie);
 
-    // Le lieu du combat decide des dessins : 0 = foret, 1 = camp, 2 = col
-    int lieu = jeu.lieu;
-    const Sprites& s = sprites();
-    Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
-
-    // ----- 1. Le decor : le sol, les obstacles, les petits details -----
-    for (int l = 0; l < LIGNES; l++) {
-        for (int c = 0; c < COLONNES; c++) {
-            Rectangle caseEcran = {(float)c * TAILLE_CASE, (float)l * TAILLE_CASE, (float)TAILLE_CASE, (float)TAILLE_CASE};
-            DrawTexturePro(s.sol[lieu][(c + l) % 2], source, caseEcran, {0, 0}, 0, WHITE);
-        }
-    }
-    // De grandes taches sur le sol (mousse, cendre, neige...) : le sol n'est plus un simple damier
-    const Color taches[3][2] = {
-        {{40, 120, 70, 255}, {25, 45, 35, 255}},        // foret : mousse et terre sombre
-        {{60, 50, 50, 255}, {140, 90, 50, 255}},        // camp : cendre et terre battue
-        {{210, 220, 240, 255}, {90, 100, 150, 255}},    // col : neige et glace
-    };
-    for (int i = 0; i < 14; i++) {
-        float x = hasardFixe(i + jeu.salle * 31) * LARGEUR_FENETRE;
-        float y = hasardFixe(i + jeu.salle * 31 + 500) * HAUTEUR_ARENE;
-        float largeur = 60 + hasardFixe(i + 900) * 90;
-        DrawEllipse(x, y, largeur, largeur * 0.55f, Fade(taches[lieu][i % 2], 0.22f));
-        DrawEllipse(x + largeur * 0.3f, y - 6, largeur * 0.5f, largeur * 0.3f, Fade(taches[lieu][i % 2], 0.18f));
-    }
-    for (int l = 0; l < LIGNES; l++) {
-        for (int c = 0; c < COLONNES; c++) {
-            Rectangle caseEcran = {(float)c * TAILLE_CASE, (float)l * TAILLE_CASE, (float)TAILLE_CASE, (float)TAILLE_CASE};
-
-            // Un "hasard" fixe, calcule a partir de la position : les decors restent toujours au meme endroit
-            int hasard = (c * 17 + l * 31 + jeu.salle * 7) % 11;
-            if (estRocher(jeu, c, l)) {
-                if (!(c == jeu.feuColonne && l == jeu.feuLigne)) {     // le feu est dessine plus tard (il brille)
-                    DrawTexturePro(s.obstacle[lieu][hasard % 2], source, caseEcran, {0, 0}, 0, WHITE);
-                }
-            } else if (hasard < 4) {
-                // Quelques decors par terre (ils ne bloquent pas le passage), un peu decales pour faire naturel
-                Rectangle decale = {caseEcran.x + (hasard - 2) * 6.0f, caseEcran.y + (hasard % 2) * 8.0f, 72, 72};
-                DrawTexturePro(s.decor[lieu][hasard % 2], source, decale, {0, 0}, 0, WHITE);
-            }
-        }
-    }
+    // ----- 1. Le decor : le terrain du lieu, dessine a partir de sa carte (decor.cpp) -----
+    dessinerTerrain(jeu);
     dessinerSourcesDeLumiere(jeu, false);
     dessinerCercleDeRunes(jeu);
 
@@ -966,14 +1021,11 @@ void dessinerFrise(const Jeu& jeu) {
         DrawCircle(x, y, rayon, salle <= jeu.salle ? couleur : CADRE);
         DrawCircleLines(x, y, rayon, couleur);
     }
-    // Le nom des lieux sous la frise, dans l'ordre de l'histoire
-    const char* lieux[3] = {"Foret", "Camp", "Col"};
-    for (int lieu = 0; lieu < 3; lieu++) {
-        float x = gauche + pas * (lieu * 2 + 0.5f);
-        if (lieu == 2) {
-            x = gauche + pas * 5;
-        }
-        texteCentre(lieux[lieu], {x - 60, y + 16, 120, 20}, 10, lieu == jeu.lieu ? OR : TEXTE_GRIS);
+    // Le nom du lieu sous chaque salle, dans l'ordre de l'histoire (et Ashka tout au bout)
+    for (int salle = 1; salle <= NOMBRE_SALLES; salle++) {
+        float x = gauche + pas * (salle - 1);
+        std::string nom = salle == NOMBRE_SALLES ? "Ashka" : nomCourtLieu(salle - 1);
+        texteCentre(nom, {x - 50, y + 16, 100, 20}, 10, salle == jeu.salle ? OR : TEXTE_GRIS);
     }
 }
 
@@ -1040,7 +1092,7 @@ void dessinerImageSalle(TypeSalle type, int lieu, Rectangle zone) {
     } else if (type == TypeSalle::Marchand) {
         // Le marchand du lieu : Maren en foret, Durgan au camp, Silas sur le col
         DrawCircle(centreX, centreY, 50, Fade(OR, 0.15f));
-        DrawTexturePro(s.marchands[lieu], source, ecran, {0, 0}, 0, WHITE);
+        DrawTexturePro(s.marchands[marchandDuLieu(lieu)], source, ecran, {0, 0}, 0, WHITE);
     } else if (type == TypeSalle::Rencontre) {
         DrawCircle(centreX, centreY, 50, Fade(SKYBLUE, 0.12f));
         float saut = 4 * std::sin(GetTime() * 3);

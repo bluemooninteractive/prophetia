@@ -113,12 +113,18 @@ std::string texteDuReveil(const Jeu& jeu) {
         texte = texte + "Le gout amer du poison des chamans reste sur ses levres.";
     } else if (qui.find("elite") != std::string::npos) {
         texte = texte + "Le rugissement du " + qui + " resonne encore. Certains combats demandent plus de preparation.";
-    } else if (jeu.lieu == 0) {
-        texte = texte + "La brume de la foret s'efface lentement de ses souvenirs.";
-    } else if (jeu.lieu == 1) {
-        texte = texte + "L'odeur de fumee du camp haschen colle encore a sa peau.";
     } else {
-        texte = texte + "Le vent glace du col souffle encore dans sa memoire, si pres d'Ashka.";
+        // Sinon : le souvenir du lieu de la chute
+        const char* souvenirs[NOMBRE_LIEUX] = {
+            "La brume de la foret s'efface lentement de ses souvenirs.",
+            "Les maisons brulees de Brennac fument encore dans sa memoire. Qui vivait la, avant les Haschen ?",
+            "Le bruit de la riviere, au gue des Saules, ne veut pas se taire.",
+            "Des yeux rouges, entre les arbres morts du bois des Pendus. Ils regardaient. Ils attendaient.",
+            "L'odeur de fumee du camp haschen colle encore a sa peau.",
+            "Les remparts de Karn se dressent encore dans sa memoire, et les bannieres pourpres d'Ashka.",
+            "Le vent glace du col souffle encore dans sa memoire, si pres d'Ashka.",
+        };
+        texte = texte + souvenirs[jeu.lieu];
     }
     return texte;
 }

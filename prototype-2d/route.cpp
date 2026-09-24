@@ -1,19 +1,12 @@
 // route.cpp : la route d'une "course" (un essai d'AYLIS, du depart jusqu'a Ashka)
 //
-// Les lieux restent toujours dans l'ordre de l'histoire : la foret, puis le camp, puis le col.
+// Les lieux restent toujours dans l'ordre de l'histoire (lieux.cpp) : la foret, le village, le gue, le bois,
+// le camp, la forteresse, puis le col ou Ashka attend.
 // Ce qui change a chaque essai : les salles que la vision propose, les Haschen rencontres,
 // et les runes de prophetie qu'AYLIS ramasse en chemin.
 #include "jeu2d.h"
 
 // ===================== Les noms =====================
-
-std::string nomLieu(int lieu) {
-    switch (lieu) {
-        case 0: return "La foret des Brumes";
-        case 1: return "Le camp de guerre haschen";
-        default: return "Le col d'Ashka";
-    }
-}
 
 std::string nomTypeSalle(TypeSalle type) {
     switch (type) {
@@ -41,10 +34,10 @@ std::string descriptionSalle(TypeSalle type) {
     return "";
 }
 
-// Le lieu d'une salle : 2 salles en foret, 2 au camp, puis le col jusqu'a Ashka
+// Le lieu d'une salle : un lieu par salle, dans l'ordre de la route. Ashka attend au col (la derniere salle).
 int lieuDeLaSalle(int salle) {
-    int lieu = (salle - 1) / 2;
-    return lieu > 2 ? 2 : lieu;
+    int lieu = salle - 1;
+    return lieu > NOMBRE_LIEUX - 1 ? NOMBRE_LIEUX - 1 : lieu;
 }
 
 // ===================== Les runes de prophetie =====================
@@ -310,12 +303,12 @@ void choisirVoie(Jeu& jeu, int voie) {
 
 // ===================== Preparer un combat =====================
 
-// Une case libre au hasard, du cote des Haschen (a droite de l'arene)
-void placerHaschen(Jeu& jeu, Combattant stats, Color couleur) {
-    for (int essai = 0; essai < 100; essai++) {
-        int c = GetRandomValue(8, COLONNES - 1);
+// Une case libre au hasard, du cote des Haschen (a droite de l'arene), et qu'AYLIS peut atteindre
+void placerHaschen(Jeu& jeu, const std::vector<bool>& accessibles, Combattant stats, Color couleur) {
+    for (int essai = 0; essai < 200; essai++) {
+        int c = GetRandomValue(essai < 100 ? 8 : 5, COLONNES - 1);     // si la droite est trop pleine : un peu plus a gauche
         int l = GetRandomValue(0, LIGNES - 1);
-        if (!estRocher(jeu, c, l) && haschenSurCase(jeu, c, l) == -1) {
+        if (!estRocher(jeu, c, l) && accessibles[l * COLONNES + c] && haschenSurCase(jeu, c, l) == -1) {
             jeu.haschen.push_back({stats, c, l, couleur});
             return;
         }
@@ -323,7 +316,6 @@ void placerHaschen(Jeu& jeu, Combattant stats, Color couleur) {
 }
 
 void preparerCombat(Jeu& jeu) {
-    jeu.rochers.assign(COLONNES * LIGNES, false);
     jeu.haschen.clear();
     jeu.journal.clear();
     jeu.textes.clear();
@@ -350,6 +342,10 @@ void preparerCombat(Jeu& jeu) {
     jeu.aylis.colonne = 1;
     jeu.aylis.ligne = 3;
 
+    // La carte du lieu : le terrain, les obstacles, les lumieres (lieux.cpp)
+    chargerCarte(jeu);
+    std::vector<bool> accessibles = casesAccessibles(jeu);
+
     // Les memes Haschen que dans le jeu console (sans le butin, pour le prototype)
     //                        nom                   pv  pvMax att def potions boss   xp  or
     Combattant eclaireur  = {"Haschen eclaireur",   18, 18,   8,  1, 0,      false, 20, 20};
@@ -372,84 +368,46 @@ void preparerCombat(Jeu& jeu) {
     }
 
     // Les Haschen de chaque lieu, et leur couleur
-    std::vector<std::pair<Combattant, Color>> groupe;
-    if (jeu.lieu == 0) {
-        groupe = {{eclaireur, ORANGE}, {guerrier, RED}, {traqueur, GREEN}};
-    } else if (jeu.lieu == 1) {
-        groupe = {{guerrier, RED}, {louvetier, BROWN}, {chaman, PURPLE}, {traqueur, GREEN}};
-    } else {
-        groupe = {{traqueur, GREEN}, {louvetier, BROWN}, {guerrier, RED}, {chaman, PURPLE}};
-    }
-
-    // Les rochers : 3 dispositions possibles par lieu
-    const std::vector<std::vector<std::pair<int, int>>> dispositions[3] = {
-        {   // la foret
-            {{5, 1}, {5, 2}, {6, 5}, {6, 6}, {3, 5}, {8, 3}},
-            {{4, 2}, {4, 3}, {7, 5}, {7, 6}, {9, 1}, {2, 6}},
-            {{3, 1}, {6, 3}, {6, 4}, {5, 7}, {9, 5}, {8, 0}},
-        },
-        {   // le camp (le dernier obstacle est le feu de camp)
-            {{4, 3}, {4, 4}, {7, 1}, {7, 6}, {9, 3}},
-            {{3, 1}, {3, 6}, {6, 2}, {6, 5}, {8, 4}},
-            {{5, 0}, {5, 1}, {5, 6}, {5, 7}, {7, 3}},
-        },
-        {   // le col
-            {{4, 1}, {4, 6}, {6, 3}, {6, 4}, {8, 1}, {8, 6}},
-            {{3, 3}, {5, 1}, {5, 6}, {7, 3}, {7, 4}, {9, 6}},
-            {{4, 0}, {4, 4}, {6, 2}, {6, 7}, {8, 3}, {8, 5}},
-        },
+    std::pair<Combattant, Color> E = {eclaireur, ORANGE};
+    std::pair<Combattant, Color> G = {guerrier, RED};
+    std::pair<Combattant, Color> T = {traqueur, GREEN};
+    std::pair<Combattant, Color> C = {chaman, PURPLE};
+    std::pair<Combattant, Color> L = {louvetier, BROWN};
+    const std::vector<std::pair<Combattant, Color>> groupes[NOMBRE_LIEUX] = {
+        {E, G, T},          // la foret : les eclaireurs d'Ashka
+        {E, G, L},          // le village : des pillards
+        {T, E, C},          // le gue : des tireurs caches dans les roseaux
+        {C, L, T},          // le bois des Pendus : chamans et louvetiers
+        {G, L, C, T},       // le camp : tout le monde
+        {G, T, C, L},       // la forteresse
+        {T, L, G, C},       // le col
     };
-    const auto& rochers = dispositions[jeu.lieu][GetRandomValue(0, 2)];
-    for (const auto& rocher : rochers) {
-        jeu.rochers[rocher.second * COLONNES + rocher.first] = true;
-    }
-    jeu.feuColonne = -1;
-    jeu.feuLigne = -1;
-    if (jeu.lieu == 1) {
-        jeu.feuColonne = rochers.back().first;
-        jeu.feuLigne = rochers.back().second;
-    }
-
-    // Les sources de lumiere : 4 a 5 cases libres, plutot vers les bords (elles ne bloquent pas le passage)
-    jeu.lumieres.clear();
-    int nombreLumieres = GetRandomValue(4, 5);
-    for (int essai = 0; essai < 200 && (int)jeu.lumieres.size() < nombreLumieres; essai++) {
-        int c = GetRandomValue(0, COLONNES - 1);
-        int l = GetRandomValue(0, LIGNES - 1);
-        bool auBord = l == 0 || l == LIGNES - 1 || c == 0 || c == COLONNES - 1 || GetRandomValue(0, 3) == 0;
-        bool troPres = false;
-        for (const auto& autre : jeu.lumieres) {
-            troPres = troPres || distanceCases(c, l, autre.first, autre.second) < 3;
-        }
-        if (auBord && !troPres && !estRocher(jeu, c, l) && !(c == jeu.aylis.colonne && l == jeu.aylis.ligne)) {
-            jeu.lumieres.push_back({c, l});
-        }
-    }
+    const std::vector<std::pair<Combattant, Color>>& groupe = groupes[jeu.lieu];
 
     jeu.nomDuLieu = nomLieu(jeu.lieu);
     if (jeu.typeSalle == TypeSalle::Boss) {
-        placerHaschen(jeu, ashka, GOLD);
-        placerHaschen(jeu, traqueur, GREEN);
-        placerHaschen(jeu, eclaireur, ORANGE);
+        placerHaschen(jeu, accessibles, ashka, GOLD);
+        placerHaschen(jeu, accessibles, traqueur, GREEN);
+        placerHaschen(jeu, accessibles, eclaireur, ORANGE);
     } else if (jeu.typeSalle == TypeSalle::Elite) {
-        // Un Haschen d'elite (un guerrier en foret, un louvetier ensuite), et deux compagnons
-        Combattant elite = jeu.lieu == 0 ? guerrier : louvetier;
+        // Un Haschen d'elite (un guerrier au debut de la route, un louvetier ensuite), et deux compagnons
+        Combattant elite = jeu.lieu <= 1 || jeu.lieu == 5 ? guerrier : louvetier;
         elite.nom = elite.nom + " d'elite";
         elite.pvMax = elite.pvMax * 17 / 10;
         elite.pv = elite.pvMax;
         elite.attaque = elite.attaque + 2;
         elite.defense = elite.defense + 1;
         elite.orDonne = elite.orDonne * 3;
-        placerHaschen(jeu, elite, GOLD);
+        placerHaschen(jeu, accessibles, elite, GOLD);
         for (int i = 0; i < 2; i++) {
             const auto& h = groupe[GetRandomValue(0, (int)groupe.size() - 1)];
-            placerHaschen(jeu, h.first, h.second);
+            placerHaschen(jeu, accessibles, h.first, h.second);
         }
     } else {
         int nombre = jeu.salle == 1 ? 2 : (jeu.salle >= 6 ? 4 : 3);
         for (int i = 0; i < nombre; i++) {
             const auto& h = groupe[GetRandomValue(0, (int)groupe.size() - 1)];
-            placerHaschen(jeu, h.first, h.second);
+            placerHaschen(jeu, accessibles, h.first, h.second);
         }
     }
 

@@ -9,6 +9,7 @@
 #include <vector>
 #include "raylib.h"
 #include "types.h"
+#include "sprites.h"     // pour NOMBRE_LIEUX
 
 // ===================== Les reglages =====================
 
@@ -153,7 +154,7 @@ const int NOMBRE_AMELIORATIONS = 6;
 
 // ===================== La route (route.cpp) =====================
 
-const int NOMBRE_SALLES = 7;        // la derniere salle est celle du boss
+const int NOMBRE_SALLES = 8;        // une salle par lieu de la route, et la derniere est celle du boss
 
 // Les sortes de salles que la vision peut montrer
 enum class TypeSalle {
@@ -169,7 +170,7 @@ enum class TypeSalle {
 // Une salle proposee par la vision
 struct Salle {
     TypeSalle type;
-    int lieu;       // 0 = foret, 1 = camp, 2 = col
+    int lieu;       // le numero du lieu (voir lieux.cpp)
 };
 
 // Une rune de prophetie : un bonus qu'AYLIS garde jusqu'a la fin de l'aventure
@@ -224,7 +225,8 @@ struct Jeu {
     bool enGarde = false;               // attaque en garde ce tour-ci : les coups recus sont divises par 2
     // La route
     int salle = 1;                      // le numero de la salle en cours (1 a NOMBRE_SALLES)
-    int lieu = 0;                       // le decor : 0 = foret, 1 = camp, 2 = col
+    int lieu = 0;                       // le lieu de la salle (0 a NOMBRE_LIEUX - 1, voir lieux.cpp)
+    std::vector<char> terrain;          // la carte du lieu : une lettre par case (voir lieux.cpp)
     TypeSalle typeSalle = TypeSalle::Combat;
     std::vector<Salle> propositions;    // les salles montrees par la vision
     std::vector<Rune> runesProposees;   // les runes parmi lesquelles choisir
@@ -372,3 +374,17 @@ void parlerA(Jeu& jeu, int personnage);                     // 0 = Maren, 1 = Du
 std::string paroleAuSeuil(const Memoire& m, int personnage);
 std::string murmureDuSeuil(const Memoire& m);
 Vector2 positionAuSeuil(int personnage);                    // 0 a 2 = les echos, 3 = AYLIS, 4 = le portail
+
+// ===================== lieux.cpp : les lieux de la route et leurs cartes =====================
+
+std::string nomCourtLieu(int lieu);
+int marchandDuLieu(int lieu);                           // 0 = Maren, 1 = Durgan, 2 = Silas
+void chargerCarte(Jeu& jeu);                            // choisit une carte du lieu et remplit le terrain
+char caseDuTerrain(const Jeu& jeu, int colonne, int ligne);     // ' ' hors de l'arene
+std::vector<bool> casesAccessibles(const Jeu& jeu);    // depuis la case de depart d'AYLIS
+
+// ===================== decor.cpp : le terrain des lieux, dessine =====================
+
+void dessinerTerrain(const Jeu& jeu);                   // le sol et les constructions (avant la penombre)
+void ajouterLumieresDuDecor(const Jeu& jeu);            // les fenetres allumees... (dans la carte de lumiere)
+std::vector<Vector2> cheminsDeFumee(const Jeu& jeu);    // d'ou monte la fumee des maisons brulees

@@ -20,6 +20,8 @@ add_executable(vesperance_2d
     main.cpp
     regles.cpp
     route.cpp
+    lieux.cpp
+    decor.cpp
     haltes.cpp
     memoire.cpp
     seuil.cpp

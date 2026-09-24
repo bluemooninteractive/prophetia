@@ -4,6 +4,8 @@
 #include <string>
 #include "raylib.h"
 
+const int NOMBRE_LIEUX = 7;         // foret, village, gue, bois, camp, forteresse, col
+
 // Les images du jeu. Une "Texture2D" est une image chargee dans la carte graphique, prete a etre dessinee.
 struct Sprites {
     Texture2D aylis;
@@ -18,11 +20,14 @@ struct Sprites {
     Texture2D louvetier;
     Texture2D ashka;
     Texture2D marchands[3];         // Maren, Durgan et Silas
-    Texture2D lumineux[3];          // les sources de lumiere : champignons, brasero, cristaux
-    // L'environnement : [numero du lieu][variante]. Lieu 0 = foret, 1 = camp, 2 = col.
-    Texture2D sol[3][2];
-    Texture2D obstacle[3][2];       // arbres, tonneaux et tentes, rochers
-    Texture2D decor[3][2];          // herbe et fleurs, os, cailloux et neige
+    // L'environnement de chaque lieu : [numero du lieu][variante] (voir lieux.cpp pour la liste des lieux)
+    Texture2D lumineux[NOMBRE_LIEUX];       // la source de lumiere du lieu (champignon, lanterne, torche...)
+    Texture2D sol[NOMBRE_LIEUX][2];
+    Texture2D obstacle[NOMBRE_LIEUX][2];    // les "arbres" du lieu (arbres, saules, arbres morts, rochers...)
+    Texture2D decor[NOMBRE_LIEUX][2];       // les petits details par terre (herbe, roseaux, feuilles, gravats...)
+    Texture2D tonneau;
+    Texture2D tente;
+    Texture2D rocher;
     Texture2D feu[2];               // le feu de camp : 2 images qui alternent
 
     // Les icones des 9 actions, dans l'ordre de la barre d'actions

@@ -114,18 +114,43 @@ std::vector<int> casesAtteignables(const Jeu& jeu) {
     return pas;
 }
 
-// Un Haschen fait un pas vers AYLIS, si une case libre le rapproche. Renvoie false s'il est bloque.
+// La "carte des distances" jusqu'a AYLIS : pour chaque case, le nombre de pas pour la rejoindre
+// en contournant les obstacles (rivieres, remparts, maisons...). C'est encore un parcours en largeur,
+// mais qui part d'AYLIS. Les Haschen ne bloquent pas le calcul : ils finiront par se pousser.
+std::vector<int> distancesJusquAAylis(const Jeu& jeu) {
+    std::vector<int> distance(COLONNES * LIGNES, -1);
+    std::vector<int> aVisiter = {jeu.aylis.ligne * COLONNES + jeu.aylis.colonne};
+    distance[aVisiter[0]] = 0;
+    const int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
+    for (int i = 0; i < (int)aVisiter.size(); i++) {
+        int c = aVisiter[i] % COLONNES;
+        int l = aVisiter[i] / COLONNES;
+        for (const auto& dir : directions) {
+            int nc = c + dir[0];
+            int nl = l + dir[1];
+            if (estDansArene(nc, nl) && !estRocher(jeu, nc, nl) && distance[nl * COLONNES + nc] == -1) {
+                distance[nl * COLONNES + nc] = distance[aVisiter[i]] + 1;
+                aVisiter.push_back(nl * COLONNES + nc);
+            }
+        }
+    }
+    return distance;
+}
+
+// Un Haschen fait un pas vers AYLIS, par le plus court chemin. Renvoie false s'il est bloque.
 bool unPasVersAylis(Jeu& jeu, Pion& h) {
     const int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    int meilleureDistance = distanceEntre(h, jeu.aylis);
+    std::vector<int> distance = distancesJusquAAylis(jeu);
+    int ici = distance[h.ligne * COLONNES + h.colonne];
+    int meilleureDistance = ici >= 0 ? ici : 999;
     int meilleureColonne = h.colonne;
     int meilleureLigne = h.ligne;
     for (const auto& dir : directions) {
         int c = h.colonne + dir[0];
         int l = h.ligne + dir[1];
         if (caseLibre(jeu, c, l)) {
-            int d = distanceCases(c, l, jeu.aylis.colonne, jeu.aylis.ligne);
-            if (d < meilleureDistance) {
+            int d = distance[l * COLONNES + c];
+            if (d >= 0 && d < meilleureDistance) {
                 meilleureDistance = d;
                 meilleureColonne = c;
                 meilleureLigne = l;

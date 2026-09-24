@@ -52,7 +52,7 @@ Rune runeAuHasard(const Jeu& jeu, bool epique) {
 
 // Les articles de chaque marchand. Un numero >= 100 veut dire : "la rune numero - 100".
 void ouvrirBoutique(Jeu& jeu) {
-    jeu.marchand = jeu.lieu;
+    jeu.marchand = marchandDuLieu(jeu.lieu);
     jeu.articles.clear();
     if (jeu.marchand == 0) {
         jeu.articles.push_back({0, "Potion", "Rend 15 pv en combat", 20});

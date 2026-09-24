@@ -182,6 +182,188 @@ const std::vector<std::string> DESSIN_CRISTAL = {
     "................",
 };
 
+// ----- Les nouveaux lieux de la route -----
+
+// Le gue des Saules : un saule pleureur, dont les branches retombent
+const std::vector<std::string> DESSIN_SAULE = {
+    ".....kkkkkk.....",
+    "...kkvlvvlvkk...",
+    "..kvlvvvvvvlvk..",
+    ".kvvlvvlvvlvvvk.",
+    ".kvlkvvvvvvkvlk.",
+    "kvlk.kvnnvk.kvlk",
+    "kvk..kvnnvk..kvk",
+    "kvk...knnk...kvk",
+    "klk...knnk...klk",
+    "kvk...knnk...kvk",
+    ".k....knnk....k.",
+    "......knnk......",
+    ".....kNnnNk.....",
+    "....kNNkkNNk....",
+    "................",
+    "................",
+};
+
+// Le bois des Pendus : un arbre mort, tordu, aux branches comme des griffes
+const std::vector<std::string> DESSIN_ARBRE_MORT = {
+    "..k.......k.....",
+    "..kk....kk..k...",
+    "...kFk.kFk.kk...",
+    "k...kFkFk.kFk...",
+    "kk...kFFkkFk..k.",
+    ".kFk..kFFFk..kk.",
+    "..kFkkkFFk..kFk.",
+    "....kFFFFkkFFk..",
+    "......kFFFFk....",
+    "......kFFFk.....",
+    "......kFFFk.....",
+    "......kFFFFk....",
+    ".....kFFkFFk....",
+    "....kFFk.kFFk...",
+    "...kkk....kkk...",
+    "................",
+};
+
+// Des roseaux au bord de l'eau
+const std::vector<std::string> DESSIN_ROSEAUX = {
+    "................",
+    "................",
+    "....n.....n.....",
+    "....n..n..n.....",
+    "...kn..n..nk....",
+    "...vk..n..kv..n.",
+    "...v...v...v..n.",
+    "..v...v....v..v.",
+    "..v...v.....v.v.",
+    "..v...v.....v.v.",
+    ".v...v.....v.v..",
+    ".v...v.....v.v..",
+    "................",
+    "................",
+    "................",
+    "................",
+};
+
+// Des feuilles mortes, tombees des arbres morts
+const std::vector<std::string> DESSIN_FEUILLES = {
+    "................",
+    "................",
+    "................",
+    "..o.............",
+    ".oFo......N.....",
+    "..o......NnN....",
+    ".........nN.....",
+    "................",
+    "......F.........",
+    ".....FoF....o...",
+    "......F....oFo..",
+    ".............o..",
+    "...N............",
+    "..NnN...........",
+    "................",
+    "................",
+};
+
+// Des gravats : les pierres tombees des remparts
+const std::vector<std::string> DESSIN_GRAVATS = {
+    "................",
+    "................",
+    "................",
+    "...kkk..........",
+    "..kgGGk.........",
+    "..kGGGk....kk...",
+    "...kkk....kgGk..",
+    "..........kGGk..",
+    "...........kk...",
+    ".....kk.........",
+    "....kgGk....k...",
+    "....kGGk...kGk..",
+    ".....kk.....k...",
+    "................",
+    "................",
+    "................",
+};
+
+// Le village : une lanterne sur un poteau
+const std::vector<std::string> DESSIN_LANTERNE = {
+    "................",
+    ".......kk.......",
+    "......kNNk......",
+    ".....kkkkkk.....",
+    ".....kYwYYk.....",
+    ".....kYYYYk.....",
+    ".....kYYYok.....",
+    ".....kkkkkk.....",
+    ".......kk.......",
+    ".......Nk.......",
+    ".......Nk.......",
+    ".......Nk.......",
+    ".......Nk.......",
+    ".......Nk.......",
+    ".....kNNNNk.....",
+    "................",
+};
+
+// Le gue : un nenuphar qui luit a la surface
+const std::vector<std::string> DESSIN_NENUPHAR = {
+    "................",
+    "................",
+    "................",
+    "................",
+    "................",
+    ".......k........",
+    "......kuk.......",
+    ".....kuwuk......",
+    "..kk.kuuuk.kk...",
+    ".kVVkkUuUkkVVk..",
+    "kVlVVVkUkVVVlVk.",
+    "kVVVVVVVVVVVVVk.",
+    ".kVVVVVVVVVVVk..",
+    "..kkkkkkkkkkk...",
+    "................",
+    "................",
+};
+
+// La forteresse : une torche plantee dans un support de fer
+const std::vector<std::string> DESSIN_TORCHE = {
+    "................",
+    ".......o........",
+    "......oYo.......",
+    ".....oYwYo......",
+    ".....oYYYo......",
+    "......oYo.......",
+    "......kNk.......",
+    "......kNk.......",
+    ".....kGNGk......",
+    "......kNk.......",
+    "......kNk.......",
+    "......kNk.......",
+    "......kNk.......",
+    ".....kGGGk......",
+    "....kGGGGGk.....",
+    "................",
+};
+
+// Le bois des Pendus : une pierre levee, gravee de runes qui luisent d'un vert malsain
+const std::vector<std::string> DESSIN_PIERRE_RUNIQUE = {
+    "................",
+    "......kkkk......",
+    ".....kGGGGk.....",
+    "....kGGlGGGk....",
+    "....kGllGGGk....",
+    "....kGGlGGGk....",
+    "....kGGGGlGk....",
+    "....kGGGllGk....",
+    "....kGGGGlGk....",
+    "....kGlGGGGk....",
+    "....kGllGGGk....",
+    "....kGGlGGGk....",
+    "...kGGGGGGGGk...",
+    "..kVkGGGGGGkVk..",
+    "..kkkkkkkkkkkk..",
+    "................",
+};
+
 // Les marchands de la route
 // Maren, l'herboriste : un capuchon vert et une fiole de potion
 const std::vector<std::string> DESSIN_MAREN = {
@@ -568,9 +750,6 @@ void chargerSprites() {
     lesSprites.arc = creerTexture(DESSIN_ARC, aucune);
     lesSprites.baton = creerTexture(DESSIN_BATON, aucune);
     lesSprites.couronne = creerTexture(DESSIN_COURONNE, aucune);
-    lesSprites.lumineux[0] = creerTexture(DESSIN_CHAMPIGNON, aucune);
-    lesSprites.lumineux[1] = creerTexture(DESSIN_BRASERO, aucune);
-    lesSprites.lumineux[2] = creerTexture(DESSIN_CRISTAL, aucune);
     lesSprites.marchands[0] = creerTexture(DESSIN_MAREN, aucune);
     lesSprites.marchands[1] = creerTexture(DESSIN_DURGAN, aucune);
     lesSprites.marchands[2] = creerTexture(DESSIN_SILAS, aucune);
@@ -583,31 +762,39 @@ void chargerSprites() {
     lesSprites.louvetier = creerTexture(DESSIN_HASCHEN, {110, 75, 45, 255});    // brun
     lesSprites.ashka = creerTexture(DESSIN_HASCHEN, {120, 20, 40, 255});        // pourpre
 
-    // La foret : herbe, arbres, touffes et fleurs
-    lesSprites.sol[0][0] = creerSol({58, 92, 52, 255}, 0);
-    lesSprites.sol[0][1] = creerSol({52, 84, 47, 255}, 1);
-    lesSprites.obstacle[0][0] = creerTexture(DESSIN_ARBRE, aucune);
-    lesSprites.obstacle[0][1] = creerTexture(DESSIN_SAPIN, aucune);
-    lesSprites.decor[0][0] = creerTexture(DESSIN_HERBE, aucune);
-    lesSprites.decor[0][1] = creerTexture(DESSIN_FLEURS, aucune);
+    // Chaque lieu de la route : son sol (2 teintes), ses "arbres", ses petits details et sa source de lumiere.
+    // Une petite fonction pour remplir un lieu en une ligne
+    auto lieu = [&](int numero, Color sol1, Color sol2, const std::vector<std::string>& arbre1,
+                    const std::vector<std::string>& arbre2, const std::vector<std::string>& detail1,
+                    const std::vector<std::string>& detail2, const std::vector<std::string>& lumiere) {
+        lesSprites.sol[numero][0] = creerSol(sol1, numero * 2);
+        lesSprites.sol[numero][1] = creerSol(sol2, numero * 2 + 1);
+        lesSprites.obstacle[numero][0] = creerTexture(arbre1, aucune);
+        lesSprites.obstacle[numero][1] = creerTexture(arbre2, aucune);
+        lesSprites.decor[numero][0] = creerTexture(detail1, aucune);
+        lesSprites.decor[numero][1] = creerTexture(detail2, aucune);
+        lesSprites.lumineux[numero] = creerTexture(lumiere, aucune);
+    };
+    lieu(0, {58, 92, 52, 255}, {52, 84, 47, 255}, DESSIN_ARBRE, DESSIN_SAPIN, DESSIN_HERBE, DESSIN_FLEURS,
+         DESSIN_CHAMPIGNON);                                                     // la foret des Brumes
+    lieu(1, {96, 92, 62, 255}, {90, 86, 58, 255}, DESSIN_ARBRE, DESSIN_ARBRE, DESSIN_HERBE, DESSIN_TRACES,
+         DESSIN_LANTERNE);                                                       // le village de Brennac
+    lieu(2, {60, 100, 72, 255}, {54, 92, 66, 255}, DESSIN_SAULE, DESSIN_SAULE, DESSIN_ROSEAUX, DESSIN_CAILLOUX,
+         DESSIN_NENUPHAR);                                                       // le gue des Saules
+    lieu(3, {44, 48, 44, 255}, {40, 44, 40, 255}, DESSIN_ARBRE_MORT, DESSIN_ARBRE_MORT, DESSIN_FEUILLES, DESSIN_OS,
+         DESSIN_PIERRE_RUNIQUE);                                                 // le bois des Pendus
+    lieu(4, {110, 84, 58, 255}, {100, 76, 52, 255}, DESSIN_TONNEAU, DESSIN_TENTE, DESSIN_OS, DESSIN_TRACES,
+         DESSIN_BRASERO);                                                        // le camp de guerre
+    lieu(5, {84, 80, 94, 255}, {78, 74, 88, 255}, DESSIN_ROCHER, DESSIN_ROCHER, DESSIN_GRAVATS, DESSIN_CAILLOUX,
+         DESSIN_TORCHE);                                                         // la forteresse de Karn
+    lieu(6, {78, 82, 96, 255}, {70, 74, 88, 255}, DESSIN_ROCHER, DESSIN_ROCHER, DESSIN_CAILLOUX, DESSIN_NEIGE,
+         DESSIN_CRISTAL);                                                        // le col d'Ashka
 
-    // Le camp : terre battue, tonneaux et tentes, os et traces de pas
-    lesSprites.sol[1][0] = creerSol({110, 84, 58, 255}, 2);
-    lesSprites.sol[1][1] = creerSol({100, 76, 52, 255}, 3);
-    lesSprites.obstacle[1][0] = creerTexture(DESSIN_TONNEAU, aucune);
-    lesSprites.obstacle[1][1] = creerTexture(DESSIN_TENTE, aucune);
-    lesSprites.decor[1][0] = creerTexture(DESSIN_OS, aucune);
-    lesSprites.decor[1][1] = creerTexture(DESSIN_TRACES, aucune);
+    lesSprites.tonneau = creerTexture(DESSIN_TONNEAU, aucune);
+    lesSprites.tente = creerTexture(DESSIN_TENTE, aucune);
+    lesSprites.rocher = creerTexture(DESSIN_ROCHER, aucune);
     lesSprites.feu[0] = creerTexture(DESSIN_FEU_1, aucune);
     lesSprites.feu[1] = creerTexture(DESSIN_FEU_2, aucune);
-
-    // Le col : dalles de pierre froide, rochers, cailloux et neige
-    lesSprites.sol[2][0] = creerSol({78, 82, 96, 255}, 4);
-    lesSprites.sol[2][1] = creerSol({70, 74, 88, 255}, 5);
-    lesSprites.obstacle[2][0] = creerTexture(DESSIN_ROCHER, aucune);
-    lesSprites.obstacle[2][1] = creerTexture(DESSIN_ROCHER, aucune);
-    lesSprites.decor[2][0] = creerTexture(DESSIN_CAILLOUX, aucune);
-    lesSprites.decor[2][1] = creerTexture(DESSIN_NEIGE, aucune);
 
     for (int i = 0; i < 9; i++) {
         lesSprites.icones[i] = creerTexture(DESSINS_ICONES[i], aucune);
@@ -620,7 +807,7 @@ void dechargerSprites() {
         lesSprites.eclaireur, lesSprites.guerrier, lesSprites.traqueur, lesSprites.chaman,
         lesSprites.louvetier, lesSprites.ashka, lesSprites.feu[0], lesSprites.feu[1],
         lesSprites.marchands[0], lesSprites.marchands[1], lesSprites.marchands[2],
-        lesSprites.lumineux[0], lesSprites.lumineux[1], lesSprites.lumineux[2],
+        lesSprites.tonneau, lesSprites.tente, lesSprites.rocher,
     };
     for (const Texture2D& texture : textures) {
         UnloadTexture(texture);
@@ -628,7 +815,8 @@ void dechargerSprites() {
     for (const Texture2D& icone : lesSprites.icones) {
         UnloadTexture(icone);
     }
-    for (int lieu = 0; lieu < 3; lieu++) {
+    for (int lieu = 0; lieu < NOMBRE_LIEUX; lieu++) {
+        UnloadTexture(lesSprites.lumineux[lieu]);
         for (int variante = 0; variante < 2; variante++) {
             UnloadTexture(lesSprites.sol[lieu][variante]);
             UnloadTexture(lesSprites.obstacle[lieu][variante]);
