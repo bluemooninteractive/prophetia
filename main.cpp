@@ -4,6 +4,16 @@
 #include <cstdlib>
 #include <ctime>
 
+// Les raretes des objets
+const int COMMUN = 0;
+const int RARE = 1;
+const int EPIQUE = 2;
+
+// Les types d'objets
+const int OBJET_MATERIAU = 0;   // ne sert qu'a etre revendu
+const int OBJET_ARME = 1;
+const int OBJET_POTION = 2;     // va directement dans les potions d'AYLIS
+
 // Une arme : de melee (corps a corps) ou a distance
 struct Arme {
     std::string nom;
@@ -11,7 +21,23 @@ struct Arme {
     int bonusAttaque;       // s'ajoute a l'attaque d'AYLIS (peut etre negatif)
     int chanceCritique;     // sur 100 : 10 = 1 chance sur 10
     int nombreDeCoups;      // 2 = l'arme frappe deux fois par attaque
-    int prix;
+    int prix;               // le marchand la rachete a moitie prix
+    int rarete = COMMUN;
+};
+
+// Un objet de l'inventaire
+struct Objet {
+    std::string nom;
+    int type;
+    int rarete;
+    int valeur;             // le prix auquel le marchand l'achete
+    Arme arme = {"", false, 0, 0, 1, 0};  // utilise seulement si c'est une arme
+};
+
+// Une ligne de la table de loot d'un ennemi
+struct Butin {
+    Objet objet;
+    int chance;             // sur 100 : 30 = 30% de chances de tomber
 };
 
 // Un combattant regroupe toutes ses stats dans un seul "paquet"
@@ -24,7 +50,8 @@ struct Combattant {
     int potions;
     bool estBoss;
     int xpDonne;            // l'XP que l'ennemi donne quand il est vaincu
-    int orDonne;            // les pieces d'or que l'ennemi laisse tomber
+    int orDonne;            // les pieces d'or que l'ennemi laisse tomber (en moyenne)
+    std::vector<Butin> butin = {};      // la table de loot de l'ennemi
     bool enrage = false;    // un boss s'enrage une fois quand il passe sous la moitie de ses pv
     bool etourdi = false;   // un ennemi paralyse passe son prochain tour
     int niveau = 1;
@@ -35,6 +62,7 @@ struct Combattant {
     int manaMax = 10;
     int sortsConnus = 1;    // 1 = Boule de feu, 2 = + Soin, 3 = + Eclair
     Arme arme = {"Epee courte", false, 0, 10, 1, 0};
+    std::vector<Objet> inventaire = {};
 };
 
 const int rageMax = 100;
@@ -120,6 +148,61 @@ void afficherArme(const Arme& arme) {
     std::cout << arme.bonusAttaque << ", critique " << arme.chanceCritique << "%";
     if (arme.nombreDeCoups > 1) {
         std::cout << ", frappe " << arme.nombreDeCoups << " fois";
+    }
+}
+
+// Le nom d'une rarete
+std::string nomRarete(int rarete) {
+    if (rarete == EPIQUE) {
+        return "EPIQUE";
+    } else if (rarete == RARE) {
+        return "RARE";
+    }
+    return "commun";
+}
+
+// Transforme une arme en objet d'inventaire (revendue a moitie prix)
+Objet objetDepuisArme(const Arme& arme) {
+    return {arme.nom, OBJET_ARME, arme.rarete, arme.prix / 2, arme};
+}
+
+// Affiche un objet sur une ligne, par exemple : [RARE] Griffe de berserker (25 or)
+void afficherObjet(const Objet& objet) {
+    std::cout << "[" << nomRarete(objet.rarete) << "] ";
+    if (objet.type == OBJET_ARME) {
+        afficherArme(objet.arme);
+    } else {
+        std::cout << objet.nom;
+    }
+    std::cout << "  (" << objet.valeur << " or)";
+}
+
+// ===================== Le loot =====================
+
+// Ramasse l'or et les objets d'un ennemi vaincu
+void ramasserButin(Combattant& aylis, const Combattant& ennemi) {
+    // L'or varie : entre 80% et 120% de la somme moyenne
+    int pieces = ennemi.orDonne * (80 + std::rand() % 41) / 100;
+    aylis.pieces = aylis.pieces + pieces;
+    std::cout << "AYLIS ramasse " << pieces << " pieces d'or (" << aylis.pieces << " en tout).\n";
+
+    // Chaque ligne de la table de loot est tiree au sort
+    int nombreButins = ennemi.butin.size();
+    for (int i = 0; i < nombreButins; i++) {
+        const Butin& ligne = ennemi.butin[i];
+        if (std::rand() % 100 >= ligne.chance) {
+            continue;   // pas de chance pour cet objet
+        }
+
+        if (ligne.objet.type == OBJET_POTION) {
+            aylis.potions = aylis.potions + 1;
+            std::cout << "Butin : une potion ! (" << aylis.potions << " potions)\n";
+        } else {
+            aylis.inventaire.push_back(ligne.objet);
+            std::cout << "Butin : ";
+            afficherObjet(ligne.objet);
+            std::cout << "\n";
+        }
     }
 }
 
@@ -209,20 +292,138 @@ void depenserPoints(Combattant& aylis) {
 
 // ===================== Le marche =====================
 
-// L'armurerie : acheter une nouvelle arme. L'ancienne est laissee au marchand.
-void armurerie(Combattant& aylis, const std::vector<Arme>& armes) {
-    int nombreArmes = armes.size();
+// Affiche l'inventaire numerote a partir de 1
+void afficherInventaire(const Combattant& aylis) {
+    int taille = aylis.inventaire.size();
+    for (int i = 0; i < taille; i++) {
+        std::cout << (i + 1) << ". ";
+        afficherObjet(aylis.inventaire[i]);
+        std::cout << "\n";
+    }
+}
 
+// Vendre des objets au marchand
+void vendre(Combattant& aylis) {
+    while (true) {
+        int taille = aylis.inventaire.size();
+        if (taille == 0) {
+            std::cout << "\nL'inventaire est vide, plus rien a vendre.\n";
+            return;
+        }
+
+        std::cout << "\n=== VENDRE ===   Tu as " << aylis.pieces << " pieces d'or\n";
+        afficherInventaire(aylis);
+        std::cout << (taille + 1) << ". Vendre tous les materiaux d'un coup\n";
+        std::cout << "0. Retour\n";
+
+        int choix = lireChoix(0, taille + 1);
+        if (choix == 0) {
+            return;
+        }
+
+        if (choix == taille + 1) {
+            // On parcourt a l'envers : effacer un objet ne decale pas ceux qu'il reste a voir
+            int gain = 0;
+            for (int i = taille - 1; i >= 0; i--) {
+                if (aylis.inventaire[i].type == OBJET_MATERIAU) {
+                    gain = gain + aylis.inventaire[i].valeur;
+                    aylis.inventaire.erase(aylis.inventaire.begin() + i);
+                }
+            }
+            aylis.pieces = aylis.pieces + gain;
+            std::cout << "Materiaux vendus : +" << gain << " or.\n";
+        } else {
+            const Objet objet = aylis.inventaire[choix - 1];   // une copie : on va l'effacer
+            aylis.inventaire.erase(aylis.inventaire.begin() + (choix - 1));
+            aylis.pieces = aylis.pieces + objet.valeur;
+            std::cout << objet.nom << " vendu : +" << objet.valeur << " or.\n";
+        }
+    }
+}
+
+// Voir l'inventaire et changer d'arme
+void gererInventaire(Combattant& aylis) {
+    while (true) {
+        std::cout << "\n=== INVENTAIRE ===\n";
+        std::cout << "Arme en main : ";
+        afficherArme(aylis.arme);
+        std::cout << "\n";
+
+        int taille = aylis.inventaire.size();
+        if (taille == 0) {
+            std::cout << "(sac vide)\n";
+            return;
+        }
+        afficherInventaire(aylis);
+        std::cout << "Tape le numero d'une arme pour l'equiper, ou 0 pour revenir.\n";
+
+        int choix = lireChoix(0, taille);
+        if (choix == 0) {
+            return;
+        }
+
+        Objet& objet = aylis.inventaire[choix - 1];
+        if (objet.type != OBJET_ARME) {
+            std::cout << objet.nom << " n'est pas une arme.\n";
+            continue;
+        }
+
+        // On echange : l'arme en main va dans le sac, l'arme du sac va en main
+        Arme ancienne = aylis.arme;
+        aylis.arme = objet.arme;
+        objet = objetDepuisArme(ancienne);
+        std::cout << "AYLIS s'equipe : " << aylis.arme.nom << " !\n";
+    }
+}
+
+// Les prix montent a chaque visite : +10% par marche deja visite
+int prixDuJour(int prixDeBase, int visite) {
+    return prixDeBase * (100 + 10 * visite) / 100;
+}
+
+// Le marchand choisit au hasard quelques armes a vendre aujourd'hui
+std::vector<Arme> tirerStock(const std::vector<Arme>& armes, const Arme& armeEnMain, int nombre) {
+    // On part de toutes les armes, sauf celle qu'AYLIS a deja en main
+    std::vector<Arme> candidates;
+    int nombreArmes = armes.size();
+    for (int i = 0; i < nombreArmes; i++) {
+        if (armes[i].nom != armeEnMain.nom) {
+            candidates.push_back(armes[i]);
+        }
+    }
+
+    // On en tire "nombre" au hasard, sans prendre deux fois la meme
+    std::vector<Arme> stock;
+    for (int tirage = 0; tirage < nombre && !candidates.empty(); tirage++) {
+        int index = std::rand() % candidates.size();
+        stock.push_back(candidates[index]);
+        candidates.erase(candidates.begin() + index);
+    }
+    return stock;
+}
+
+// L'armurerie : acheter une arme du stock. L'ancienne va dans l'inventaire.
+void armurerie(Combattant& aylis, std::vector<Arme>& stock, const std::string& armeEnPromo) {
     while (true) {
         std::cout << "\n=== ARMURERIE ===   Tu as " << aylis.pieces << " pieces d'or\n";
         std::cout << "Arme actuelle : ";
         afficherArme(aylis.arme);
         std::cout << "\n\n";
 
+        int nombreArmes = stock.size();
+        if (nombreArmes == 0) {
+            std::cout << "Le marchand n'a plus d'armes aujourd'hui.\n";
+            return;
+        }
+
         for (int i = 0; i < nombreArmes; i++) {
             std::cout << (i + 1) << ". ";
-            afficherArme(armes[i]);
-            std::cout << "  ...  " << armes[i].prix << " or\n";
+            afficherArme(stock[i]);
+            std::cout << "  ...  " << stock[i].prix << " or";
+            if (stock[i].nom == armeEnPromo) {
+                std::cout << "  ** PROMO -25% **";
+            }
+            std::cout << "\n";
         }
         std::cout << (nombreArmes + 1) << ". Retour\n";
 
@@ -231,38 +432,78 @@ void armurerie(Combattant& aylis, const std::vector<Arme>& armes) {
             return;
         }
 
-        const Arme& arme = armes[choix - 1];
-        if (arme.nom == aylis.arme.nom) {
-            std::cout << "AYLIS a deja cette arme en main !\n";
-        } else if (aylis.pieces < arme.prix) {
+        const Arme arme = stock[choix - 1];     // une copie : on va l'enlever du stock
+        if (aylis.pieces < arme.prix) {
             std::cout << "Pas assez d'or ! Il te manque " << (arme.prix - aylis.pieces) << " pieces.\n";
-        } else {
-            aylis.pieces = aylis.pieces - arme.prix;
-            aylis.arme = arme;
-            std::cout << "AYLIS s'equipe : " << arme.nom << " !\n";
+            continue;
         }
+        aylis.pieces = aylis.pieces - arme.prix;
+        stock.erase(stock.begin() + (choix - 1));   // le marchand n'en avait qu'une
+
+        aylis.inventaire.push_back(objetDepuisArme(aylis.arme));
+        std::cout << aylis.arme.nom << " va dans le sac.\n";
+        aylis.arme = arme;
+        std::cout << "AYLIS s'equipe : " << arme.nom << " !\n";
     }
 }
 
-void marche(Combattant& aylis, const std::vector<Arme>& armes) {
-    const int prixPotion = 15;
-    const int prixArmure = 35;
-    const int prixElixir = 30;
+// Le marche. "visite" = combien de marches AYLIS a deja visites (0 au premier).
+void marche(Combattant& aylis, const std::vector<Arme>& armes, int visite) {
+    const int prixPotion = prixDuJour(15, visite);
+    const int prixArmure = prixDuJour(35, visite);
+    const int prixElixir = prixDuJour(30, visite);
+
+    // Le stock du jour : 1 a 3 potions et 3 armes au hasard
+    int potionsEnStock = 1 + std::rand() % 3;
+    std::vector<Arme> stock = tirerStock(armes, aylis.arme, 3);
+
+    // Les armes suivent aussi la hausse des prix, et l'une d'elles est en promo
+    int nombreArmes = stock.size();
+    for (int i = 0; i < nombreArmes; i++) {
+        stock[i].prix = prixDuJour(stock[i].prix, visite);
+    }
+    std::string armeEnPromo = "";
+    if (nombreArmes > 0) {
+        int index = std::rand() % nombreArmes;
+        stock[index].prix = stock[index].prix * 75 / 100;
+        armeEnPromo = stock[index].nom;
+    }
+
+    if (visite > 0) {
+        std::cout << "\nLe marchand soupire : \"La guerre contre les Haschen fait monter les prix...\" (+"
+                  << (10 * visite) << "%)\n";
+    }
 
     while (true) {
         std::cout << "\n=== LE MARCHE ===   Tu as " << aylis.pieces << " pieces d'or\n";
-        std::cout << "1. Potion (+15 pv en combat) ......... " << prixPotion << " or  (tu en as " << aylis.potions << ")\n";
+        std::cout << "1. Potion (+15 pv en combat) ......... " << prixPotion << " or  (tu en as " << aylis.potions
+                  << ", il en reste " << potionsEnStock << ")\n";
         std::cout << "2. Armure renforcee (+1 defense) ..... " << prixArmure << " or\n";
         std::cout << "3. Elixir de mana (+5 mana max) ...... " << prixElixir << " or\n";
-        std::cout << "4. Armurerie (acheter une arme)\n";
-        std::cout << "5. Reprendre la route\n";
+        std::cout << "4. Armurerie (" << stock.size() << " armes en stock aujourd'hui)\n";
+        std::cout << "5. Vendre des objets (" << aylis.inventaire.size() << " dans le sac)\n";
+        std::cout << "6. Inventaire (changer d'arme)\n";
+        std::cout << "7. Reprendre la route\n";
 
-        int choix = lireChoix(1, 5);
-        if (choix == 5) {
+        int choix = lireChoix(1, 7);
+        if (choix == 7) {
             return;
         }
         if (choix == 4) {
-            armurerie(aylis, armes);
+            armurerie(aylis, stock, armeEnPromo);
+            continue;
+        }
+        if (choix == 5) {
+            vendre(aylis);
+            continue;
+        }
+        if (choix == 6) {
+            gererInventaire(aylis);
+            continue;
+        }
+
+        if (choix == 1 && potionsEnStock == 0) {
+            std::cout << "Rupture de stock ! Plus de potions aujourd'hui.\n";
             continue;
         }
 
@@ -284,6 +525,7 @@ void marche(Combattant& aylis, const std::vector<Arme>& armes) {
 
         if (choix == 1) {
             aylis.potions = aylis.potions + 1;
+            potionsEnStock = potionsEnStock - 1;
             std::cout << "Achete ! " << aylis.potions << " potions.\n";
         } else if (choix == 2) {
             aylis.defense = aylis.defense + 1;
@@ -585,12 +827,32 @@ int main() {
         {"Couteaux de lancer",  true,  -3, 15, 2,  55},
     };
 
-    // La liste des ennemis, dans l'ordre (les deux derniers nombres = XP et or donnes)
+    // Les objets qu'on peut trouver sur les ennemis
+    //                 nom                      type            rarete  valeur
+    Objet croc     = {"Croc de Haschen",        OBJET_MATERIAU, COMMUN,  8};
+    Objet peau     = {"Peau de Haschen",        OBJET_MATERIAU, COMMUN, 12};
+    Objet griffe   = {"Griffe de berserker",    OBJET_MATERIAU, RARE,   25};
+    Objet couronne = {"Couronne d'os d'Ashka",  OBJET_MATERIAU, EPIQUE, 70};
+    Objet potion   = {"Potion",                 OBJET_POTION,   COMMUN,  7};
+
+    // Les armes qu'on peut trouver sur les ennemis
+    //                                  nom                   distance bonus crit coups prix rarete
+    Objet arcDOs         = objetDepuisArme({"Arc d'os",           true,   3, 20, 1,  60, RARE});
+    Objet lance          = objetDepuisArme({"Lance de Haschen",   false,  3, 15, 1,  60, RARE});
+    Objet hacheBerserker = objetDepuisArme({"Hache du berserker", false,  6, 15, 1,  80, RARE});
+    Objet javelots       = objetDepuisArme({"Javelots d'Ashka",   true,   6, 20, 1, 120, EPIQUE});
+
+    // La liste des ennemis, dans l'ordre.
+    // Apres l'XP et l'or : la table de loot, chaque objet avec sa chance sur 100.
     std::vector<Combattant> ennemis = {
-        {"Haschen eclaireur",              18, 18,  8, 1, 0, false,  20, 20},
-        {"Haschen guerrier",               22, 22,  9, 2, 0, false,  25, 25},
-        {"Ashka, Matriarche des Haschen",  40, 40, 14, 4, 1, true,   50, 50},
-        {"Haschen berserker",              30, 30, 15, 5, 0, false,  30, 30},
+        {"Haschen eclaireur",              18, 18,  8, 1, 0, false,  20, 20,
+            {{croc, 70}, {peau, 30}, {potion, 20}, {arcDOs, 10}}},
+        {"Haschen guerrier",               22, 22,  9, 2, 0, false,  25, 25,
+            {{croc, 60}, {peau, 50}, {potion, 20}, {lance, 12}}},
+        {"Ashka, Matriarche des Haschen",  40, 40, 14, 4, 1, true,   50, 50,
+            {{couronne, 100}, {javelots, 100}, {potion, 50}}},
+        {"Haschen berserker",              30, 30, 15, 5, 0, false,  30, 30,
+            {{croc, 50}, {griffe, 60}, {hacheBerserker, 15}}},
         {"Vorgath le Destructeur",         60, 60, 17, 6, 2, true,  100,  0},
     };
 
@@ -640,15 +902,14 @@ int main() {
         }
 
         // Les recompenses
-        aylis.pieces = aylis.pieces + ennemi.orDonne;
-        std::cout << "AYLIS ramasse " << ennemi.orDonne << " pieces d'or (" << aylis.pieces << " en tout).\n";
+        ramasserButin(aylis, ennemi);
         gagnerXp(aylis, ennemi.xpDonne);
         depenserPoints(aylis);
 
         soigner(aylis, 10);
         std::cout << "AYLIS souffle un peu : +10 pv (" << aylis.pv << "/" << aylis.pvMax << ").\n";
 
-        marche(aylis, armes);
+        marche(aylis, armes, i);
     }
 
     std::cout << "\n=== VICTOIRE TOTALE ! ===\n";
