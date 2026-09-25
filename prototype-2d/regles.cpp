@@ -42,6 +42,9 @@ bool caseLibre(const Jeu& jeu, int colonne, int ligne) {
     if (jeu.aylis.colonne == colonne && jeu.aylis.ligne == ligne) {
         return false;
     }
+    if (allieDebout(jeu) && jeu.allie.colonne == colonne && jeu.allie.ligne == ligne) {
+        return false;       // le compagnon occupe la case
+    }
     return haschenSurCase(jeu, colonne, ligne) == -1;
 }
 
@@ -54,7 +57,7 @@ void ecrireJournal(Jeu& jeu, const std::string& message) {
 
 // Un texte qui s'envole au-dessus d'un pion
 // (delai : il n'apparait qu'au moment ou le coup arrive vraiment, par exemple quand la fleche touche)
-void ajouterTexte(Jeu& jeu, const Pion& pion, const std::string& texte, Color couleur, float delai = 0.0f) {
+void ajouterTexte(Jeu& jeu, const Pion& pion, const std::string& texte, Color couleur, float delai) {
     float x = pion.colonne * TAILLE_CASE + TAILLE_CASE / 2.0f - 12;
     float y = pion.ligne * TAILLE_CASE;
     jeu.textes.push_back({texte, x, y, 1.2f, couleur, delai});
@@ -78,6 +81,7 @@ void mettreAJourTextes(Jeu& jeu, float secondes) {
 
     // Le clignotement rouge des pions touches s'eteint peu a peu
     jeu.aylis.flash = jeu.aylis.flash - secondes;
+    jeu.allie.flash = jeu.allie.flash - secondes;
     for (Pion& h : jeu.haschen) {
         h.flash = h.flash - secondes;
     }
@@ -114,12 +118,12 @@ std::vector<int> casesAtteignables(const Jeu& jeu) {
     return pas;
 }
 
-// La "carte des distances" jusqu'a AYLIS : pour chaque case, le nombre de pas pour la rejoindre
-// en contournant les obstacles (rivieres, remparts, maisons...). C'est encore un parcours en largeur,
-// mais qui part d'AYLIS. Les Haschen ne bloquent pas le calcul : ils finiront par se pousser.
-std::vector<int> distancesJusquAAylis(const Jeu& jeu) {
+// La "carte des distances" jusqu'a une case (celle d'AYLIS, de son compagnon...) : pour chaque case, le nombre
+// de pas pour la rejoindre en contournant les obstacles (rivieres, remparts, maisons...). C'est encore un parcours
+// en largeur, mais qui part de la case visee. Les pions ne bloquent pas le calcul : ils finiront par se pousser.
+std::vector<int> distancesJusqua(const Jeu& jeu, int colonne, int ligne) {
     std::vector<int> distance(COLONNES * LIGNES, -1);
-    std::vector<int> aVisiter = {jeu.aylis.ligne * COLONNES + jeu.aylis.colonne};
+    std::vector<int> aVisiter = {ligne * COLONNES + colonne};
     distance[aVisiter[0]] = 0;
     const int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
     for (int i = 0; i < (int)aVisiter.size(); i++) {
@@ -137,10 +141,10 @@ std::vector<int> distancesJusquAAylis(const Jeu& jeu) {
     return distance;
 }
 
-// Un Haschen fait un pas vers AYLIS, par le plus court chemin. Renvoie false s'il est bloque.
-bool unPasVersAylis(Jeu& jeu, Pion& h) {
+// Un pion fait un pas vers une case, par le plus court chemin. Renvoie false s'il est bloque.
+bool unPasVers(Jeu& jeu, Pion& h, int colonne, int ligne) {
     const int directions[4][2] = {{1, 0}, {-1, 0}, {0, 1}, {0, -1}};
-    std::vector<int> distance = distancesJusquAAylis(jeu);
+    std::vector<int> distance = distancesJusqua(jeu, colonne, ligne);
     int ici = distance[h.ligne * COLONNES + h.colonne];
     int meilleureDistance = ici >= 0 ? ici : 999;
     int meilleureColonne = h.colonne;
@@ -163,12 +167,21 @@ bool unPasVersAylis(Jeu& jeu, Pion& h) {
     return aBouge;
 }
 
-// Avance de "nombre" pas au maximum, en s'arretant au contact d'AYLIS
-void avancer(Jeu& jeu, Pion& h, int nombre) {
+// Avance de "nombre" pas au maximum, en s'arretant au contact de sa cible (AYLIS ou son compagnon)
+void avancer(Jeu& jeu, Pion& h, int nombre, const Pion& cible) {
     for (int pas = 0; pas < nombre; pas++) {
-        if (distanceEntre(h, jeu.aylis) == 1 || !unPasVersAylis(jeu, h)) {
+        if (distanceEntre(h, cible) == 1 || !unPasVers(jeu, h, cible.colonne, cible.ligne)) {
             return;
         }
+    }
+}
+
+// Un Haschen frappe sa cible : AYLIS, ou son compagnon
+void toucherCible(Jeu& jeu, const Pion& attaquant, const Pion& cible, int degats, bool critique, float delai) {
+    if (&cible == &jeu.allie) {
+        toucherAllie(jeu, attaquant, degats, critique, delai);
+    } else {
+        toucherAylis(jeu, attaquant, degats, critique, delai);
     }
 }
 
@@ -512,6 +525,7 @@ void finirTourAylis(Jeu& jeu) {
     if (!resteDesHaschen(jeu)) {
         if (jeu.typeSalle == TypeSalle::Boss && acteDeLaSalle(jeu.salle) == NOMBRE_ACTES - 1) {
             jeu.phase = Phase::Victoire;
+            jeu.fin = finSelonHonneur(jeu.aylis.stats.honneur);     // la fin de la route depend de l'honneur
             terminerCourse(jeu, true);
         } else {
             jeu.phase = Phase::CombatGagne;
@@ -520,6 +534,7 @@ void finirTourAylis(Jeu& jeu) {
     }
     jeu.phase = Phase::TourEnnemi;
     jeu.ennemiQuiJoue = 0;
+    jeu.allieAJoue = false;     // le compagnon joue en premier
     jeu.minuteur = 0.0f;
 }
 
@@ -559,29 +574,38 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
         return;
     }
 
-    int distanceDepart = distanceEntre(h, jeu.aylis);
+    // Sa cible : AYLIS... ou son compagnon, s'il est plus pres (et une fois sur trois quand ils sont aussi proches)
+    Pion* cible = &jeu.aylis;
+    if (allieDebout(jeu)) {
+        int versAylis = distanceEntre(h, jeu.aylis);
+        int versAllie = distanceEntre(h, jeu.allie);
+        if (versAllie < versAylis || (versAllie == versAylis && GetRandomValue(1, 3) == 1)) {
+            cible = &jeu.allie;
+        }
+    }
+    int distanceDepart = distanceEntre(h, *cible);
     bool critique = false;
 
     // Un lanceur tire de loin une fois sur deux
     if (stats.style == Style::Lanceur && distanceDepart > 1 && distanceDepart <= PORTEE_LANCEUR
         && GetRandomValue(0, 1) == 0) {
-        int degats = calculerDegats2D(stats.attaque, 80, jeu.aylis.stats.defense, 10, critique);
+        int degats = calculerDegats2D(stats.attaque, 80, cible->stats.defense, 10, critique);
         SorteProjectile sorte = stats.estBoss ? SorteProjectile::Javelot : SorteProjectile::Fleche;
-        float delai = animerAttaque(jeu, h, jeu.aylis, true, sorte);
-        toucherAylis(jeu, h, degats, critique, delai);
+        float delai = animerAttaque(jeu, h, *cible, true, sorte);
+        toucherCible(jeu, h, *cible, degats, critique, delai);
         return;
     }
 
     // Sinon il avance : un chargeur va plus loin
     int pas = stats.style == Style::Chargeur ? 4 : 2;
-    avancer(jeu, h, pas);
+    avancer(jeu, h, pas, *cible);
 
-    if (distanceEntre(h, jeu.aylis) == 1) {
+    if (distanceEntre(h, *cible) == 1) {
         int puissance = 100;
         // Un boss tente parfois une attaque lourde
         if (stats.estBoss && GetRandomValue(1, 4) == 1) {
             if (GetRandomValue(1, 100) > 60) {
-                animerAttaque(jeu, h, jeu.aylis, false, SorteProjectile::Fleche);
+                animerAttaque(jeu, h, *cible, false, SorteProjectile::Fleche);
                 ecrireJournal(jeu, stats.nom + " rate son attaque lourde !");
                 return;
             }
@@ -590,9 +614,9 @@ void jouerHaschen(Jeu& jeu, Pion& h) {
         if (stats.style == Style::Chargeur && distanceDepart > 1) {
             ecrireJournal(jeu, stats.nom + " CHARGE !");
         }
-        int degats = calculerDegats2D(stats.attaque, puissance, jeu.aylis.stats.defense, 10, critique);
-        float delai = animerAttaque(jeu, h, jeu.aylis, false, SorteProjectile::Fleche);
-        toucherAylis(jeu, h, degats, critique, delai);
+        int degats = calculerDegats2D(stats.attaque, puissance, cible->stats.defense, 10, critique);
+        float delai = animerAttaque(jeu, h, *cible, false, SorteProjectile::Fleche);
+        toucherCible(jeu, h, *cible, degats, critique, delai);
     }
 }
 
@@ -614,6 +638,18 @@ void mettreAJourTourEnnemi(Jeu& jeu, float secondes) {
         return;
     }
     jeu.minuteur = 0.0f;
+
+    // Le compagnon joue avant les Haschen
+    if (!jeu.allieAJoue) {
+        jeu.allieAJoue = true;
+        if (allieDebout(jeu)) {
+            jouerCompagnon(jeu);
+            if (!resteDesHaschen(jeu)) {
+                finirTourAylis(jeu);    // le compagnon a abattu le dernier Haschen
+            }
+            return;                     // une petite pause avant le premier Haschen
+        }
+    }
 
     int nombre = jeu.haschen.size();
     while (jeu.ennemiQuiJoue < nombre && !jeu.haschen[jeu.ennemiQuiJoue].stats.estDebout()) {

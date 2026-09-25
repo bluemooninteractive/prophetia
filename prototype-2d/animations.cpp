@@ -98,7 +98,7 @@ void programmer(Jeu& jeu, float delai, SorteEffet sorte, float x, float y, Color
 }
 
 void animerImpact(Jeu& jeu, int numeroPion, float delai, bool critique, Color couleur) {
-    const Pion& pion = numeroPion == -1 ? jeu.aylis : jeu.haschen[numeroPion];
+    const Pion& pion = numeroPion == -1 ? jeu.aylis : (numeroPion == -2 ? jeu.allie : jeu.haschen[numeroPion]);
     Vector2 centre = centreCase(pion);
     programmer(jeu, delai, SorteEffet::Etincelles, centre.x, centre.y - 6, couleur, critique ? 24 : 12, numeroPion);
     programmer(jeu, delai, SorteEffet::Recul, centre.x, centre.y, couleur, 1, numeroPion);
@@ -209,7 +209,7 @@ void declencher(Jeu& jeu, const EffetEnAttente& effet) {
     } else if (effet.sorte == SorteEffet::ArretSurImage) {
         jeu.arretSurImage = effet.force;
     } else if (effet.sorte == SorteEffet::Recul) {
-        Pion& pion = effet.pion == -1 ? jeu.aylis : jeu.haschen[effet.pion];
+        Pion& pion = effet.pion == -1 ? jeu.aylis : (effet.pion == -2 ? jeu.allie : jeu.haschen[effet.pion]);
         float angle = auHasard(0, 2 * PI);
         pion.recul = DUREE_RECUL;
         pion.reculX = std::cos(angle);
@@ -222,6 +222,9 @@ void mettreAJourAnimations(Jeu& jeu, float secondes) {
     float ancienX = jeu.aylis.xAffiche;
     float ancienY = jeu.aylis.yAffiche;
     mettreAJourPion(jeu.aylis, secondes);
+    if (jeu.compagnon != COMPAGNON_AUCUN) {
+        mettreAJourPion(jeu.allie, secondes);
+    }
     for (Pion& h : jeu.haschen) {
         mettreAJourPion(h, secondes);
     }
@@ -307,7 +310,7 @@ bool animationsEnCours(const Jeu& jeu) {
             return true;
         }
     }
-    return jeu.aylis.elan > 0;
+    return jeu.aylis.elan > 0 || (jeu.compagnon != COMPAGNON_AUCUN && jeu.allie.elan > 0);
 }
 
 // ===================== Le dessin =====================

@@ -29,6 +29,8 @@ add_executable(vesperance_2d
     dessin.cpp
     sprites.cpp
     animations.cpp
+    dialogues.cpp
+    compagnons.cpp
     ../outils.cpp
     ../couleurs.cpp
     ../jauge.cpp

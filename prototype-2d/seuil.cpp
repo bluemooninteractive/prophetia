@@ -117,6 +117,13 @@ void parlerA(Jeu& jeu, int personnage) {
 
 std::string paroleAuSeuil(const Memoire& m, int personnage) {
     if (personnage == 0) {      // Maren
+        if (m.fins[FIN_AUBE] > 0) {
+            return "Dans un futur, le soleil s'est leve sur les Terres de cendre. J'ai vu mes herbes repousser la-bas. "
+                   "C'etait toi. Je le sais.";
+        }
+        if (m.honneurCumule <= -4) {
+            return "Tes visions sentent la cendre, ces temps-ci. Fais attention : on finit par ressembler a ce qu'on combat.";
+        }
         if (m.passagesAuSeuil <= 1) {
             return "Toi aussi, la chute te mene ici ? Au Seuil, mes herbes poussent a la lumiere des etoiles. "
                    "Assieds-toi. Rien ne presse, entre deux visions.";
@@ -136,6 +143,13 @@ std::string paroleAuSeuil(const Memoire& m, int personnage) {
         return "Chaque vision laisse une graine. Regarde l'arbre : il a encore grandi depuis ta derniere chute.";
     }
     if (personnage == 1) {      // Durgan
+        if (m.ashkaAchevee > m.ashkaEpargnee) {
+            return "Tu as ramene une couronne d'epines, dans une vision. Je peux la fondre, si tu veux. "
+                   "Le metal oublie. Toi, je ne suis pas sur.";
+        }
+        if (m.brennaEngagee > 0) {
+            return "Brenna dit que tu paies bien et que tu tiens debout. Venant d'elle, c'est presque un poeme.";
+        }
         if (m.bossAffrontes[3] > 0 && m.bossVaincus[3] == 0) {
             return "Vorgath... Meme ici, je sens la chaleur de sa forge. Le sol rougit avant d'exploser : "
                    "ne reste jamais sur une case qui brille.";
@@ -158,6 +172,18 @@ std::string paroleAuSeuil(const Memoire& m, int personnage) {
                "je ne me plains pas.";
     }
     // Silas
+    if (m.fins[FIN_EPINES] > 0) {
+        return "J'ai vu un futur ou tu t'assois sur le trone de Vorgath. Il y a des trophees que meme moi, je n'achete pas.";
+    }
+    if (m.ashkaEpargnee > 0) {
+        return "Epargner Ashka... Voila une rune que personne ne vend. La prophetie n'avait pas prevu ca. Moi non plus.";
+    }
+    if (m.kerrakRecrute > 0 && m.ashkaAchevee > 0) {
+        return "Kerrak ne parle plus de toi. Il a vu Ashka tomber sous ta lame, dans une de tes visions. Ca ne s'efface pas.";
+    }
+    if (m.kerrakRecrute > 0) {
+        return "Kerrak, le petit deserteur. Il parle de toi comme d'une legende. Ne le decois pas, ca coute cher, une legende.";
+    }
     if (m.deserteurDepouille > m.deserteurEpargne) {
         return "Tu fais les poches des faibles, maintenant ? Je ne juge pas. Je note. Le Seuil note aussi.";
     }
@@ -172,11 +198,17 @@ std::string paroleAuSeuil(const Memoire& m, int personnage) {
 
 // La phrase d'accueil du Seuil, en haut de l'ecran
 std::string murmureDuSeuil(const Memoire& m) {
-    if (m.passagesAuSeuil <= 1) {
-        return "Entre deux visions, un monde suspendu. Ici, rien ne peut te blesser.";
+    if (m.fins[FIN_EPINES] > 0 && m.fins[FIN_AUBE] == 0) {
+        return "Des epines poussent autour de l'arbre du Seuil. La prophetie se souvient du trone.";
+    }
+    if (m.fins[FIN_AUBE] > 0) {
+        return "L'arbre du Seuil est en fleurs : dans un futur au moins, l'aube s'est levee sur les cendres.";
     }
     if (m.victoires > 0) {
-        return "L'arbre du Seuil a fleuri : dans un futur au moins, Ashka est tombee.";
+        return "L'arbre du Seuil a fleuri : dans un futur au moins, Vorgath est tombe.";
+    }
+    if (m.passagesAuSeuil <= 1) {
+        return "Entre deux visions, un monde suspendu. Ici, rien ne peut te blesser.";
     }
     return "Le Seuil t'attendait. Il t'attend toujours.";
 }

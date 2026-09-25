@@ -186,7 +186,21 @@ int main() {
                 finirRencontre(jeu);
             }
         } else if (jeu.phase == Phase::Victoire && (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_R)) && !animationsEnCours(jeu)) {
-            entrerAuSeuil(jeu);
+            epilogue(jeu);                          // la fin de la route, selon l'honneur (dialogues.cpp)
+        } else if (jeu.phase == Phase::Dialogue) {
+            // A la derniere replique : 1 ou 2 pour repondre. Sinon ENTREE (ou un clic) pour continuer.
+            bool clic = IsMouseButtonPressed(MOUSE_BUTTON_LEFT);
+            if (attendUnChoix(jeu)) {
+                for (int numero = 0; numero < 2; numero++) {
+                    if ((clic && CheckCollisionPointRec(souris, rectangleChoixDialogue(numero)))
+                        || IsKeyPressed(KEY_ONE + numero) || IsKeyPressed(KEY_KP_1 + numero)) {
+                        choisirDansDialogue(jeu, numero);
+                        break;
+                    }
+                }
+            } else if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_SPACE) || clic) {
+                avancerDialogue(jeu);
+            }
         } else if (jeu.phase == Phase::Reveil && (IsKeyPressed(KEY_ENTER) || IsMouseButtonPressed(MOUSE_BUTTON_LEFT))) {
             if (jeu.fondu < DUREE_TEXTE_REVEIL) {
                 jeu.fondu = DUREE_TEXTE_REVEIL;     // un premier appui affiche tout le texte d'un coup
@@ -217,6 +231,8 @@ int main() {
                 jeu.phase = Phase::Reveil;
                 jeu.fondu = 0.0f;
             }
+        } else if (jeu.phase == Phase::Dialogue) {
+            mettreAJourDialogue(jeu, secondes);     // le texte s'ecrit lettre par lettre
         } else if (jeu.phase == Phase::Reveil || jeu.phase == Phase::NouvelActe) {
             jeu.fondu = jeu.fondu + secondes;       // le texte du reveil apparait lettre par lettre
         }

@@ -50,8 +50,9 @@ void placerBossEtEscorte(Jeu& jeu, const std::vector<bool>& accessibles, int bos
     if (!jeu.haschen.empty()) {
         jeu.haschen.back().boss = boss;
     }
-    // L'escorte : deux Haschen du lieu (un seul pour Vorgath, qui prefere se battre seul)
-    int escorte = boss == BOSS_VORGATH ? 1 : 2;
+    // L'escorte : deux Haschen du lieu (un seul pour Vorgath, qui prefere se battre seul...
+    // et aucun si Ashka a ete epargnee : ses guerriers ont quitte Vorgath)
+    int escorte = boss == BOSS_VORGATH ? (jeu.choixAshka == 1 ? 0 : 1) : 2;
     for (int i = 0; i < escorte; i++) {
         const auto& h = groupe[i % groupe.size()];
         placerHaschen(jeu, accessibles, h.first, h.second);
@@ -83,8 +84,7 @@ void invoquer(Jeu& jeu, const Pion& boss, Combattant renfort, Color couleur) {
         for (int essai = 0; essai < 20; essai++) {
             int c = boss.colonne + GetRandomValue(-rayon, rayon);
             int l = boss.ligne + GetRandomValue(-rayon, rayon);
-            if (estDansArene(c, l) && !estRocher(jeu, c, l) && haschenSurCase(jeu, c, l) == -1
-                && !(c == jeu.aylis.colonne && l == jeu.aylis.ligne)) {
+            if (caseLibre(jeu, c, l)) {
                 jeu.haschen.push_back({renfort, c, l, couleur});
                 animerEtat(jeu, jeu.haschen.back(), couleur);
                 return;
@@ -128,6 +128,7 @@ void resoudreDanger(Jeu& jeu, Pion& boss) {
         return;
     }
     bool touche = false;
+    bool allieTouche = false;
     for (const auto& c : jeu.zonesDanger) {
         Pion caseVide = jeu.aylis;      // une copie, juste pour avoir un centre de case a l'endroit voulu
         caseVide.colonne = c.first;
@@ -136,6 +137,12 @@ void resoudreDanger(Jeu& jeu, Pion& boss) {
         if (c.first == jeu.aylis.colonne && c.second == jeu.aylis.ligne) {
             touche = true;
         }
+        if (allieDebout(jeu) && c.first == jeu.allie.colonne && c.second == jeu.allie.ligne) {
+            allieTouche = true;     // le compagnon ne sait pas lire les presages : il reste parfois dans la zone
+        }
+    }
+    if (allieTouche) {
+        toucherAllie(jeu, boss, jeu.degatsDanger, false, 0.1f);
     }
     if (touche) {
         toucherAylis(jeu, boss, jeu.degatsDanger, false, 0.1f);

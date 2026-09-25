@@ -135,7 +135,60 @@ enum class Phase {
     Reveil,         // ... et AYLIS se reveille, avec le souvenir de la vision
     Seuil,          // le monde entre les visions : on y depense les fragments de prophetie
     NouvelActe,     // le titre d'un nouvel acte de la route (apres chaque boss)
+    Dialogue,       // quelqu'un parle : le texte s'ecrit sur un parchemin magique (dialogues.cpp)
 };
+
+// ===================== Les dialogues (dialogues.cpp) =====================
+// Qui parle : les boss gardent leur numero (BOSS_SKARN = 1... BOSS_VORGATH = 4), puis les autres personnages.
+const int ORATEUR_PROPHETIE = 0;    // la voix de la prophetie (la narration, l'epilogue)
+const int ORATEUR_AYLIS = 5;
+const int ORATEUR_MAREN = 6;
+const int ORATEUR_DURGAN = 7;
+const int ORATEUR_SILAS = 8;
+const int ORATEUR_DESERTEUR = 9;
+const int ORATEUR_KERRAK = 10;
+const int ORATEUR_BRENNA = 11;
+
+// Une replique : qui parle, et ce qu'il dit
+struct Replique {
+    int orateur;
+    std::string texte;
+};
+
+// Ce qui se passe quand le dialogue est fini
+enum class SuiteDialogue {
+    Combat,         // le combat commence (les boss parlent avant de se battre)
+    Boutique,       // la boutique du marchand s'ouvre
+    Runes,          // le choix d'une rune (apres Ashka)
+    Route,          // la route continue (la vision montre la salle suivante)
+    Seuil,          // retour au Seuil (apres l'epilogue)
+};
+
+// Le sujet d'un dialogue a choix : il dit quoi faire de la reponse
+const int SUJET_AUCUN = 0;
+const int SUJET_DESERTEUR = 1;      // l'epargner ou le depouiller
+const int SUJET_ASHKA = 2;          // l'epargner ou l'achever
+
+struct Dialogue {
+    std::vector<Replique> repliques;
+    int ligne = 0;                      // la replique affichee
+    float ecriture = 0.0f;              // le nombre de lettres deja ecrites (le texte s'ecrit peu a peu)
+    std::vector<std::string> choix;     // les 2 reponses possibles, proposees a la derniere replique
+    std::vector<std::string> effets;    // ce que chaque reponse change (en petit, sous la reponse)
+    int sujet = SUJET_AUCUN;
+    SuiteDialogue suite = SuiteDialogue::Route;
+    std::string titre;                  // un grand titre au-dessus (pour l'epilogue)
+};
+
+// ===================== Les compagnons (compagnons.cpp) =====================
+const int COMPAGNON_AUCUN = 0;
+const int COMPAGNON_KERRAK = 1;     // le deserteur haschen epargne
+const int COMPAGNON_BRENNA = 2;     // une mercenaire, engagee chez Durgan
+
+// Les trois fins de la route (quand Vorgath tombe), selon l'honneur d'AYLIS
+const int FIN_AUBE = 0;             // honneur >= 2 : la fin heroique
+const int FIN_VOYAGEUR = 1;         // entre les deux
+const int FIN_EPINES = 2;           // honneur <= -2 : la fin sombre
 
 // ===================== La memoire (memoire.cpp) =====================
 // Ce qu'AYLIS retient d'une course a l'autre. C'est enregistre dans un fichier :
@@ -156,6 +209,13 @@ struct Memoire {
     int deserteurDepouille = 0;
     int bossAffrontes[4] = {0, 0, 0, 0};    // combien de fois AYLIS a affronte chaque boss
     int bossVaincus[4] = {0, 0, 0, 0};      // ... et combien de fois chacun est tombe
+    // Version 4 : les choix qui restent
+    int honneurCumule = 0;      // l'honneur de toutes les courses : la prophetie s'en souvient
+    int ashkaEpargnee = 0;      // combien de fois AYLIS a epargne Ashka...
+    int ashkaAchevee = 0;       // ... ou l'a achevee
+    int fins[3] = {0, 0, 0};    // les fins deja vues (FIN_AUBE, FIN_VOYAGEUR, FIN_EPINES)
+    int kerrakRecrute = 0;
+    int brennaEngagee = 0;
 };
 
 const int NOMBRE_AMELIORATIONS = 6;
@@ -305,6 +365,15 @@ struct Jeu {
     std::vector<EffetEclair> eclairs;
     float secousse = 0.0f;              // la force du tremblement d'ecran
     float arretSurImage = 0.0f;         // > 0 : le jeu se fige une fraction de seconde (coup critique)
+
+    // Les dialogues, les compagnons et les choix de la course
+    Dialogue dialogue;
+    int compagnon = COMPAGNON_AUCUN;    // qui accompagne AYLIS
+    Pion allie;                         // le compagnon sur l'arene
+    bool allieAJoue = false;            // pendant le tour ennemi : le compagnon joue en premier
+    int choixAshka = 0;                 // 0 = pas encore, 1 = epargnee, 2 = achevee
+    int honneurDeDepart = 0;            // l'honneur au debut de la course (herite des visions passees)
+    int fin = -1;                       // la fin obtenue (FIN_AUBE...), -1 tant que Vorgath est debout
 };
 
 // ===================== regles.cpp : les regles du jeu =====================
@@ -378,6 +447,39 @@ void mettreAJourTourEnnemi(Jeu& jeu, float secondes);
 void ecrireJournal(Jeu& jeu, const std::string& message);
 void mettreAJourTextes(Jeu& jeu, float secondes);
 
+// ===================== dialogues.cpp : ceux qui parlent =====================
+
+void lancerDialogue(Jeu& jeu, const std::vector<Replique>& repliques, SuiteDialogue suite);
+void avancerDialogue(Jeu& jeu);                         // ENTREE : la suite du texte
+void choisirDansDialogue(Jeu& jeu, int numero);         // 0 ou 1, a la derniere replique
+bool attendUnChoix(const Jeu& jeu);                     // true : la derniere replique est ecrite et il faut choisir
+void mettreAJourDialogue(Jeu& jeu, float secondes);
+std::string nomOrateur(int orateur);
+std::string titreOrateur(int orateur);
+Color couleurOrateur(int orateur);
+void dialogueAvantBoss(Jeu& jeu);                       // puis le combat
+void dialogueDuMarchand(Jeu& jeu);                      // puis la boutique
+void dialogueDuDeserteur(Jeu& jeu);                     // une rencontre avec un choix
+void dialogueDAshka(Jeu& jeu);                          // Ashka est a terre : l'epargner ?
+void epilogue(Jeu& jeu);                                // Vorgath est tombe : la fin de la route
+int finSelonHonneur(int honneur);
+std::string nomDeLaFin(int fin);
+
+// ===================== compagnons.cpp : ceux qui se battent aux cotes d'AYLIS =====================
+
+void recruterCompagnon(Jeu& jeu, int compagnon);
+bool allieDebout(const Jeu& jeu);
+void placerCompagnon(Jeu& jeu);                         // au debut d'un combat, a cote d'AYLIS
+void jouerCompagnon(Jeu& jeu);                          // son tour, avant celui des Haschen
+void toucherAllie(Jeu& jeu, const Pion& attaquant, int degats, bool critique, float delai);
+
+// Utilises par les compagnons et les Haschen (regles.cpp)
+bool caseLibre(const Jeu& jeu, int colonne, int ligne);
+int calculerDegats2D(int attaque, int puissance, int defense, int chanceCritique, bool& critique);
+void blesserHaschen(Jeu& jeu, Pion& cible, int degats, bool critique, float delai);
+bool unPasVers(Jeu& jeu, Pion& pion, int colonne, int ligne);
+void ajouterTexte(Jeu& jeu, const Pion& pion, const std::string& texte, Color couleur, float delai = 0.0f);
+
 // ===================== dessin.cpp : l'affichage =====================
 
 void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris);
@@ -393,6 +495,7 @@ Rectangle rectangleEcho(int personnage);                 // au Seuil : pour cliq
 Rectangle rectanglePortail();
 Rectangle rectangleAmelioration(int choix);             // les 2 ameliorations de la discussion
 Rectangle rectangleBoutonRoute();                       // "reprendre la route" (boutique, rencontre)
+Rectangle rectangleChoixDialogue(int numero);           // les 2 reponses d'un dialogue
 
 // ===================== seuil.cpp : le monde entre les visions =====================
 

@@ -71,6 +71,9 @@ void ouvrirBoutique(Jeu& jeu) {
         }
         jeu.articles.push_back({4, "Armure de cuir", "+2 defense", 40});
         jeu.articles.push_back({5, "Pierre a aiguiser", "+2 attaque", 45});
+        if (jeu.compagnon == COMPAGNON_AUCUN) {
+            jeu.articles.push_back({6, "Brenna", "Une mercenaire : elle se bat a tes cotes", 40});
+        }
     } else {
         Rune rune = runeAuHasard(jeu, false);
         if (rune.numero >= 0) {
@@ -128,6 +131,11 @@ void acheter(Jeu& jeu, int numero) {
             break;
         case 4: aylis.defense = aylis.defense + 2; break;
         case 5: aylis.attaque = aylis.attaque + 2; break;
+        case 6:
+            recruterCompagnon(jeu, COMPAGNON_BRENNA);
+            jeu.memoire.brennaEngagee = jeu.memoire.brennaEngagee + 1;
+            jeu.messageRoute = "Brenna rejoint AYLIS : \"Jusqu'a Vorgath. Pas plus loin, pas moins loin.\"";
+            break;
     }
 }
 
@@ -203,6 +211,12 @@ void commencerRencontre(Jeu& jeu) {
     }
     jeu.rencontre = possibles[GetRandomValue(0, (int)possibles.size() - 1)];
     jeu.rencontresVues.push_back(jeu.rencontre);
+    // Le deserteur est un vrai dialogue, avec un choix qui compte (dialogues.cpp)
+    if (jeu.rencontre == 3) {
+        jeu.messageRoute = "";
+        dialogueDuDeserteur(jeu);
+        return;
+    }
     jeu.resultatRencontre = "";
     jeu.runeOfferte = false;
     jeu.messageRoute = "";

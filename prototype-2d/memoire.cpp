@@ -10,7 +10,8 @@
 #include "jeu2d.h"
 
 const std::string fichierMemoire = "vesperance_memoire.txt";
-const std::string enteteMemoire = "VESPERANCE-MEMOIRE-3";
+const std::string enteteMemoire = "VESPERANCE-MEMOIRE-4";
+const std::string enteteV3 = "VESPERANCE-MEMOIRE-3";       // avant les choix qui restent
 const std::string enteteV2 = "VESPERANCE-MEMOIRE-2";       // avant les 4 actes
 const std::string enteteAncienne = "VESPERANCE-MEMOIRE-1";    // la version d'avant le Seuil : on sait encore la lire
 
@@ -32,6 +33,11 @@ std::vector<int*> valeursDeLaMemoire(Memoire& m) {
         valeurs.push_back(&m.bossAffrontes[i]);
         valeurs.push_back(&m.bossVaincus[i]);
     }
+    // a partir d'ici : la version 4 (les choix qui restent)
+    for (int* v : {&m.honneurCumule, &m.ashkaEpargnee, &m.ashkaAchevee, &m.fins[0], &m.fins[1], &m.fins[2],
+                   &m.kerrakRecrute, &m.brennaEngagee}) {
+        valeurs.push_back(v);
+    }
     return valeurs;
 }
 
@@ -39,7 +45,7 @@ void chargerMemoire(Memoire& memoire) {
     memoire = Memoire();    // on repart de zero si le fichier n'existe pas
     std::ifstream fichier(fichierMemoire);
     std::string ligne;
-    if (!fichier || !std::getline(fichier, ligne) || (ligne != enteteMemoire && ligne != enteteV2 && ligne != enteteAncienne)) {
+    if (!fichier || !std::getline(fichier, ligne) || (ligne != enteteMemoire && ligne != enteteV3 && ligne != enteteV2 && ligne != enteteAncienne)) {
         return;
     }
     // Une vieille memoire s'arrete apres les 6 premieres valeurs : le reste reste a zero
@@ -77,8 +83,13 @@ void terminerCourse(Jeu& jeu, bool victoire) {
     if (jeu.salle > m.meilleureSalle) {
         m.meilleureSalle = jeu.salle;
     }
+    // L'honneur gagne (ou perdu) pendant cette course : la prophetie s'en souviendra
+    m.honneurCumule = m.honneurCumule + jeu.aylis.stats.honneur - jeu.honneurDeDepart;
     if (victoire) {
         m.victoires = m.victoires + 1;
+        if (jeu.fin >= 0) {
+            m.fins[jeu.fin] = m.fins[jeu.fin] + 1;
+        }
     } else {
         m.visions = m.visions + 1;
     }

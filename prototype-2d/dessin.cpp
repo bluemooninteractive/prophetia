@@ -246,6 +246,17 @@ void dessinerPion(const Pion& pion, bool estAylis, int colonneAylis) {
     // Une ombre au sol
     DrawEllipse(centreX, basY - 2, taille * 0.3f, 6, Fade(BLACK, 0.35f));
 
+    if (pion.stats.nom == "Kerrak" || pion.stats.nom == "Brenna") {
+        // Les compagnons : Kerrak est un eclaireur haschen, Brenna une mercenaire en rouge et or
+        // Un cercle bleu a leurs pieds : ils sont du cote d'AYLIS
+        DrawEllipseLines(centreX, basY - 2, taille * 0.34f, 8, Fade(Color{120, 180, 255, 255}, 0.8f * visibilite));
+        bool kerrak = pion.stats.nom == "Kerrak";
+        Color teinteCompagnon = kerrak ? teinte : Color{(unsigned char)(teinte.r), (unsigned char)(teinte.g * 0.72f),
+                                                        (unsigned char)(teinte.b * 0.5f), teinte.a};
+        dessinerSprite(kerrak ? s.eclaireur : s.aylis, ecran, false, teinteCompagnon);
+        dessinerSprite(s.epee, ecran, false, teinte);
+        return;
+    }
     if (estAylis) {
         dessinerSprite(s.aylis, ecran, false, teinte);
         const Arme& arme = pion.stats.arme;
@@ -686,6 +697,11 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
             dessinerPion(h, false, jeu.aylis.colonne);
         }
     }
+    bool allieVisible = jeu.compagnon != COMPAGNON_AUCUN && estDansArene(jeu.allie.colonne, jeu.allie.ligne)
+                        && (jeu.allie.stats.estDebout() || jeu.allie.disparition > 0);
+    if (allieVisible) {
+        dessinerPion(jeu.allie, false, jeu.aylis.colonne);
+    }
     bool aylisVisible = jeu.aylis.stats.estDebout() || animationsEnCours(jeu);
     if (aylisVisible) {
         dessinerPion(jeu.aylis, true, jeu.aylis.colonne);
@@ -763,6 +779,9 @@ void dessinerArene(const Jeu& jeu, int colonneSouris, int ligneSouris) {
     if (aylisVisible) {
         dessinerBarreDeVie(jeu.aylis);
         dessinerEtats(jeu.aylis);
+    }
+    if (allieDebout(jeu)) {
+        dessinerBarreDeVie(jeu.allie);
     }
 
     // Les chiffres des degats : ils apparaissent avec un petit rebond (plus gros au debut)
@@ -956,6 +975,12 @@ void dessinerPanneau(const Jeu& jeu) {
     if (a.brulure > 0) effets = effets + "BRULE  ";
     if (a.saignement > 0) effets = effets + "SAIGNE";
     DrawText(effets.c_str(), x, y0 + 146, 10, Color{255, 170, 90, 255});
+    if (jeu.compagnon != COMPAGNON_AUCUN) {
+        const Combattant& c = jeu.allie.stats;
+        std::string compagnon = c.estDebout() ? TextFormat("%s  %i/%i pv", c.nom.c_str(), c.pv, c.pvMax)
+                                              : TextFormat("%s  K.O. (revient au prochain combat)", c.nom.c_str());
+        DrawText(compagnon.c_str(), x, y0 + 164, 10, Color{120, 180, 255, 255});
+    }
 
     // ----- Les cartes d'actions -----
     const std::vector<Action>& actions = actionsDeLaBarre();
@@ -1360,6 +1385,283 @@ void dessinerRencontre(const Jeu& jeu) {
                                 Color{120, 220, 140, 255});
         dessinerResumeAylis(jeu, "", 212);
         dessinerBoutonRoute("ENTREE : continuer");
+    }
+}
+
+// ===================== Les dialogues : un parchemin magique =====================
+//
+// Le personnage qui parle en grand a gauche, AYLIS a droite, et le texte qui s'ecrit a la plume sur un parchemin :
+// bords brules, double cadre a l'encre doree, une grande lettrine, des runes et des etincelles de la couleur
+// de celui qui parle, et son nom sur un ruban scelle a la cire.
+
+const Color PARCHEMIN_CLAIR = {234, 216, 174, 255};
+const Color PARCHEMIN_FONCE = {200, 172, 118, 255};
+const Color ENCRE = {52, 32, 16, 255};
+const Color ENCRE_DOREE = {176, 124, 40, 255};
+
+// Une encre sombre de la couleur du personnage : lisible sur le parchemin
+Color encreDe(Color c) {
+    return Color{(unsigned char)(c.r * 0.42f), (unsigned char)(c.g * 0.42f), (unsigned char)(c.b * 0.42f), 255};
+}
+
+Rectangle rectangleChoixDialogue(int numero) {
+    return {300, 290.0f + numero * 84, 534, 70};
+}
+
+// Le portrait d'un personnage (sprite 16x16 agrandi)
+void dessinerPortraitOrateur(const Jeu& jeu, int orateur, Rectangle ecran, Color teinte) {
+    const Sprites& s = sprites();
+    Rectangle source = {0, 0, TAILLE_SPRITE, TAILLE_SPRITE};
+    if (orateur >= BOSS_SKARN && orateur <= BOSS_VORGATH) {
+        dessinerPortraitBoss(orateur, ecran);
+    } else if (orateur == ORATEUR_AYLIS) {
+        dessinerPortraitAylis(jeu.aylis.stats.arme, ecran, teinte);
+    } else if (orateur >= ORATEUR_MAREN && orateur <= ORATEUR_SILAS) {
+        DrawTexturePro(s.marchands[orateur - ORATEUR_MAREN], source, ecran, {0, 0}, 0, teinte);
+    } else if (orateur == ORATEUR_DESERTEUR || orateur == ORATEUR_KERRAK) {
+        DrawTexturePro(s.eclaireur, source, ecran, {0, 0}, 0, teinte);
+        if (orateur == ORATEUR_KERRAK) {
+            DrawTexturePro(s.epee, source, ecran, {0, 0}, 0, teinte);
+        }
+    } else if (orateur == ORATEUR_BRENNA) {
+        DrawTexturePro(s.aylis, source, ecran, {0, 0}, 0, Color{teinte.r, (unsigned char)(teinte.g * 0.72f), (unsigned char)(teinte.b * 0.5f), 255});
+        DrawTexturePro(s.epee, source, ecran, {0, 0}, 0, teinte);
+    }
+}
+
+// Un parchemin : fond degrade, taches, bords brules, double cadre dore et arabesques dans les coins
+void dessinerParchemin(Rectangle r, Color lueur, bool runes) {
+    float temps = GetTime();
+    // Le halo magique autour de la page, et son ombre
+    BeginBlendMode(BLEND_ADDITIVE);
+    DrawRectangleRounded({r.x - 10, r.y - 10, r.width + 20, r.height + 20}, 0.08f, 8, Fade(lueur, 0.10f + 0.03f * std::sin(temps * 2)));
+    EndBlendMode();
+    DrawRectangleRounded({r.x + 5, r.y + 8, r.width, r.height}, 0.06f, 8, Fade(BLACK, 0.55f));
+    // Le papier
+    DrawRectangleRounded(r, 0.06f, 8, PARCHEMIN_FONCE);
+    DrawRectangleGradientV(r.x + 6, r.y + 6, r.width - 12, r.height - 12, PARCHEMIN_CLAIR, PARCHEMIN_FONCE);
+    // Des taches et le grain du papier (toujours aux memes endroits)
+    for (int i = 0; i < 70; i++) {
+        float x = r.x + 10 + hasardFixe(i) * (r.width - 20);
+        float y = r.y + 10 + hasardFixe(i + 300) * (r.height - 20);
+        DrawCircle(x, y, 1 + hasardFixe(i + 600) * (i % 9 == 0 ? 14 : 2), Fade(Color{120, 80, 30, 255}, i % 9 == 0 ? 0.07f : 0.15f));
+    }
+    // Les bords brules : plusieurs traits bruns de plus en plus pales vers l'interieur
+    for (int i = 0; i < 6; i++) {
+        Rectangle bord = {r.x + i * 2.0f, r.y + i * 2.0f, r.width - i * 4.0f, r.height - i * 4.0f};
+        DrawRectangleRoundedLinesEx(bord, 0.06f, 8, 3, Fade(Color{90, 48, 16, 255}, 0.55f - i * 0.09f));
+    }
+    // Le double cadre a l'encre doree
+    DrawRectangleLinesEx({r.x + 14, r.y + 14, r.width - 28, r.height - 28}, 2, Fade(ENCRE_DOREE, 0.85f));
+    DrawRectangleLinesEx({r.x + 20, r.y + 20, r.width - 40, r.height - 40}, 1, Fade(ENCRE_DOREE, 0.6f));
+    // Les arabesques des coins : des boucles dorees
+    const float coins[4][2] = {{r.x + 14, r.y + 14}, {r.x + r.width - 14, r.y + 14}, {r.x + 14, r.y + r.height - 14},
+                               {r.x + r.width - 14, r.y + r.height - 14}};
+    for (int i = 0; i < 4; i++) {
+        float sx = i % 2 == 0 ? 1 : -1;
+        float sy = i < 2 ? 1 : -1;
+        float cx = coins[i][0] + sx * 16;
+        float cy = coins[i][1] + sy * 16;
+        DrawRing({cx, cy}, 8, 10, 0, 360, 24, ENCRE_DOREE);
+        DrawCircle(cx, cy, 3, Color{232, 184, 74, 255});
+        DrawLineEx({cx + sx * 10, cy}, {cx + sx * 40, cy}, 2, ENCRE_DOREE);
+        DrawLineEx({cx, cy + sy * 10}, {cx, cy + sy * 30}, 2, ENCRE_DOREE);
+        DrawCircle(cx + sx * 44, cy, 2.5f, ENCRE_DOREE);
+    }
+    if (!runes) {
+        return;
+    }
+    // Des runes a l'encre magique, le long du bas de la page : elles brillent de la couleur du personnage
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int i = 0; i < 9; i++) {
+        if (i == 4) {
+            continue;
+        }
+        float x = r.x + 110 + i * (r.width - 220) / 8;
+        float y = r.y + r.height - 16;
+        float lueurRune = 0.5f + 0.3f * std::sin(temps * 2.5f + i);
+        DrawCircleGradient(x, y, 12, Fade(lueur, 0.35f * lueurRune), BLANK);
+    }
+    EndBlendMode();
+    for (int i = 0; i < 9; i++) {
+        if (i == 4) {
+            continue;
+        }
+        float x = r.x + 110 + i * (r.width - 220) / 8;
+        dessinerGlyphe(x, r.y + r.height - 16, 7, i * 3, encreDe(lueur));
+    }
+    // Des etincelles qui s'echappent des bords de la page
+    BeginBlendMode(BLEND_ADDITIVE);
+    for (int i = 0; i < 18; i++) {
+        float x = r.x + hasardFixe(i + 900) * r.width;
+        float cycle = std::fmod(temps * (0.3f + hasardFixe(i + 950) * 0.4f) + hasardFixe(i + 990), 1.0f);
+        float y = r.y + 4 - cycle * 40;
+        float taille = 2 + 3 * (1 - cycle);
+        Color c = i % 3 == 0 ? Color{255, 230, 160, 255} : lueur;
+        DrawPoly({x, y}, 4, taille, 45, Fade(c, 0.9f * (1 - cycle)));
+    }
+    EndBlendMode();
+}
+
+// Un sceau de cire (sur le ruban du nom et devant les reponses)
+void dessinerSceau(float x, float y, float rayon, Color couleur, const std::string& signe) {
+    DrawCircle(x + 2, y + 3, rayon, Fade(BLACK, 0.5f));
+    DrawPoly({x, y}, 10, rayon, 9, encreDe(couleur));
+    DrawCircle(x, y, rayon - 3, Color{(unsigned char)(couleur.r * 0.6f), (unsigned char)(couleur.g * 0.6f), (unsigned char)(couleur.b * 0.6f), 255});
+    DrawRing({x, y}, rayon - 8, rayon - 6, 0, 360, 24, Fade(BLACK, 0.3f));
+    DrawCircle(x - rayon * 0.3f, y - rayon * 0.35f, rayon * 0.25f, Fade(WHITE, 0.25f));
+    texteCentre(signe, {x - rayon, y - rayon, rayon * 2, rayon * 2}, (int)rayon, Color{250, 232, 200, 255});
+}
+
+void dessinerDialogue(const Jeu& jeu) {
+    const Dialogue& d = jeu.dialogue;
+    const Replique& replique = d.repliques[d.ligne];
+    int orateur = replique.orateur;
+    Color lueur = couleurOrateur(orateur);
+    float temps = GetTime();
+
+    dessinerFondVision();
+
+    // Le personnage en face d'AYLIS : le premier qui parle dans ce dialogue (ni AYLIS, ni la prophetie)
+    int enFace = -1;
+    for (const Replique& r : d.repliques) {
+        if (r.orateur != ORATEUR_AYLIS && r.orateur != ORATEUR_PROPHETIE) {
+            enFace = r.orateur;
+            break;
+        }
+    }
+    if (orateur != ORATEUR_AYLIS && orateur != ORATEUR_PROPHETIE) {
+        enFace = orateur;
+    }
+
+    // Le titre (l'epilogue)
+    if (!d.titre.empty()) {
+        texteCentre(d.titre, {0, 26, (float)LARGEUR_FENETRE, 44}, 40, OR);
+    }
+
+    // A gauche : celui qui parle a AYLIS, dans sa lumiere
+    if (enFace >= 0) {
+        Color sa = couleurOrateur(enFace);
+        bool parle = orateur == enFace;
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(190, 300, 230, Fade(sa, parle ? 0.30f : 0.12f), BLANK);
+        EndBlendMode();
+        float bond = parle ? 4 * std::sin(temps * 3) : 0;
+        dessinerPortraitOrateur(jeu, enFace, {40, 96 + bond, 300, 300}, parle ? WHITE : Color{140, 140, 150, 255});
+    }
+    // A droite : AYLIS, qui ecoute (ou qui parle)
+    {
+        bool parle = orateur == ORATEUR_AYLIS;
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(712, 330, 150, Fade(Color{120, 160, 255, 255}, parle ? 0.30f : 0.10f), BLANK);
+        EndBlendMode();
+        float bond = parle ? 4 * std::sin(temps * 3) : 0;
+        dessinerPortraitOrateur(jeu, ORATEUR_AYLIS, {602, 200 + bond, 220, 220}, parle ? WHITE : Color{150, 150, 170, 255});
+    }
+    // La prophetie parle : un grand glyphe lumineux au centre
+    if (orateur == ORATEUR_PROPHETIE) {
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(LARGEUR_FENETRE / 2, 250, 140, Fade(lueur, 0.35f + 0.1f * std::sin(temps * 2)), BLANK);
+        EndBlendMode();
+        dessinerGlyphe(LARGEUR_FENETRE / 2.0f, 250, 70, 7, lueur);
+    }
+
+    // Le parchemin et le texte
+    Rectangle page = {32, 474, LARGEUR_FENETRE - 64.0f, 258};
+    dessinerParchemin(page, lueur, true);
+
+    // Le ruban du nom, scelle a la cire
+    std::string nom = nomOrateur(orateur);
+    std::string titre = titreOrateur(orateur);
+    float largeurRuban = MeasureText(nom.c_str(), 30) + MeasureText(titre.c_str(), 20) + 70;
+    Rectangle ruban = {page.x + 50, page.y - 26, largeurRuban, 44};
+    DrawRectangle(ruban.x + 3, ruban.y + 4, ruban.width, ruban.height, Fade(BLACK, 0.5f));
+    DrawRectangleGradientV(ruban.x, ruban.y, ruban.width, ruban.height, encreDe(lueur), Color{20, 10, 12, 255});
+    DrawTriangle({ruban.x + ruban.width, ruban.y}, {ruban.x + ruban.width - 16, ruban.y + ruban.height / 2},
+                 {ruban.x + ruban.width + 16, ruban.y}, encreDe(lueur));
+    DrawTriangle({ruban.x + ruban.width - 16, ruban.y + ruban.height / 2}, {ruban.x + ruban.width, ruban.y + ruban.height},
+                 {ruban.x + ruban.width + 16, ruban.y + ruban.height}, Color{20, 10, 12, 255});
+    DrawText(nom.c_str(), ruban.x + 34, ruban.y + 8, 30, Color{255, 240, 216, 255});
+    DrawText(titre.c_str(), ruban.x + 44 + MeasureText(nom.c_str(), 30), ruban.y + 16, 20, Color{240, 216, 192, 255});
+    dessinerSceau(ruban.x + 4, ruban.y + ruban.height / 2, 28, lueur, nom.substr(0, 1));
+
+    // Le texte, ecrit a la plume : une grande lettrine, puis le reste (les 2 premieres lignes laissent sa place)
+    const std::string& texte = replique.texte;
+    int visibles = (int)d.ecriture;
+    std::string lettrine = texte.substr(0, 1);
+    std::string suite = texte.substr(1);
+    const int taille = 20;
+    float gauche = page.x + 44;
+    float largeurTexte = page.width - 88;
+    float retrait = MeasureText(lettrine.c_str(), 64) + 14.0f;     // la place de la lettrine
+    // Le decoupage en lignes : les 2 premieres sont plus courtes, a cause de la lettrine
+    std::vector<std::string> lignes;
+    {
+        std::string ligne;
+        std::string mot;
+        for (int i = 0; i <= (int)suite.size(); i++) {
+            if (i == (int)suite.size() || suite[i] == ' ') {
+                float maximum = lignes.size() < 2 ? largeurTexte - retrait : largeurTexte;
+                std::string essai = ligne.empty() ? mot : ligne + " " + mot;
+                if (MeasureText(essai.c_str(), taille) > maximum && !ligne.empty()) {
+                    lignes.push_back(ligne);
+                    ligne = mot;
+                } else {
+                    ligne = essai;
+                }
+                mot = "";
+            } else {
+                mot = mot + suite[i];
+            }
+        }
+        lignes.push_back(ligne);
+    }
+    if (visibles > 0) {
+        // La lettrine brille de la couleur du personnage
+        BeginBlendMode(BLEND_ADDITIVE);
+        DrawCircleGradient(gauche + 24, page.y + 72, 40, Fade(lueur, 0.35f), BLANK);
+        EndBlendMode();
+        DrawText(lettrine.c_str(), gauche + 4, page.y + 34, 64, encreDe(lueur));
+        DrawText(lettrine.c_str(), gauche + 2, page.y + 32, 64, Fade(lueur, 0.35f));
+    }
+    int restantes = visibles - 1;
+    for (int i = 0; i < (int)lignes.size() && restantes > 0; i++) {
+        std::string morceau = lignes[i].substr(0, restantes);
+        float x = gauche + (i < 2 ? retrait : 0);
+        DrawText(morceau.c_str(), x, page.y + 46 + i * 30, taille, ENCRE);
+        restantes = restantes - (int)lignes[i].size() - 1;
+    }
+
+    // En bas a droite : "la suite", quand tout est ecrit
+    bool ecrit = d.ecriture >= (float)texte.size();
+    if (ecrit && !attendUnChoix(jeu)) {
+        float saut = 3 * std::sin(temps * 5);
+        float x = page.x + page.width - 60;
+        float y = page.y + page.height - 46 + saut;
+        DrawTriangle({x, y}, {x + 20, y}, {x + 10, y + 12}, encreDe(lueur));
+        DrawText("ENTREE", x - 70, y - 2, 10, Color{110, 80, 50, 255});
+    }
+
+    // Les reponses : deux bandes de parchemin, chacune avec son sceau numerote
+    if (attendUnChoix(jeu)) {
+        const char* chiffres[2] = {"I", "II"};
+        for (int i = 0; i < (int)d.choix.size() && i < 2; i++) {
+            Rectangle bande = rectangleChoixDialogue(i);
+            bool survol = CheckCollisionPointRec(GetMousePosition(), bande);
+            if (survol) {
+                bande.x = bande.x - 6;
+            }
+            Color couleurChoix = i == 0 ? Color{110, 224, 208, 255} : Color{255, 110, 80, 255};
+            dessinerParchemin(bande, couleurChoix, false);
+            dessinerSceau(bande.x + 34, bande.y + bande.height / 2, 22, couleurChoix, chiffres[i]);
+            DrawText(d.choix[i].c_str(), bande.x + 66, bande.y + 14, 20, ENCRE);
+            if (i < (int)d.effets.size()) {
+                DrawText(d.effets[i].c_str(), bande.x + 66, bande.y + 42, 10, encreDe(couleurChoix));
+            }
+        }
+        Rectangle premiere = rectangleChoixDialogue(0);
+        texteCentre("Que repond AYLIS ? Tape 1 ou 2, ou clique", {premiere.x, premiere.y - 32, premiere.width, 20}, 20,
+                    Fade(RAYWHITE, 0.85f));
     }
 }
 
@@ -1913,6 +2215,10 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         dessinerRencontre(jeu);
         return;
     }
+    if (jeu.phase == Phase::Dialogue) {
+        dessinerDialogue(jeu);
+        return;
+    }
 
     // L'arene est dessinee a travers une "camera" qui tremble quand un coup porte.
     // L'interface (bandeau, panneau...) reste immobile : elle est dessinee apres, hors camera.
@@ -1936,7 +2242,7 @@ void dessinerJeu(const Jeu& jeu, int colonneSouris, int ligneSouris) {
         dessinerMessage(jeu.nomDuLieu + " : victoire !", Color{110, 220, 120, 255}, "Appuie sur ENTREE pour choisir ta rune");
     } else if (jeu.phase == Phase::Victoire) {
         dessinerMessage("VORGATH EST VAINCU !", OR,
-                        TextFormat("+%i fragments de prophetie - ENTREE pour revenir", jeu.fragmentsGagnes));
+                        TextFormat("+%i fragments de prophetie - ENTREE : la fin de la route", jeu.fragmentsGagnes));
     } else if (jeu.phase == Phase::Defaite) {
         dessinerVisionBrisee(jeu);
     }

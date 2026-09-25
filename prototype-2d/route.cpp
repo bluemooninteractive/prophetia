@@ -284,8 +284,12 @@ void choisirSalle(Jeu& jeu, int numero) {
         proposerRunes(jeu, GetRandomValue(1, 100) <= 35);
     } else if (salle.type == TypeSalle::Marchand) {
         ouvrirBoutique(jeu);
+        dialogueDuMarchand(jeu);        // le marchand parle d'abord (dialogues.cpp)
     } else if (salle.type == TypeSalle::Rencontre) {
         commencerRencontre(jeu);
+    } else if (salle.type == TypeSalle::Boss) {
+        jeu.messageRoute = "";
+        dialogueAvantBoss(jeu);         // le boss parle, puis le combat commence
     } else {
         jeu.messageRoute = "";
         preparerCombat(jeu);
@@ -300,6 +304,11 @@ void apresCombat(Jeu& jeu) {
     int soin = jeu.aylis.stats.pvMax / 4;
     jeu.aylis.stats.soigner(soin);
     jeu.messageRoute = "AYLIS reprend son souffle : +" + std::to_string(soin) + " pv.";
+    // Ashka est a terre : avant la rune, il faut decider de son sort
+    if (jeu.typeSalle == TypeSalle::Boss && acte(acteDeLaSalle(jeu.salle)).boss == BOSS_ASHKA && jeu.choixAshka == 0) {
+        dialogueDAshka(jeu);
+        return;
+    }
     // Apres une elite ou un boss : une rune epique parmi les choix
     proposerRunes(jeu, jeu.typeSalle == TypeSalle::Elite || jeu.typeSalle == TypeSalle::Boss);
 }
@@ -342,7 +351,18 @@ void choisirVoie(Jeu& jeu, int voie) {
         aylis.arme = {"Baton de mage", true, 0, 5, 1, 20};
     }
     aylis.pieces = 15;
+    // L'honneur des visions passees : la prophetie s'en souvient (entre -1 et +1 au depart)
+    aylis.honneur = jeu.memoire.honneurCumule / 4;
+    if (aylis.honneur > 1) {
+        aylis.honneur = 1;
+    } else if (aylis.honneur < -1) {
+        aylis.honneur = -1;
+    }
+    jeu.honneurDeDepart = aylis.honneur;
     jeu.aylis.stats = aylis;
+    jeu.compagnon = COMPAGNON_AUCUN;
+    jeu.choixAshka = 0;
+    jeu.fin = -1;
     jeu.aylis.couleur = SKYBLUE;
     jeu.rencontresVues.clear();
     jeu.elitesVaincues = 0;
@@ -488,11 +508,22 @@ void preparerCombat(Jeu& jeu) {
         } else if (numeroActe == 3) {
             nombre = 4;
         }
+        // Acte IV : si Ashka a ete epargnee, ses guerriers ont deserte (un Haschen de moins)
+        if (numeroActe == 3 && jeu.choixAshka == 1) {
+            nombre = nombre - 1;
+        }
         for (int i = 0; i < nombre; i++) {
             const auto& h = groupe[GetRandomValue(0, (int)groupe.size() - 1)];
             placerHaschen(jeu, accessibles, h.first, h.second);
         }
     }
+    // Acte IV : si Ashka a ete achevee, les Haschen veulent la venger (+2 attaque)
+    if (numeroActe == 3 && jeu.choixAshka == 2) {
+        for (Pion& h : jeu.haschen) {
+            h.stats.attaque = h.stats.attaque + 2;
+        }
+    }
+    placerCompagnon(jeu);       // le compagnon d'AYLIS (compagnons.cpp)
 
     jeu.tour = 1;
     jeu.enGarde = false;

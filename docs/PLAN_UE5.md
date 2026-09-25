@@ -16,7 +16,28 @@ planche « Concept UE5 vue du dessus ».
   - des autels aux runes bleues, des esprits-échos, une mare lumineuse ;
   - **des branches sombres au premier plan** pour cadrer la scène ;
   - une grille tactique **discrète**, visible seulement autour d'AYLIS quand c'est son tour.
+- **Mise à jour : Plan A « Conte sombre », version 2** (page « Direction A : sombre » du canvas) :
+  - plus sombre et plus magique : rayons de lumière, runes qui flottent, feux follets, brume colorée ;
+  - des arbres réalistes (écorce, racines, lierre) à la place des buissons ronds ;
+  - un chemin détaillé : terre usée, ornières, vieilles dalles grises moussues, cailloux, racines, flaques,
+    herbe qui déborde sur les bords. **Plus de pierres colorées par terre** ;
+  - beaucoup de flore : tapis de petites fleurs, clochettes lumineuses, digitales, lys des brumes, hautes herbes.
+- **Dialogues** : grand portrait, texte écrit sur un **manuscrit magique** (parchemin brûlé, filigrane doré,
+  lettrine enluminée, runes et étincelles de la couleur de celui qui parle, nom sur un sceau de cire).
 - Le concept A (île de dalles avec chemin en mosaïque) sert pour les lieux construits : la Forteresse de Karn, le Seuil.
+
+## Assets 3D retenus
+
+| Rôle | Asset | Licence | Notes |
+|---|---|---|---|
+| Haschen (monstres de base) | [Monster 4, par dorlak (CGTrader)](https://www.cgtrader.com/free-3d-models/character/fantasy-character/monster-4-f5757b92-dc9c-4f5e-ad0d-593203d14fe2) | Royalty Free (no AI) | Gratuit, 30k triangles, textures PBR 4k, rig squelette Epic + humanoïde, animé, formats FBX / UASSET. À télécharger soi-même (compte CGTrader). Les variantes (éclaireur, chaman, brute...) se font avec des armes, armures et teintes différentes. |
+
+| AYLIS (placeholder) | [KayKit Adventurers, par Kay Lousberg](https://kaylousberg.itch.io/kaykit-adventurers) | CC0 | Rigé, animé, 25+ armes. Style chibi : contraste fort avec Monster 4, à remplacer ou à harmoniser plus tard. |
+| Décor | [Stylized Nature MegaKit, par Quaternius](https://quaternius.itch.io/stylized-nature-megakit) | CC0 | 116 modèles (arbres, fleurs, rochers, herbes, dalles). Version Standard gratuite ; la version Source a un projet Unreal avec les shaders. |
+| Détails du chemin | [Poly Haven](https://polyhaven.com/models/nature) : Root Cluster 01, Pine Roots, Rock Moss Set 01, Boulder 01, Tree Stump 01, Dead Tree Trunk 02, Fern 02, Moss 01 | CC0 | Scans réalistes, en petites touches. |
+
+Planches « Assets UE5 » et « Test de rendu » dans le canvas « VESPERANCE Key Art ». Le test de rendu montre que
+le décor Quaternius tient bien la nuit et que Monster 4 colle à l'ambiance, mais que le héros chibi détonne.
 - En UE5, ce rendu passe par des **matériaux stylisés (toon shading + contour)**, **Lumen** pour la lumière,
   et de la végétation en instances (Foliage), avec des modèles au style peint.
 
