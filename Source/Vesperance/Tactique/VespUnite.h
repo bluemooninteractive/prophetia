@@ -65,6 +65,7 @@ private:
 	void Jouer(UAnimSequence* Animation, bool bEnBoucle);
 	void Regarder(const FVector& Point);
 	void MettreAJourTexte();
+	void TeindreEnBleu();			// AYLIS : le vert du modele KayKit devient bleu nuit
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Racine;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> Modele;

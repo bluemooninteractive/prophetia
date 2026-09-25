@@ -49,6 +49,10 @@ public:
 	// en contournant les obstacles. Il s'arrete au contact.
 	TArray<FIntPoint> ApprocheVers(FIntPoint Depart, FIntPoint Cible, int32 PasMax) const;
 
+	// Un decor KayKit importe dans /Game/Decor : le premier dont le nom contient un des mots (ou rien)
+	UStaticMesh* ModeleDuDecor(std::initializer_list<const TCHAR*> Noms) const;
+	float EchelleSur(UStaticMesh* Modele, float Hauteur, float LargeurMax) const;
+
 	// Allume en bleu les cases accessibles (ou les eteint toutes avec un tableau vide)
 	void AfficherCasesAtteignables(const TArray<int32>& Pas);
 
@@ -61,8 +65,7 @@ protected:
 private:
 	int32 Index(FIntPoint Case) const { return Case.Y * Colonnes + Case.X; }
 	void ConstruireCarte();
-	UStaticMesh* ModeleDuDecor(std::initializer_list<const TCHAR*> Noms) const;	// un modele importe dans /Game/Decor (ou rien)
-	float EchelleSur(UStaticMesh* Modele, float Hauteur, float LargeurMax) const;
+
 
 	// La carte, une lettre par case : '.' = sol, '#' = rocher, 'T' = arbre
 	TArray<TCHAR> Carte;

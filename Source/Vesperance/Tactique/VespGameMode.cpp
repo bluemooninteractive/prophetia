@@ -21,8 +21,9 @@
 // ===================== La nuit de la Foret des Brumes =====================
 // On transforme le niveau "Basic" : la lune a la place du soleil, un ciel sombre, une brume bleu-vert,
 // un sol de mousse sous l'arene, et des lumieres magiques (lanternes, autels) autour.
-static void AmbianceDeNuit(UWorld* Monde, const FVector& Centre, float ExpositionImage)
+static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionImage)
 {
+	const FVector Centre = Grille->GetActorLocation();
 	for (TActorIterator<ADirectionalLight> It(Monde); It; ++It)
 	{
 		UDirectionalLightComponent* Lune = Cast<UDirectionalLightComponent>(It->GetLightComponent());
@@ -53,14 +54,14 @@ static void AmbianceDeNuit(UWorld* Monde, const FVector& Centre, float Expositio
 	Couleur->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.02f, 0.05f, 0.04f));
 	Mousse->GetStaticMeshComponent()->SetMaterial(0, Couleur);
 	// Les lumieres magiques : des lanternes dorees le long de l'arene, et deux autels (violet et cyan)
-	struct FLumiere { FVector Position; FLinearColor Couleur; float Intensite; float Rayon; };
+	struct FLumiere { FVector Position; FLinearColor Couleur; float Intensite; float Rayon; bool bAutel; };
 	const FLumiere Lumieres[] = {
-		{FVector(-450, -700, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f},
-		{FVector(450, -300, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f},
-		{FVector(-450, 450, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f},
-		{FVector(300, 700, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f},
-		{FVector(-300, -150, 160), FLinearColor(0.7f, 0.45f, 1.0f), 1800.0f, 650.0f},
-		{FVector(200, 350, 160), FLinearColor(0.4f, 0.9f, 1.0f), 1800.0f, 650.0f},
+		{FVector(-450, -700, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
+		{FVector(450, -300, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
+		{FVector(-450, 450, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
+		{FVector(300, 700, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
+		{FVector(-500, -150, 160), FLinearColor(0.7f, 0.45f, 1.0f), 1800.0f, 650.0f, true},
+		{FVector(500, 350, 160), FLinearColor(0.4f, 0.9f, 1.0f), 1800.0f, 650.0f, true},
 	};
 	// L'image : une exposition fixe (sinon Unreal eclaircit la nuit tout seul, comme un appareil photo),
 	// des couleurs un peu plus froides, et les bords de l'ecran assombris
@@ -87,6 +88,18 @@ static void AmbianceDeNuit(UWorld* Monde, const FVector& Centre, float Expositio
 		Lampe->PointLightComponent->SetLightColor(L.Couleur);
 		Lampe->PointLightComponent->SetIntensity(L.Intensite);
 		Lampe->PointLightComponent->SetAttenuationRadius(L.Rayon);
+
+		// Le modele sous la lumiere : une lanterne, ou un autel a bougies (s'ils sont importes dans /Game/Decor)
+		UStaticMesh* Objet = L.bAutel ? Grille->ModeleDuDecor({TEXT("shrine")}) : Grille->ModeleDuDecor({TEXT("lantern")});
+		if (Objet)
+		{
+			FVector Sol = Centre + L.Position;
+			Sol.Z = Centre.Z;
+			AStaticMeshActor* Decor = Monde->SpawnActor<AStaticMeshActor>(Sol, FRotator(0, L.bAutel ? 90.0f : 0.0f, 0));
+			Decor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
+			Decor->GetStaticMeshComponent()->SetStaticMesh(Objet);
+			Decor->SetActorScale3D(FVector(Grille->EchelleSur(Objet, L.bAutel ? 180.0f : 110.0f, L.bAutel ? 160.0f : 70.0f)));
+		}
 	}
 }
 
@@ -119,7 +132,7 @@ void AVespGameMode::BeginPlay()
 	// 1. L'arene, au centre du monde (un peu au-dessus du sol du niveau)
 	AVespGrille* Grille = Monde->SpawnActor<AVespGrille>(FVector(0, 0, 5), FRotator::ZeroRotator);
 
-	AmbianceDeNuit(Monde, Grille->GetActorLocation(), Exposition);
+	AmbianceDeNuit(Monde, Grille, Exposition);
 
 	// 2. AYLIS, a gauche de l'arene (colonne 1, ligne 3), voie de l'epee
 	AVespUnite* Aylis = Monde->SpawnActor<AVespUnite>(FVector::ZeroVector, FRotator::ZeroRotator);

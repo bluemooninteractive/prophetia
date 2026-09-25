@@ -9,6 +9,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Engine/Texture2D.h"
+#include "Materials/MaterialInstance.h"
 
 AVespUnite::AVespUnite()
 {
@@ -164,7 +166,92 @@ void AVespUnite::Habiller(const FString& Dossier)
 		Modele->SetRelativeScale3D(FVector(Taille / Hauteur));
 	}
 	Modele->SetRelativeRotation(FRotator(0, CorrectionRotation, 0));
+	if (bAylis)
+	{
+		TeindreEnBleu();
+	}
 	Jouer(AnimRepos, true);
+}
+
+// Une copie de la texture ou le vert devient bleu nuit (la peau, le cuir et le metal ne changent pas)
+static UTexture2D* TextureEnBleu(UTexture2D* Source, UObject* Proprietaire)
+{
+#if WITH_EDITORONLY_DATA
+	static TMap<UTexture2D*, UTexture2D*> DejaFaites;		// une seule copie par texture
+	if (UTexture2D** Faite = DejaFaites.Find(Source))
+	{
+		return *Faite;
+	}
+	TArray64<uint8> Pixels;
+	if (!Source->Source.IsValid() || Source->Source.GetFormat() != TSF_BGRA8 || !Source->Source.GetMipData(Pixels, 0))
+	{
+		return nullptr;		// un format qu'on ne sait pas lire : on garde la texture d'origine
+	}
+	const int32 Largeur = Source->Source.GetSizeX();
+	const int32 Hauteur = Source->Source.GetSizeY();
+	const FLinearColor Bleu(0.25f, 0.39f, 0.88f);
+	for (int64 i = 0; i + 3 < Pixels.Num(); i += 4)
+	{
+		const float B = Pixels[i] / 255.0f, G = Pixels[i + 1] / 255.0f, R = Pixels[i + 2] / 255.0f;
+		// "Combien ce pixel est vert" : 0 pour la peau ou le cuir, 1 pour la cape verte
+		const float Vert = FMath::Clamp((G - FMath::Max(R, B) - 0.02f) * 6.0f, 0.0f, 1.0f);
+		if (Vert <= 0.0f)
+		{
+			continue;
+		}
+		const float Lumiere = 0.3f * R + 0.59f * G + 0.11f * B;
+		const float Force = 0.5f + Lumiere * 2.0f;
+		Pixels[i] = (uint8)FMath::Clamp(FMath::Lerp(B, Bleu.B * Force, Vert) * 255.0f, 0.0f, 255.0f);
+		Pixels[i + 1] = (uint8)FMath::Clamp(FMath::Lerp(G, Bleu.G * Force, Vert) * 255.0f, 0.0f, 255.0f);
+		Pixels[i + 2] = (uint8)FMath::Clamp(FMath::Lerp(R, Bleu.R * Force, Vert) * 255.0f, 0.0f, 255.0f);
+	}
+	UTexture2D* Copie = UTexture2D::CreateTransient(Largeur, Hauteur, PF_B8G8R8A8);
+	Copie->SRGB = Source->SRGB;
+	Copie->Filter = Source->Filter;
+	void* Donnees = Copie->GetPlatformData()->Mips[0].BulkData.Lock(LOCK_READ_WRITE);
+	FMemory::Memcpy(Donnees, Pixels.GetData(), (SIZE_T)Largeur * Hauteur * 4);
+	Copie->GetPlatformData()->Mips[0].BulkData.Unlock();
+	Copie->UpdateResource();
+	Copie->AddToRoot();			// la garder en memoire tant que le jeu tourne
+	DejaFaites.Add(Source, Copie);
+	return Copie;
+#else
+	return nullptr;
+#endif
+}
+
+void AVespUnite::TeindreEnBleu()
+{
+	TArray<USkeletalMeshComponent*> Morceaux = {Modele};
+	for (USkeletalMeshComponent* P : Pieces)
+	{
+		Morceaux.Add(P);
+	}
+	for (USkeletalMeshComponent* Morceau : Morceaux)
+	{
+		for (int32 i = 0; i < Morceau->GetNumMaterials(); i++)
+		{
+			UMaterialInstance* Materiau = Cast<UMaterialInstance>(Morceau->GetMaterial(i));
+			if (!Materiau)
+			{
+				continue;
+			}
+			UMaterialInstanceDynamic* Nouveau = nullptr;
+			for (const FTextureParameterValue& P : Materiau->TextureParameterValues)
+			{
+				UTexture2D* Texture = Cast<UTexture2D>(P.ParameterValue);
+				UTexture2D* EnBleu = Texture ? TextureEnBleu(Texture, this) : nullptr;
+				if (EnBleu)
+				{
+					if (!Nouveau)
+					{
+						Nouveau = Morceau->CreateDynamicMaterialInstance(i, Materiau);
+					}
+					Nouveau->SetTextureParameterValueByInfo(P.ParameterInfo, EnBleu);
+				}
+			}
+		}
+	}
 }
 
 void AVespUnite::Jouer(UAnimSequence* Animation, bool bEnBoucle)
