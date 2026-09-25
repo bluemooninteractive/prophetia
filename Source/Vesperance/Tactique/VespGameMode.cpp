@@ -2,6 +2,7 @@
 #include "VespGrille.h"
 #include "VespUnite.h"
 #include "VespPlayerController.h"
+#include "VespHUD.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
@@ -109,6 +110,7 @@ static const FString DOSSIER = TEXT("/Game/Characters/");
 AVespGameMode::AVespGameMode()
 {
 	PlayerControllerClass = AVespPlayerController::StaticClass();
+	HUDClass = AVespHUD::StaticClass();		// l'interface du combat
 	DefaultPawnClass = nullptr;		// pas de personnage a diriger au clavier : on joue a la souris, sur la grille
 }
 

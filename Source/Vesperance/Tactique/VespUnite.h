@@ -47,11 +47,12 @@ public:
 	bool EstDebout() const { return Stats.Pv > 0; }
 	bool EstAylis() const { return bAylis; }
 
-	// Le combat : il frappe une cible (renvoie les degats), il encaisse un coup
-	int32 Frapper(AVespUnite* Cible);
+	// Le combat : il frappe une cible avec une "puissance" (100 = normal, 180 = lourd, 0 = rate), et renvoie les degats
+	int32 Frapper(AVespUnite* Cible, int32 Puissance);
 	void Encaisser(int32 Degats, bool bCritique);
 
 	FVespStats Stats;
+	float ReductionDegats = 1.0f;		// 0.5 quand AYLIS est en garde : les coups font 2 fois moins mal
 
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float Vitesse = 380.0f;			// cm par seconde
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float Taille = 170.0f;			// la hauteur du modele, en cm

@@ -1,7 +1,7 @@
 #include "VespPlayerController.h"
 #include "VespGrille.h"
 #include "VespUnite.h"
-#include "Engine/Engine.h"
+#include "VespHUD.h"
 #include "Kismet/GameplayStatics.h"
 
 AVespPlayerController::AVespPlayerController()
@@ -10,11 +10,12 @@ AVespPlayerController::AVespPlayerController()
 	DefaultMouseCursor = EMouseCursor::Default;
 }
 
-void AVespPlayerController::Annoncer(const FString& Texte, FColor Couleur, float Duree)
+void AVespPlayerController::Ecrire(const FString& Message)
 {
-	if (GEngine)
+	Journal.Add(Message);
+	if (Journal.Num() > 3)
 	{
-		GEngine->AddOnScreenDebugMessage(1, Duree, Couleur, Texte, true, FVector2D(1.6f, 1.6f));
+		Journal.RemoveAt(0);
 	}
 }
 
@@ -30,6 +31,7 @@ void AVespPlayerController::Commencer(AVespGrille* LaGrille, AVespUnite* LAylis,
 	FInputModeGameAndUI Mode;
 	Mode.SetHideCursorDuringCapture(false);
 	SetInputMode(Mode);
+	Ecrire(TEXT("Acte 1, salle 1 : Combat - La Foret des Brumes"));
 	TourDAylis();
 }
 
@@ -45,6 +47,106 @@ bool AVespPlayerController::ResteDesHaschen() const
 	return false;
 }
 
+// ===================== Les actions (les memes que le prototype) =====================
+
+FString AVespPlayerController::NomAction(EVespAction Action)
+{
+	switch (Action)
+	{
+		case EVespAction::Attaque: return TEXT("Attaque");
+		case EVespAction::Lourde: return TEXT("Lourde");
+		case EVespAction::Garde: return TEXT("Garde");
+		case EVespAction::Potion: return TEXT("Potion");
+		default: return TEXT("SPECIAL");
+	}
+}
+
+FString AVespPlayerController::DetailAction(EVespAction Action, int32 NombreDePotions)
+{
+	switch (Action)
+	{
+		case EVespAction::Potion: return FString::Printf(TEXT("+15 pv  (x%d)"), NombreDePotions);
+		case EVespAction::Speciale: return TEXT("rage pleine");
+		default: return TEXT("au contact");
+	}
+}
+
+FString AVespPlayerController::AideAction(EVespAction Action)
+{
+	switch (Action)
+	{
+		case EVespAction::Attaque: return TEXT("Un coup d'epee. Ne rate jamais.");
+		case EVespAction::Lourde: return TEXT("Degats x1.8, mais rate 4 fois sur 10.");
+		case EVespAction::Garde: return TEXT("Petits degats, et tu encaisses 2 fois moins jusqu'a ton prochain tour.");
+		case EVespAction::Potion: return TEXT("Rend 15 pv tout de suite (ton tour est fini).");
+		default: return TEXT("Quand la rage est pleine : degats x2.2, ne rate jamais.");
+	}
+}
+
+bool AVespPlayerController::ActionDisponible(EVespAction Action) const
+{
+	if (Action == EVespAction::Potion)
+	{
+		return Potions > 0;
+	}
+	if (Action == EVespAction::Speciale)
+	{
+		return Rage >= 100;
+	}
+	return true;
+}
+
+// Une action choisie (touche ou carte). La potion se boit tout de suite ; les autres attendent une cible.
+void AVespPlayerController::ChoisirAction(EVespAction Action)
+{
+	if (!ActionDisponible(Action))
+	{
+		Ecrire(NomAction(Action) + (Action == EVespAction::Potion ? TEXT(" : plus de potions.") : TEXT(" : la rage n'est pas pleine.")));
+		return;
+	}
+	if (Action == EVespAction::Potion)
+	{
+		Potions--;
+		const int32 Avant = Aylis->Stats.Pv;
+		Aylis->Stats.Pv = FMath::Min(Aylis->Stats.PvMax, Aylis->Stats.Pv + 15);
+		Ecrire(FString::Printf(TEXT("AYLIS boit une potion : +%d pv"), Aylis->Stats.Pv - Avant));
+		FinDuTourDAylis();
+		return;
+	}
+	ActionChoisie = Action;
+}
+
+void AVespPlayerController::AgirSur(AVespUnite* Cible)
+{
+	const EVespAction Action = ActionChoisie;
+	int32 Puissance = 100;
+	if (Action == EVespAction::Lourde)
+	{
+		if (FMath::RandRange(1, 100) > 60)
+		{
+			Aylis->Frapper(Cible, 0);		// l'elan, mais rien ne touche
+			Ecrire(TEXT("Attaque lourde... ratee !"));
+			FinDuTourDAylis();
+			return;
+		}
+		Puissance = 180;
+	}
+	else if (Action == EVespAction::Garde)
+	{
+		Puissance = 60;
+		bEnGarde = true;
+	}
+	else if (Action == EVespAction::Speciale)
+	{
+		Puissance = 220;
+		Rage = 0;
+	}
+	const int32 Degats = Aylis->Frapper(Cible, Puissance);
+	Ecrire(FString::Printf(TEXT("AYLIS frappe %s : -%d pv%s"), *Cible->Stats.Nom, Degats, Cible->EstDebout() ? TEXT("") : TEXT(" ... il tombe !")));
+	ActionChoisie = EVespAction::Attaque;
+	FinDuTourDAylis();
+}
+
 // ===================== Le tour d'AYLIS =====================
 
 void AVespPlayerController::TourDAylis()
@@ -52,9 +154,9 @@ void AVespPlayerController::TourDAylis()
 	Tour++;
 	Phase = EVespPhase::TourAylis;
 	bADejaBouge = false;
+	bEnGarde = false;
+	Aylis->ReductionDegats = 1.0f;
 	MontrerCasesAtteignables();
-	Annoncer(FString::Printf(TEXT("TOUR %d : deplace AYLIS, puis clique sur un Haschen au contact (ESPACE : passer)"), Tour),
-	         FColor(232, 192, 84));
 }
 
 void AVespPlayerController::MontrerCasesAtteignables()
@@ -66,17 +168,17 @@ void AVespPlayerController::MontrerCasesAtteignables()
 void AVespPlayerController::FinDuTourDAylis()
 {
 	Grille->AfficherCasesAtteignables({});
+	Aylis->ReductionDegats = bEnGarde ? 0.5f : 1.0f;
 	if (!ResteDesHaschen())
 	{
 		Phase = EVespPhase::Victoire;
-		Annoncer(TEXT("VICTOIRE ! Les Haschen sont tombes. (R : recommencer)"), FColor(110, 220, 120), 30.0f);
+		Ecrire(TEXT("Les Haschen sont tombes !"));
 		return;
 	}
 	Phase = EVespPhase::TourHaschen;
 	HaschenQuiJoue = 0;
 	EtapeHaschen = 0;
 	Minuteur = 0.0f;
-	Annoncer(TEXT("TOUR DES HASCHEN"), FColor(220, 80, 80), 1.5f);
 }
 
 // La case sous la souris : on lance un rayon depuis la camera, et on regarde ou il coupe le sol
@@ -118,30 +220,55 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		return;
 	}
 
+	// Les touches 1 a 5 choisissent une action
+	const FKey Touches[AVespHUD::NombreDeCartes] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five};
+	for (int32 i = 0; i < AVespHUD::NombreDeCartes; i++)
+	{
+		if (WasInputKeyJustPressed(Touches[i]))
+		{
+			ChoisirAction((EVespAction)i);
+			return;
+		}
+	}
 	if (WasInputKeyJustPressed(EKeys::SpaceBar))
 	{
+		Ecrire(TEXT("AYLIS attend."));
 		FinDuTourDAylis();
 		return;
 	}
-	if (!WasInputKeyJustPressed(EKeys::LeftMouseButton) || !bSurLaGrille)
+	if (!WasInputKeyJustPressed(EKeys::LeftMouseButton))
 	{
 		return;
 	}
-	// Un clic sur un Haschen au contact : AYLIS frappe, et son tour est fini
+	// Un clic sur une carte d'action
+	float SourisX = 0, SourisY = 0;
+	int32 LargeurEcran = 0, HauteurEcran = 0;
+	GetMousePosition(SourisX, SourisY);
+	GetViewportSize(LargeurEcran, HauteurEcran);
+	for (int32 i = 0; i < AVespHUD::NombreDeCartes; i++)
+	{
+		if (AVespHUD::RectangleCarte(i, FVector2D(LargeurEcran, HauteurEcran)).IsInside(FVector2D(SourisX, SourisY)))
+		{
+			ChoisirAction((EVespAction)i);
+			return;
+		}
+	}
+	if (!bSurLaGrille)
+	{
+		return;
+	}
+	// Un clic sur un Haschen au contact : l'action choisie
 	AVespUnite* Cible = Grille->UniteSur(Case);
 	if (Cible && !Cible->EstAylis())
 	{
 		const FIntPoint Ecart = Case - Aylis->GetCase();
 		if (FMath::Abs(Ecart.X) + FMath::Abs(Ecart.Y) == 1)
 		{
-			const int32 Degats = Aylis->Frapper(Cible);
-			Annoncer(FString::Printf(TEXT("AYLIS frappe %s : -%d pv%s"), *Cible->Stats.Nom, Degats, Cible->EstDebout() ? TEXT("") : TEXT(" ... il tombe !")),
-			         FColor(240, 240, 240), 2.0f);
-			FinDuTourDAylis();
+			AgirSur(Cible);
 		}
 		else
 		{
-			Annoncer(TEXT("Trop loin : approche-toi d'abord (il faut etre sur une case voisine)"), FColor(255, 160, 120), 2.0f);
+			Ecrire(TEXT("Trop loin ! Il faut etre sur une case voisine."));
 		}
 		return;
 	}
@@ -192,13 +319,13 @@ void AVespPlayerController::JouerTourHaschen(float Secondes)
 	const FIntPoint Ecart = H->GetCase() - Aylis->GetCase();
 	if (FMath::Abs(Ecart.X) + FMath::Abs(Ecart.Y) == 1)
 	{
-		const int32 Degats = H->Frapper(Aylis);
-		Annoncer(FString::Printf(TEXT("%s touche AYLIS : -%d pv"), *H->Stats.Nom, Degats), FColor(255, 125, 125), 2.0f);
+		const int32 Degats = H->Frapper(Aylis, 100);
+		Rage = FMath::Min(100, Rage + Degats * 4);		// la rage monte avec les coups recus
+		Ecrire(FString::Printf(TEXT("%s touche AYLIS : -%d pv"), *H->Stats.Nom, Degats));
 		if (!Aylis->EstDebout())
 		{
 			Phase = EVespPhase::Defaite;
 			Grille->AfficherCasesAtteignables({});
-			Annoncer(TEXT("La vision se brise... (R : recommencer)"), FColor(200, 160, 255), 30.0f);
 			return;
 		}
 	}

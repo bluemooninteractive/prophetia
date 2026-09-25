@@ -46,7 +46,7 @@ AVespUnite::AVespUnite()
 
 	Texte = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Texte"));
 	Texte->SetupAttachment(Racine);
-	Texte->SetRelativeLocation(FVector(0, 0, 215));
+	Texte->SetRelativeLocation(FVector(0, 0, 240));
 	Texte->SetHorizontalAlignment(EHTA_Center);
 	Texte->SetWorldSize(34.0f);
 }
@@ -340,19 +340,23 @@ void AVespUnite::Tick(float Secondes)
 
 // ===================== Le combat (les memes regles que le prototype) =====================
 
-int32 AVespUnite::Frapper(AVespUnite* Cible)
+int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance)
 {
 	Regarder(Cible->GetActorLocation());
 	Jouer(AnimAttaque, false);
 	TempsAction = 0.9f;
-	// attaque - defense, un peu de hasard, et parfois un critique (x2)
-	int32 Degats = Stats.Attaque - Cible->Stats.Defense + FMath::RandRange(-1, 1);
+	if (Puissance <= 0)
+	{
+		return 0;		// un coup rate : l'elan, sans rien toucher
+	}
+	// attaque x puissance - defense, un peu de hasard, et parfois un critique (x2), comme dans le prototype
+	int32 Degats = Stats.Attaque * Puissance / 100 - Cible->Stats.Defense + FMath::RandRange(-1, 1);
 	const bool bCritique = FMath::RandRange(1, 100) <= Stats.ChanceCritique;
 	if (bCritique)
 	{
 		Degats *= 2;
 	}
-	Degats = FMath::Max(1, Degats);
+	Degats = FMath::Max(1, FMath::RoundToInt(FMath::Max(1, Degats) * Cible->ReductionDegats));
 	Cible->Encaisser(Degats, bCritique);
 	return Degats;
 }
@@ -386,5 +390,5 @@ void AVespUnite::Encaisser(int32 Degats, bool bCritique)
 void AVespUnite::MettreAJourTexte()
 {
 	Texte->SetTextRenderColor(bAylis ? FColor(120, 180, 255) : FColor(255, 110, 90));
-	Texte->SetText(EstDebout() ? FText::FromString(FString::Printf(TEXT("%d / %d"), Stats.Pv, Stats.PvMax)) : FText::GetEmpty());
+	Texte->SetText(FText::GetEmpty());		// les pv sont affiches par l'interface (VespHUD) : ici, seulement les degats recus
 }
