@@ -13,6 +13,7 @@
 class AVespGrille;
 class UAnimSequence;
 class UTextRenderComponent;
+class UPointLightComponent;
 
 // Les stats d'un combattant, comme dans le prototype (types.h)
 USTRUCT(BlueprintType)
@@ -70,6 +71,7 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Corps;	// la silhouette de secours
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Tete;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UTextRenderComponent> Texte;	// les pv au-dessus de la tete
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UPointLightComponent> Lueur;	// la lumiere de la prophetie (AYLIS) ou les yeux (Haschen)
 
 	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> Pieces;	// les autres morceaux du modele (bras, jambes, tete...)
 	UPROPERTY() TObjectPtr<UAnimSequence> AnimRepos;

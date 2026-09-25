@@ -61,9 +61,13 @@ protected:
 private:
 	int32 Index(FIntPoint Case) const { return Case.Y * Colonnes + Case.X; }
 	void ConstruireCarte();
+	UStaticMesh* ModeleDuDecor(std::initializer_list<const TCHAR*> Noms) const;	// un modele importe dans /Game/Decor (ou rien)
+	float EchelleSur(UStaticMesh* Modele, float Hauteur) const;
 
 	// La carte, une lettre par case : '.' = sol, '#' = rocher, 'T' = arbre
 	TArray<TCHAR> Carte;
+	bool bVraisArbres = false;
+	bool bVraisRochers = false;
 	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Occupants;	// une case par position : l'unite qui s'y tient (ou rien)
 
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Racine;

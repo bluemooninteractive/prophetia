@@ -4,6 +4,7 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "Components/TextRenderComponent.h"
+#include "Components/PointLightComponent.h"
 #include "Engine/SkeletalMesh.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInstanceDynamic.h"
@@ -35,6 +36,12 @@ AVespUnite::AVespUnite()
 	Tete->SetRelativeScale3D(FVector(0.42f));
 	Tete->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+	Lueur = CreateDefaultSubobject<UPointLightComponent>(TEXT("Lueur"));
+	Lueur->SetupAttachment(Racine);
+	Lueur->SetRelativeLocation(FVector(0, 0, 150));
+	Lueur->SetAttenuationRadius(420.0f);
+	Lueur->SetCastShadows(false);
+
 	Texte = CreateDefaultSubobject<UTextRenderComponent>(TEXT("Texte"));
 	Texte->SetupAttachment(Racine);
 	Texte->SetRelativeLocation(FVector(0, 0, 215));
@@ -63,6 +70,10 @@ void AVespUnite::Preparer(AVespGrille* LaGrille, FIntPoint NouvelleCase, const F
 	Corps->SetMaterial(0, Materiau);
 	Tete->SetMaterial(0, Materiau);
 	Texte->SetTextRenderColor(bAylis ? FColor(120, 180, 255) : FColor(255, 110, 90));
+	// AYLIS porte la lumiere violette de la prophetie ; les Haschen, une faible lueur rouge (leurs yeux)
+	Lueur->SetLightColor(bAylis ? FLinearColor(0.55f, 0.45f, 1.0f) : FLinearColor(1.0f, 0.25f, 0.15f));
+	Lueur->SetIntensity(bAylis ? 1400.0f : 160.0f);
+	Lueur->SetAttenuationRadius(bAylis ? 520.0f : 220.0f);
 
 	Habiller(Dossier);
 	MettreAJourTexte();
@@ -271,8 +282,9 @@ void AVespUnite::Encaisser(int32 Degats, bool bCritique)
 		Jouer(AnimTouche, false);
 		return;
 	}
-	// Il tombe : il libere sa case, et reste au sol
+	// Il tombe : il libere sa case, et reste au sol (sa lueur s'eteint)
 	Grille->Liberer(this);
+	Lueur->SetVisibility(false);
 	CheminRestant.Reset();
 	if (AnimChute && Modele->GetSkeletalMeshAsset())
 	{

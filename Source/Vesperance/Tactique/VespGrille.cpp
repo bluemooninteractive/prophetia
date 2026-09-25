@@ -3,6 +3,8 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
+#include "AssetRegistry/AssetRegistryModule.h"
+#include "Engine/StaticMesh.h"
 
 // La carte de la clairiere de la Foret des Brumes : '#' = rocher, 'T' = arbre, '.' = sol libre
 // (AYLIS commence a gauche, en colonne 1, ligne 3)
@@ -53,12 +55,57 @@ UMaterialInstanceDynamic* AVespGrille::Couleur(UInstancedStaticMeshComponent* Co
 	return Materiau;
 }
 
+// Un decor KayKit importe dans /Game/Decor : le premier dont le nom contient un des mots demandes
+UStaticMesh* AVespGrille::ModeleDuDecor(std::initializer_list<const TCHAR*> Noms) const
+{
+	IAssetRegistry& Registre = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
+	TArray<FAssetData> Assets;
+	Registre.GetAssetsByPath(FName(TEXT("/Game/Decor")), Assets, true);
+	for (const TCHAR* Nom : Noms)
+	{
+		for (const FAssetData& A : Assets)
+		{
+			if (A.IsInstanceOf(UStaticMesh::StaticClass()) && A.AssetName.ToString().Contains(Nom))
+			{
+				return Cast<UStaticMesh>(A.GetAsset());
+			}
+		}
+	}
+	return nullptr;
+}
+
+// L'echelle pour qu'un modele fasse "Hauteur" cm de haut
+float AVespGrille::EchelleSur(UStaticMesh* Modele, float Hauteur) const
+{
+	const float H = Modele->GetBounds().BoxExtent.Z * 2.0f;
+	return H > 1.0f ? Hauteur / H : 1.0f;
+}
+
 void AVespGrille::BeginPlay()
 {
 	Super::BeginPlay();
+	// Les vrais decors (s'ils sont importes) : les sapins et les rochers KayKit, avec leurs couleurs d'origine
+	if (UStaticMesh* Sapin = ModeleDuDecor({TEXT("tree_pine"), TEXT("tree")}))
+	{
+		Arbres->SetStaticMesh(Sapin);
+		Arbres->EmptyOverrideMaterials();
+		bVraisArbres = true;
+	}
+	else
+	{
+		Couleur(Arbres, FLinearColor(0.08f, 0.30f, 0.26f));
+	}
+	if (UStaticMesh* Rocher = ModeleDuDecor({TEXT("rock"), TEXT("gravestone"), TEXT("stone")}))
+	{
+		Rochers->SetStaticMesh(Rocher);
+		Rochers->EmptyOverrideMaterials();
+		bVraisRochers = true;
+	}
+	else
+	{
+		Couleur(Rochers, FLinearColor(0.25f, 0.24f, 0.30f));
+	}
 	Couleur(Sol, FLinearColor(0.10f, 0.16f, 0.12f));
-	Couleur(Rochers, FLinearColor(0.25f, 0.24f, 0.30f));
-	Couleur(Arbres, FLinearColor(0.08f, 0.30f, 0.26f));
 	Couleur(Accessibles, FLinearColor(0.35f, 0.75f, 1.0f));
 	Couleur(Survol, FLinearColor(1.0f, 1.0f, 1.0f));
 	ConstruireCarte();
@@ -154,11 +201,27 @@ void AVespGrille::ConstruireCarte()
 			Sol->AddInstance(FTransform(FRotator::ZeroRotator, Centre, FVector(0.96f, 0.96f, 1.0f)), true);
 			if (Carte[Index(Case)] == '#')
 			{
-				Rochers->AddInstance(FTransform(FRotator(0, 20.0f * C, 0), Centre + FVector(0, 0, 35), FVector(0.7f, 0.7f, 0.7f)), true);
+				if (bVraisRochers)
+				{
+					const float E = EchelleSur(Rochers->GetStaticMesh(), 70.0f);
+					Rochers->AddInstance(FTransform(FRotator(0, 37.0f * C + 11.0f * L, 0), Centre, FVector(E)), true);
+				}
+				else
+				{
+					Rochers->AddInstance(FTransform(FRotator(0, 20.0f * C, 0), Centre + FVector(0, 0, 35), FVector(0.7f, 0.7f, 0.7f)), true);
+				}
 			}
 			else if (Carte[Index(Case)] == 'T')
 			{
-				Arbres->AddInstance(FTransform(FRotator::ZeroRotator, Centre + FVector(0, 0, 90), FVector(0.8f, 0.8f, 1.8f)), true);
+				if (bVraisArbres)
+				{
+					const float E = EchelleSur(Arbres->GetStaticMesh(), 260.0f + 40.0f * ((C + L) % 3));
+					Arbres->AddInstance(FTransform(FRotator(0, 53.0f * C, 0), Centre, FVector(E)), true);
+				}
+				else
+				{
+					Arbres->AddInstance(FTransform(FRotator::ZeroRotator, Centre + FVector(0, 0, 90), FVector(0.8f, 0.8f, 1.8f)), true);
+				}
 			}
 		}
 	}

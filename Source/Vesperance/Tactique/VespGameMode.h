@@ -19,4 +19,6 @@ public:
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float DistanceCamera = 2300.0f;
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float ElevationCamera = 55.0f;
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float AzimutCamera = -15.0f;
+	// La luminosite de l'image : plus haut = plus clair (1 = un cran de plus, comme sur un appareil photo)
+	UPROPERTY(EditAnywhere, Category = "Vesperance") float Exposition = 0.0f;
 };
