@@ -1,0 +1,13 @@
+# Unreal Engine : les dossiers regeneres automatiquement (lourds, inutiles a sauvegarder)
+Binaries/
+Intermediate/
+DerivedDataCache/
+Saved/
+.vs/
+.idea/
+*.sln
+*.slnx
+*.suo
+*.opensdf
+*.sdf
+*.VC.db
