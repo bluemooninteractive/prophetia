@@ -35,6 +35,7 @@ AVespGrille::AVespGrille()
 		C->SetupAttachment(Racine);
 		C->SetStaticMesh(Modele);
 		C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		C->SetMobility(EComponentMobility::Movable);	// modifiable pendant la partie (pour y mettre les decors importes)
 		return C;
 	};
 	Sol = Creer(TEXT("Sol"), Plan.Object);
@@ -74,11 +75,18 @@ UStaticMesh* AVespGrille::ModeleDuDecor(std::initializer_list<const TCHAR*> Noms
 	return nullptr;
 }
 
-// L'echelle pour qu'un modele fasse "Hauteur" cm de haut
-float AVespGrille::EchelleSur(UStaticMesh* Modele, float Hauteur) const
+// L'echelle pour qu'un modele fasse "Hauteur" cm de haut, sans depasser "LargeurMax" cm de large
+// (pour qu'il tienne dans sa case)
+float AVespGrille::EchelleSur(UStaticMesh* Modele, float Hauteur, float LargeurMax) const
 {
-	const float H = Modele->GetBounds().BoxExtent.Z * 2.0f;
-	return H > 1.0f ? Hauteur / H : 1.0f;
+	const FVector Taille = Modele->GetBounds().BoxExtent * 2.0f;
+	float E = Taille.Z > 1.0f ? Hauteur / Taille.Z : 1.0f;
+	const float Largeur = FMath::Max(Taille.X, Taille.Y);
+	if (Largeur * E > LargeurMax)
+	{
+		E = LargeurMax / Largeur;
+	}
+	return E;
 }
 
 void AVespGrille::BeginPlay()
@@ -203,7 +211,7 @@ void AVespGrille::ConstruireCarte()
 			{
 				if (bVraisRochers)
 				{
-					const float E = EchelleSur(Rochers->GetStaticMesh(), 70.0f);
+					const float E = EchelleSur(Rochers->GetStaticMesh(), 70.0f, 85.0f);
 					Rochers->AddInstance(FTransform(FRotator(0, 37.0f * C + 11.0f * L, 0), Centre, FVector(E)), true);
 				}
 				else
@@ -215,7 +223,7 @@ void AVespGrille::ConstruireCarte()
 			{
 				if (bVraisArbres)
 				{
-					const float E = EchelleSur(Arbres->GetStaticMesh(), 260.0f + 40.0f * ((C + L) % 3));
+					const float E = EchelleSur(Arbres->GetStaticMesh(), 260.0f + 40.0f * ((C + L) % 3), 150.0f);
 					Arbres->AddInstance(FTransform(FRotator(0, 53.0f * C, 0), Centre, FVector(E)), true);
 				}
 				else
