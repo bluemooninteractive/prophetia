@@ -62,7 +62,7 @@ public:
 	// Les cases rouges d'une attaque annoncee par un boss (elles exploseront a son prochain tour)
 	void AfficherDanger(const TArray<FIntPoint>& Cases);
 
-	// Un nouveau combat : une autre carte (0 a 2), et plus personne sur les cases
+	// Un nouveau combat : une autre carte (0 a 2 = la foret, 3 a 5 = le Bois des Pendus), et plus personne sur les cases
 	void ChangerCarte(int32 Numero);
 	void ViderOccupants();
 
@@ -77,6 +77,9 @@ private:
 	// La carte, une lettre par case : '.' = sol, '#' = rocher, 'T' = arbre
 	TArray<TCHAR> Carte;
 	bool bVraisArbres = false;
+	UPROPERTY() TObjectPtr<UStaticMesh> Sapin;			// les arbres de la foret (acte I)
+	UPROPERTY() TObjectPtr<UStaticMesh> ArbreMort;		// les arbres morts du Bois des Pendus (acte II)
+	UPROPERTY() TObjectPtr<UStaticMesh> ConeDeSecours;
 	bool bVraisRochers = false;
 	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Occupants;	// une case par position : l'unite qui s'y tient (ou rien)
 

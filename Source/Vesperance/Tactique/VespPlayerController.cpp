@@ -1,9 +1,17 @@
 #include "VespPlayerController.h"
 #include "VespGrille.h"
 #include "VespUnite.h"
-#include "VespHUD.h"
+#include "VespInterface.h"
 #include "Camera/CameraActor.h"
+#include "Components/DirectionalLightComponent.h"
+#include "Components/ExponentialHeightFogComponent.h"
+#include "Engine/DirectionalLight.h"
+#include "Engine/ExponentialHeightFog.h"
+#include "Engine/GameViewportClient.h"
+#include "Engine/Engine.h"
+#include "EngineUtils.h"
 #include "Kismet/GameplayStatics.h"
+#include "Widgets/SWeakWidget.h"
 
 // Le dossier ou chaque personnage range son modele 3D
 static const FString DOSSIER = TEXT("/Game/Characters/");
@@ -32,10 +40,26 @@ void AVespPlayerController::Commencer(AVespGrille* LaGrille, AVespUnite* LAylis,
 	FInputModeGameAndUI Mode;
 	Mode.SetHideCursorDuringCapture(false);
 	SetInputMode(Mode);
+	// L'interface (Slate) : posee par-dessus l'ecran de jeu
+	if (GEngine && GEngine->GameViewport)
+	{
+		Interface = SNew(SVespInterface).Joueur(this);
+		GEngine->GameViewport->AddViewportWidgetContent(Interface.ToSharedRef());
+	}
 	PreparerCombat(EVespSalle::Combat);		// la premiere salle est toujours un combat
 }
 
-// ===================== Les noms (actions, salles, runes) =====================
+void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
+{
+	if (Interface.IsValid() && GEngine && GEngine->GameViewport)
+	{
+		GEngine->GameViewport->RemoveViewportWidgetContent(Interface.ToSharedRef());
+	}
+	Interface.Reset();
+	Super::EndPlay(Raison);
+}
+
+// ===================== Les noms (actions, salles, runes, lieux) =====================
 
 FString AVespPlayerController::NomAction(EVespAction Action)
 {
@@ -45,7 +69,7 @@ FString AVespPlayerController::NomAction(EVespAction Action)
 		case EVespAction::Lourde: return TEXT("Lourde");
 		case EVespAction::Garde: return TEXT("Garde");
 		case EVespAction::Potion: return TEXT("Potion");
-		default: return TEXT("SPECIAL");
+		default: return TEXT("Special");
 	}
 }
 
@@ -53,9 +77,11 @@ FString AVespPlayerController::DetailAction(EVespAction Action, int32 NombreDePo
 {
 	switch (Action)
 	{
-		case EVespAction::Potion: return FString::Printf(TEXT("+15 pv  (x%d)"), NombreDePotions);
-		case EVespAction::Speciale: return TEXT("rage pleine");
-		default: return TEXT("au contact");
+		case EVespAction::Attaque: return TEXT("x1");
+		case EVespAction::Lourde: return TEXT("x1.8  -  60%");
+		case EVespAction::Garde: return TEXT("x0.6  -  degats /2");
+		case EVespAction::Potion: return FString::Printf(TEXT("+15 pv  -  reste %d"), NombreDePotions);
+		default: return TEXT("x2.2  -  rage pleine");
 	}
 }
 
@@ -71,14 +97,14 @@ FString AVespPlayerController::AideAction(EVespAction Action)
 	}
 }
 
-FString AVespPlayerController::NomSalle(EVespSalle S)
+FString AVespPlayerController::NomSalle(EVespSalle S, int32 LActe)
 {
 	switch (S)
 	{
 		case EVespSalle::Combat: return TEXT("Combat");
 		case EVespSalle::Elite: return TEXT("Elite");
 		case EVespSalle::Repos: return TEXT("Feu de camp");
-		default: return TEXT("Skarn");
+		default: return LActe == 1 ? TEXT("Skarn") : TEXT("La Matriarche");
 	}
 }
 
@@ -89,7 +115,7 @@ FString AVespPlayerController::AideSalle(EVespSalle S)
 		case EVespSalle::Combat: return TEXT("Quelques Haschen. Une rune a la fin.");
 		case EVespSalle::Elite: return TEXT("Un Haschen d'elite. Dur... mais une rune de plus.");
 		case EVespSalle::Repos: return TEXT("AYLIS se repose : +60% pv et une potion.");
-		default: return TEXT("Le gardien de la foret.");
+		default: return TEXT("Le gardien de cette terre.");
 	}
 }
 
@@ -103,17 +129,32 @@ static constexpr int32 NOMBRE_RUNES = 7;
 FString AVespPlayerController::NomRune(int32 Rune) { return NOMS_RUNES[Rune]; }
 FString AVespPlayerController::AideRune(int32 Rune) { return AIDES_RUNES[Rune]; }
 
+FString AVespPlayerController::NomDuLieu() const
+{
+	if (TypeSalle == EVespSalle::Boss)
+	{
+		return Acte == 1 ? TEXT("Le cercle des anciens") : TEXT("La clairiere de la Matriarche");
+	}
+	return Acte == 1 ? TEXT("La Foret des Brumes") : TEXT("Le Bois des Pendus");
+}
+
+FString AVespPlayerController::NomDeLActe() const
+{
+	return Acte == 1 ? TEXT("Les Terres Brumeuses") : TEXT("Les Terres Hantees");
+}
+
 // ===================== La route =====================
 
 AVespUnite* AVespPlayerController::CreerHaschen(const FString& Nom, const FString& Dossier, FIntPoint Case, int32 Pv, int32 Attaque,
                                                 int32 Defense, FLinearColor Teinte, EVespStyle Style, bool bPoison, float Taille)
 {
-	// Plus AYLIS avance, plus les Haschen sont coriaces (comme dans le prototype)
+	// Plus AYLIS avance sur la route, plus les Haschen sont coriaces (comme dans le prototype)
+	const int32 Avancee = (Acte - 1) * NombreDeSalles + Salle - 1;
 	FVespStats S;
 	S.Nom = Nom;
-	S.PvMax = Pv + (Salle - 1) * 2;
+	S.PvMax = Pv + Avancee * 2;
 	S.Pv = S.PvMax;
-	S.Attaque = Attaque + (Salle - 1) / 3;
+	S.Attaque = Attaque + Avancee / 3;
 	S.Defense = Defense;
 	S.Style = Style;
 	S.bAttaquePoison = bPoison;
@@ -124,17 +165,71 @@ AVespUnite* AVespPlayerController::CreerHaschen(const FString& Nom, const FStrin
 	return H;
 }
 
+// Un Haschen au hasard, parmi ceux du lieu
+void AVespPlayerController::HaschenAuHasard(TArray<FIntPoint>& Places)
+{
+	if (Places.Num() == 0)
+	{
+		return;
+	}
+	const int32 i = FMath::RandRange(0, Places.Num() - 1);
+	const FIntPoint P = Places[i];
+	Places.RemoveAt(i);
+	if (Acte == 1)
+	{
+		// La foret : les eclaireurs d'Ashka
+		switch (FMath::RandRange(0, 3))
+		{
+			case 0: CreerHaschen(TEXT("Haschen guerrier"), TEXT("guerrier"), P, 22, 9, 2, FLinearColor(0.8f, 0.2f, 0.15f), EVespStyle::Melee, false); break;
+			case 1: CreerHaschen(TEXT("Haschen traqueur"), TEXT("traqueur"), P, 20, 9, 1, FLinearColor(0.2f, 0.6f, 0.25f), EVespStyle::Lanceur, false); break;
+			case 2: CreerHaschen(TEXT("Haschen chaman"), TEXT("chaman"), P, 20, 10, 1, FLinearColor(0.5f, 0.25f, 0.7f), EVespStyle::Melee, true); break;
+			default: CreerHaschen(TEXT("Haschen eclaireur"), TEXT("sbire"), P, 18, 8, 1, FLinearColor(0.9f, 0.5f, 0.1f), EVespStyle::Melee, false); break;
+		}
+		return;
+	}
+	// Le Bois des Pendus : chamans, louvetiers qui chargent, et les premieres brutes
+	switch (FMath::RandRange(0, 3))
+	{
+		case 0: CreerHaschen(TEXT("Haschen louvetier"), TEXT("sbire"), P, 22, 10, 2, FLinearColor(0.45f, 0.3f, 0.2f), EVespStyle::Chargeur, false); break;
+		case 1: CreerHaschen(TEXT("Haschen chaman"), TEXT("chaman"), P, 20, 10, 1, FLinearColor(0.5f, 0.25f, 0.7f), EVespStyle::Melee, true); break;
+		case 2: CreerHaschen(TEXT("Haschen traqueur"), TEXT("traqueur"), P, 20, 9, 1, FLinearColor(0.2f, 0.6f, 0.25f), EVespStyle::Lanceur, false); break;
+		default: CreerHaschen(TEXT("Haschen brute"), TEXT("guerrier"), P, 34, 12, 4, FLinearColor(0.5f, 0.15f, 0.15f), EVespStyle::Chargeur, false, 205.0f); break;
+	}
+}
+
+// Une case libre pres d'une autre (pour les loups appeles par la Matriarche)
+bool AVespPlayerController::CaseLibrePres(FIntPoint Centre, FIntPoint& Trouvee) const
+{
+	for (int32 Rayon = 1; Rayon <= 3; Rayon++)
+	{
+		for (int32 C = -Rayon; C <= Rayon; C++)
+		{
+			for (int32 L = -Rayon; L <= Rayon; L++)
+			{
+				const FIntPoint P = Centre + FIntPoint(C, L);
+				if (!Grille->EstBloquee(P) && !Grille->UniteSur(P))
+				{
+					Trouvee = P;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
 void AVespPlayerController::PreparerCombat(EVespSalle Type)
 {
 	TypeSalle = Type;
-	// On range le combat d'avant : les Haschen tombes disparaissent, et une autre carte de la foret
+	// On range le combat d'avant : les Haschen tombes disparaissent, et une autre carte
 	for (AVespUnite* H : Haschen)
 	{
 		H->Destroy();
 	}
 	Haschen.Reset();
 	Grille->ViderOccupants();
-	Grille->ChangerCarte(Type == EVespSalle::Boss ? 2 : (Salle - 1) % 2);
+	const int32 Base = Acte == 1 ? 0 : 3;
+	Grille->ChangerCarte(Base + (Type == EVespSalle::Boss ? 2 : (Salle - 1) % 2));
 	Aylis->Replacer(FIntPoint(1, 3));
 	ZonesDanger.Reset();
 	Journal.Reset();
@@ -151,51 +246,53 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 			}
 		}
 	}
-	auto Place = [&Places]() {
-		const int32 i = FMath::RandRange(0, Places.Num() - 1);
-		const FIntPoint P = Places[i];
-		Places.RemoveAt(i);
-		return P;
-	};
-	// Les Haschen de la foret : un melange au hasard
-	auto HaschenAuHasard = [&]() {
-		switch (FMath::RandRange(0, 3))
-		{
-			case 0: CreerHaschen(TEXT("Haschen guerrier"), TEXT("guerrier"), Place(), 22, 9, 2, FLinearColor(0.8f, 0.2f, 0.15f), EVespStyle::Melee, false); break;
-			case 1: CreerHaschen(TEXT("Haschen traqueur"), TEXT("traqueur"), Place(), 20, 9, 1, FLinearColor(0.2f, 0.6f, 0.25f), EVespStyle::Lanceur, false); break;
-			case 2: CreerHaschen(TEXT("Haschen chaman"), TEXT("chaman"), Place(), 20, 10, 1, FLinearColor(0.5f, 0.25f, 0.7f), EVespStyle::Melee, true); break;
-			default: CreerHaschen(TEXT("Haschen eclaireur"), TEXT("sbire"), Place(), 18, 8, 1, FLinearColor(0.9f, 0.5f, 0.1f), EVespStyle::Melee, false); break;
-		}
-	};
 	if (Type == EVespSalle::Boss)
 	{
-		// Skarn le Brise-Cranes : une brute plus grande que les autres, et deux Haschen avec lui
-		AVespUnite* Skarn = CreerHaschen(TEXT("Skarn le Brise-Cranes"), TEXT("guerrier"), FIntPoint(9, 3), 80, 13, 3,
-		                                 FLinearColor(0.5f, 0.5f, 0.6f), EVespStyle::Chargeur, false, 260.0f);
-		Skarn->Stats.PvMax = 80;
-		Skarn->Stats.Pv = 80;
-		Skarn->Stats.Boss = 1;
-		Places.Remove(FIntPoint(9, 3));
-		HaschenAuHasard();
-		HaschenAuHasard();
+		FIntPoint CaseDuBoss(9, 3);
+		Places.Remove(CaseDuBoss);
+		AVespUnite* Boss = nullptr;
+		if (Acte == 1)
+		{
+			// Skarn le Brise-Cranes : une brute plus grande que les autres
+			Boss = CreerHaschen(TEXT("Skarn le Brise-Cranes"), TEXT("guerrier"), CaseDuBoss, 80, 13, 3,
+			                    FLinearColor(0.5f, 0.5f, 0.6f), EVespStyle::Chargeur, false, 260.0f);
+			Boss->Stats.PvMax = 80;
+		}
+		else
+		{
+			// La Matriarche : une chamane, son malefice empoisonne de loin
+			Boss = CreerHaschen(TEXT("La Matriarche"), TEXT("chaman"), CaseDuBoss, 95, 14, 3,
+			                    FLinearColor(0.3f, 0.65f, 0.35f), EVespStyle::Lanceur, true, 250.0f);
+			Boss->Stats.PvMax = 95;
+			PotionsDuBoss = 2;
+		}
+		Boss->Stats.Pv = Boss->Stats.PvMax;
+		Boss->Stats.Boss = Acte;
+		HaschenAuHasard(Places);
+		HaschenAuHasard(Places);
 	}
 	else if (Type == EVespSalle::Elite)
 	{
-		AVespUnite* Elite = CreerHaschen(TEXT("Haschen guerrier d'elite"), TEXT("guerrier"), Place(), 37, 11, 3,
-		                                 FLinearColor(0.95f, 0.75f, 0.2f), EVespStyle::Melee, false, 210.0f);
+		const int32 i = FMath::RandRange(0, Places.Num() - 1);
+		const FIntPoint P = Places[i];
+		Places.RemoveAt(i);
+		AVespUnite* Elite = Acte == 1
+			? CreerHaschen(TEXT("Haschen guerrier d'elite"), TEXT("guerrier"), P, 37, 11, 3, FLinearColor(0.95f, 0.75f, 0.2f), EVespStyle::Melee, false, 210.0f)
+			: CreerHaschen(TEXT("Haschen louvetier d'elite"), TEXT("sbire"), P, 38, 12, 3, FLinearColor(0.95f, 0.75f, 0.2f), EVespStyle::Chargeur, false, 210.0f);
 		Elite->Stats.ChanceCritique = 15;
-		HaschenAuHasard();
-		HaschenAuHasard();
+		HaschenAuHasard(Places);
+		HaschenAuHasard(Places);
 	}
 	else
 	{
-		for (int32 i = 0; i < (Salle == 1 ? 2 : 3); i++)
+		const int32 Nombre = (Acte == 1 && Salle == 1) ? 2 : (Acte == 2 ? FMath::RandRange(3, 4) : 3);
+		for (int32 i = 0; i < Nombre; i++)
 		{
-			HaschenAuHasard();
+			HaschenAuHasard(Places);
 		}
 	}
 	Tour = 0;
-	Ecrire(FString::Printf(TEXT("Acte I, salle %d/%d : %s - La Foret des Brumes"), Salle, NombreDeSalles, *NomSalle(Type)));
+	Ecrire(FString::Printf(TEXT("Acte %s, salle %d/%d : %s"), Acte == 1 ? TEXT("I") : TEXT("II"), Salle, NombreDeSalles, *NomDuLieu()));
 	TourDAylis();
 }
 
@@ -203,9 +300,25 @@ void AVespPlayerController::ApresVictoire()
 {
 	Grille->AfficherCasesAtteignables({});
 	Grille->AfficherDanger({});
+	ZonesDanger.Reset();
 	if (TypeSalle == EVespSalle::Boss)
 	{
-		Phase = EVespPhase::Victoire;		// Skarn est tombe : l'acte I est termine
+		if (Acte >= NombreDActes)
+		{
+			Phase = EVespPhase::Victoire;		// le dernier boss est tombe
+			TempsPhase = 0.0f;
+			return;
+		}
+		// Un nouvel acte : AYLIS reprend toutes ses forces, et une potion
+		Acte++;
+		Salle = 1;
+		Aylis->Soigner(Aylis->Stats.PvMax);
+		Aylis->Poison = 0;
+		Aylis->Brulure = 0;
+		Potions++;
+		AmbianceDeLActe();
+		Phase = EVespPhase::NouvelActe;
+		TempsPhase = 0.0f;
 		return;
 	}
 	// AYLIS reprend son souffle, puis choisit une rune
@@ -213,6 +326,30 @@ void AVespPlayerController::ApresVictoire()
 	Aylis->Soigner(Soin);
 	MessageRoute = FString::Printf(TEXT("Victoire ! AYLIS reprend son souffle : +%d pv."), Soin);
 	ProposerRunes();
+}
+
+// L'acte II : une brume verte et malade, une lune plus pale
+void AVespPlayerController::AmbianceDeLActe()
+{
+	for (TActorIterator<AExponentialHeightFog> It(GetWorld()); It; ++It)
+	{
+		It->GetComponent()->SetFogInscatteringColor(FLinearColor(0.07f, 0.13f, 0.05f));
+		It->GetComponent()->SetFogDensity(0.012f);
+	}
+	for (TActorIterator<ADirectionalLight> It(GetWorld()); It; ++It)
+	{
+		It->GetLightComponent()->SetLightColor(FLinearColor(0.62f, 0.78f, 0.55f));
+		It->GetLightComponent()->SetIntensity(2.4f);
+	}
+}
+
+void AVespPlayerController::ContinuerApresLActe()
+{
+	if (Phase == EVespPhase::NouvelActe && TempsPhase > 1.0f)
+	{
+		MessageRoute.Reset();
+		PreparerCombat(EVespSalle::Combat);		// la premiere salle d'un acte est toujours un combat
+	}
 }
 
 void AVespPlayerController::ProposerRunes()
@@ -233,11 +370,12 @@ void AVespPlayerController::ProposerRunes()
 		Possibles.RemoveAt(i);
 	}
 	Phase = EVespPhase::ChoixRune;
+	TempsPhase = 0.0f;
 }
 
 void AVespPlayerController::ChoisirRune(int32 Numero)
 {
-	if (!RunesProposees.IsValidIndex(Numero))
+	if (Phase != EVespPhase::ChoixRune || !RunesProposees.IsValidIndex(Numero))
 	{
 		return;
 	}
@@ -263,7 +401,7 @@ void AVespPlayerController::SalleSuivante()
 	Salle++;
 	if (Salle >= NombreDeSalles)
 	{
-		DialogueDeSkarn();		// la derniere salle : Skarn
+		DialogueDuBoss();		// la derniere salle de l'acte : le boss
 		return;
 	}
 	ProposerSalles();
@@ -279,11 +417,12 @@ void AVespPlayerController::ProposerSalles()
 	}
 	Propositions.Add(EVespSalle::Repos);
 	Phase = EVespPhase::ChoixSalle;
+	TempsPhase = 0.0f;
 }
 
 void AVespPlayerController::ChoisirSalle(int32 Numero)
 {
-	if (!Propositions.IsValidIndex(Numero))
+	if (Phase != EVespPhase::ChoixSalle || !Propositions.IsValidIndex(Numero))
 	{
 		return;
 	}
@@ -301,17 +440,56 @@ void AVespPlayerController::ChoisirSalle(int32 Numero)
 	PreparerCombat(S);
 }
 
-void AVespPlayerController::DialogueDeSkarn()
+// Le boss parle avant le combat (toujours sans genre pour AYLIS)
+void AVespPlayerController::DialogueDuBoss()
 {
-	Orateurs = {TEXT("Skarn"), TEXT("AYLIS"), TEXT("Skarn")};
-	Repliques = {
-		TEXT("Encore une petite vision qui marche vers Karn ? Approche. Le sol se souviendra de toi, meme quand ton nom sera perdu."),
-		TEXT("Le sol, peut-etre. Toi, tu vas oublier."),
-		TEXT("Quand je leve ma masse, la terre se brise. Compte les pas, petite vision... si tu sais compter."),
-	};
+	if (Acte == 1)
+	{
+		Orateurs = {TEXT("Skarn"), TEXT("AYLIS"), TEXT("Skarn")};
+		Repliques = {
+			TEXT("Encore une petite vision qui marche vers Karn ? Approche. Le sol se souviendra de toi, meme quand ton nom sera perdu."),
+			TEXT("Le sol, peut-etre. Toi, tu vas oublier."),
+			TEXT("Quand je leve ma masse, la terre se brise. Compte les pas, petite vision... si tu sais compter."),
+		};
+	}
+	else
+	{
+		Orateurs = {TEXT("La Matriarche"), TEXT("AYLIS"), TEXT("La Matriarche")};
+		Repliques = {
+			TEXT("Mes loups ont senti ta peur bien avant ton odeur. Ils ont faim, et moi, j'ai le temps."),
+			TEXT("Tes loups auront faim longtemps. Ce n'est pas pour eux que je marche."),
+			TEXT("Tous viennent pour moi, a la fin. Approche, que je te couvre de mon malefice."),
+		};
+	}
 	LigneDialogue = 0;
 	Ecriture = 0.0f;
 	Phase = EVespPhase::Dialogue;
+	TempsPhase = 0.0f;
+}
+
+void AVespPlayerController::AvancerDialogue()
+{
+	if (Phase != EVespPhase::Dialogue)
+	{
+		return;
+	}
+	if (Ecriture < Repliques[LigneDialogue].Len())
+	{
+		Ecriture = 9999.0f;			// un premier appui ecrit toute la replique
+	}
+	else if (++LigneDialogue < Repliques.Num())
+	{
+		Ecriture = 0.0f;
+	}
+	else
+	{
+		PreparerCombat(EVespSalle::Boss);
+	}
+}
+
+void AVespPlayerController::Recommencer()
+{
+	UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));	// une nouvelle vision
 }
 
 // ===================== Les actions d'AYLIS =====================
@@ -332,6 +510,10 @@ bool AVespPlayerController::ActionDisponible(EVespAction Action) const
 // Une action choisie (touche ou carte). La potion se boit tout de suite ; les autres attendent une cible.
 void AVespPlayerController::ChoisirAction(EVespAction Action)
 {
+	if (Phase != EVespPhase::TourAylis || Aylis->EstOccupe())
+	{
+		return;
+	}
 	if (!ActionDisponible(Action))
 	{
 		Ecrire(NomAction(Action) + (Action == EVespAction::Potion ? TEXT(" : plus de potions.") : TEXT(" : la rage n'est pas pleine.")));
@@ -346,6 +528,15 @@ void AVespPlayerController::ChoisirAction(EVespAction Action)
 		return;
 	}
 	ActionChoisie = Action;
+}
+
+void AVespPlayerController::PasserLeTour()
+{
+	if (Phase == EVespPhase::TourAylis && !Aylis->EstOccupe())
+	{
+		Ecrire(TEXT("AYLIS attend."));
+		FinDuTourDAylis();
+	}
 }
 
 void AVespPlayerController::AgirSur(AVespUnite* Cible)
@@ -392,13 +583,12 @@ void AVespPlayerController::AgirSur(AVespUnite* Cible)
 	FinDuTourDAylis();
 }
 
-// AYLIS encaisse un coup : la garde divise par 2 (dans Frapper), la rage se remplit
+// AYLIS encaisse un coup : la rage se remplit, le chaman peut empoisonner
 void AVespPlayerController::ToucherAylis(AVespUnite* Attaquant, int32 Degats, bool bCritique)
 {
 	Rage = FMath::Min(100, Rage + Degats * (bFureur ? 8 : 4));
 	Trembler(bCritique ? 1.0f : 0.4f);
 	Ecrire(FString::Printf(TEXT("%s touche AYLIS : -%d pv"), *Attaquant->Stats.Nom, Degats));
-	// Les coups du chaman empoisonnent (une chance sur deux)
 	if (Attaquant->Stats.bAttaquePoison && FMath::RandBool())
 	{
 		Aylis->Poison = 3;
@@ -407,6 +597,7 @@ void AVespPlayerController::ToucherAylis(AVespUnite* Attaquant, int32 Degats, bo
 	if (!Aylis->EstDebout())
 	{
 		Phase = EVespPhase::Defaite;
+		TempsPhase = 0.0f;
 		Grille->AfficherCasesAtteignables({});
 		Grille->AfficherDanger({});
 	}
@@ -428,6 +619,7 @@ void AVespPlayerController::TourDAylis()
 		if (!Aylis->EstDebout())
 		{
 			Phase = EVespPhase::Defaite;
+			TempsPhase = 0.0f;
 			return;
 		}
 	}
@@ -479,23 +671,8 @@ bool AVespPlayerController::CaseSousLaSouris(FIntPoint& Case) const
 	return Distance >= 0 && Grille->CaseSousPoint(Depart + Direction * Distance, Case);
 }
 
-int32 AVespPlayerController::CarteCliquee(int32 Nombre) const
-{
-	float SourisX = 0, SourisY = 0;
-	int32 LargeurEcran = 0, HauteurEcran = 0;
-	GetMousePosition(SourisX, SourisY);
-	GetViewportSize(LargeurEcran, HauteurEcran);
-	for (int32 i = 0; i < Nombre; i++)
-	{
-		if (AVespHUD::RectangleChoix(i, Nombre, FVector2D(LargeurEcran, HauteurEcran)).IsInside(FVector2D(SourisX, SourisY)))
-		{
-			return i;
-		}
-	}
-	return -1;
-}
-
-// ===================== A chaque image : lire la souris et le clavier =====================
+// ===================== A chaque image : le clavier, et les clics sur l'arene =====================
+// (les clics sur les boutons sont geres par l'interface elle-meme)
 
 void AVespPlayerController::PlayerTick(float Secondes)
 {
@@ -504,65 +681,51 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	{
 		return;
 	}
+	TempsPhase += Secondes;
 	// L'ecran tremble un instant apres un coup (plus fort sur un critique)
 	if (CameraArene)
 	{
 		Secousse = FMath::Max(0.0f, Secousse - Secondes * 3.0f);
 		CameraArene->SetActorLocation(PositionCamera + FMath::VRand() * Secousse * 10.0f);
 	}
-	if (WasInputKeyJustPressed(EKeys::R) && (Phase == EVespPhase::Victoire || Phase == EVespPhase::Defaite))
-	{
-		UGameplayStatics::OpenLevel(this, FName(*UGameplayStatics::GetCurrentLevelName(this)));	// une nouvelle vision
-		return;
-	}
-	const bool bClic = WasInputKeyJustPressed(EKeys::LeftMouseButton);
 	const FKey Touches[5] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five};
+	const bool bValider = WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::SpaceBar);
 
-	// ----- Le dialogue : ENTREE (ou clic) pour continuer ; le premier appui ecrit toute la replique -----
-	if (Phase == EVespPhase::Dialogue)
+	switch (Phase)
 	{
-		Ecriture += Secondes * 45.0f;
-		if (bClic || WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::SpaceBar))
-		{
-			if (Ecriture < Repliques[LigneDialogue].Len())
+		case EVespPhase::Victoire:
+		case EVespPhase::Defaite:
+			if (WasInputKeyJustPressed(EKeys::R))
 			{
-				Ecriture = 9999.0f;
+				Recommencer();
 			}
-			else if (++LigneDialogue < Repliques.Num())
+			return;
+		case EVespPhase::Dialogue:
+			Ecriture += Secondes * 45.0f;
+			if (bValider || WasInputKeyJustPressed(EKeys::LeftMouseButton))
 			{
-				Ecriture = 0.0f;
+				AvancerDialogue();
 			}
-			else
+			return;
+		case EVespPhase::NouvelActe:
+			if (bValider)
 			{
-				PreparerCombat(EVespSalle::Boss);
+				ContinuerApresLActe();
 			}
-		}
-		return;
-	}
-	// ----- Les choix de la route : touches 1 a 3, ou clic sur une carte -----
-	if (Phase == EVespPhase::ChoixRune || Phase == EVespPhase::ChoixSalle)
-	{
-		const int32 Nombre = Phase == EVespPhase::ChoixRune ? RunesProposees.Num() : Propositions.Num();
-		int32 Choix = bClic ? CarteCliquee(Nombre) : -1;
-		for (int32 i = 0; i < Nombre; i++)
-		{
-			if (WasInputKeyJustPressed(Touches[i]))
+			return;
+		case EVespPhase::ChoixRune:
+		case EVespPhase::ChoixSalle:
+			for (int32 i = 0; i < 3; i++)
 			{
-				Choix = i;
+				if (WasInputKeyJustPressed(Touches[i]))
+				{
+					Phase == EVespPhase::ChoixRune ? ChoisirRune(i) : ChoisirSalle(i);
+					return;
+				}
 			}
-		}
-		if (Choix >= 0)
-		{
-			if (Phase == EVespPhase::ChoixRune)
-			{
-				ChoisirRune(Choix);
-			}
-			else
-			{
-				ChoisirSalle(Choix);
-			}
-		}
-		return;
+			return;
+		default:
+			break;
 	}
 
 	FIntPoint Case(-1, -1);
@@ -578,9 +741,7 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	{
 		return;
 	}
-
-	// ----- Le tour d'AYLIS -----
-	for (int32 i = 0; i < AVespHUD::NombreDeCartes; i++)
+	for (int32 i = 0; i < 5; i++)
 	{
 		if (WasInputKeyJustPressed(Touches[i]))
 		{
@@ -590,28 +751,10 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	}
 	if (WasInputKeyJustPressed(EKeys::SpaceBar))
 	{
-		Ecrire(TEXT("AYLIS attend."));
-		FinDuTourDAylis();
+		PasserLeTour();
 		return;
 	}
-	if (!bClic)
-	{
-		return;
-	}
-	// Un clic sur une carte d'action
-	float SourisX = 0, SourisY = 0;
-	int32 LargeurEcran = 0, HauteurEcran = 0;
-	GetMousePosition(SourisX, SourisY);
-	GetViewportSize(LargeurEcran, HauteurEcran);
-	for (int32 i = 0; i < AVespHUD::NombreDeCartes; i++)
-	{
-		if (AVespHUD::RectangleCarte(i, FVector2D(LargeurEcran, HauteurEcran)).IsInside(FVector2D(SourisX, SourisY)))
-		{
-			ChoisirAction((EVespAction)i);
-			return;
-		}
-	}
-	if (!bSurLaGrille)
+	if (!WasInputKeyJustPressed(EKeys::LeftMouseButton) || !bSurLaGrille)
 	{
 		return;
 	}
@@ -643,7 +786,7 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	}
 }
 
-// ===================== Le tour des Haschen =====================
+// ===================== Les boss =====================
 
 // Skarn : tous les 3 tours, il leve sa masse (les cases autour de lui deviennent rouges)... et au tour suivant,
 // elles volent en eclats. Renvoie true s'il a utilise son tour pour ca.
@@ -691,7 +834,57 @@ bool AVespPlayerController::TourDeSkarn(AVespUnite* Skarn)
 	return false;
 }
 
+// La Matriarche (comme boss.cpp) : elle se soigne quand elle faiblit, elle appelle ses loups tous les 3 tours,
+// et sinon son malefice empoisonne de loin.
+bool AVespPlayerController::TourDeLaMatriarche(AVespUnite* M)
+{
+	M->Compteur++;
+	if (M->Stats.Pv < M->Stats.PvMax / 2 && PotionsDuBoss > 0 && M->Compteur % 2 == 0)
+	{
+		PotionsDuBoss--;
+		M->Soigner(20);
+		Ecrire(TEXT("La Matriarche boit une decoction : +20 pv."));
+		return true;
+	}
+	int32 Debout = 0;
+	for (const AVespUnite* H : Haschen)
+	{
+		Debout += H->EstDebout() ? 1 : 0;
+	}
+	if (M->Compteur % 3 == 0 && Debout < 5)
+	{
+		for (int32 i = 0; i < 2; i++)
+		{
+			FIntPoint Case;
+			if (CaseLibrePres(M->GetCase(), Case))
+			{
+				CreerHaschen(TEXT("Haschen louvetier"), TEXT("sbire"), Case, 22, 10, 2, FLinearColor(0.45f, 0.3f, 0.2f), EVespStyle::Chargeur, false);
+			}
+		}
+		M->AfficherMessage(TEXT("AOUUUU"), FColor(150, 255, 150));
+		Ecrire(TEXT("La Matriarche hurle... les loups repondent !"));
+		return true;
+	}
+	const FIntPoint Ecart = M->GetCase() - Aylis->GetCase();
+	const int32 Distance = FMath::Abs(Ecart.X) + FMath::Abs(Ecart.Y);
+	if (Distance >= 2 && Distance <= 5)
+	{
+		bool bCritique = false;
+		const int32 Degats = M->Frapper(Aylis, 90, &bCritique);
+		ToucherAylis(M, Degats, bCritique);
+		if (Phase != EVespPhase::Defaite)
+		{
+			Aylis->Poison = 3;
+			Ecrire(TEXT("Malefice ! Le poison ronge AYLIS."));
+		}
+		return true;
+	}
+	return false;
+}
+
+// ===================== Le tour des Haschen =====================
 // Un par un, avec une petite pause : les etats, puis il agit selon son style
+
 void AVespPlayerController::JouerTourHaschen(float Secondes)
 {
 	Minuteur += Secondes;
@@ -735,9 +928,13 @@ void AVespPlayerController::JouerTourHaschen(float Secondes)
 			Suivant();
 			return;
 		}
-		if (H->Stats.Boss == 1 && TourDeSkarn(H))
+		if ((H->Stats.Boss == 1 && TourDeSkarn(H)) || (H->Stats.Boss == 2 && TourDeLaMatriarche(H)))
 		{
 			Suivant();
+			return;
+		}
+		if (Phase == EVespPhase::Defaite)
+		{
 			return;
 		}
 		// Un lanceur tire de loin une fois sur deux

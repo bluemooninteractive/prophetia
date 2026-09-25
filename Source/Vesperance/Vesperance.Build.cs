@@ -23,7 +23,7 @@ public class Vesperance : ModuleRules
 			"Slate"
 		});
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "AssetRegistry", "SlateCore" });
 
 		PublicIncludePaths.AddRange(new string[] {
 			"Vesperance",

@@ -8,7 +8,7 @@
 
 // Les cartes de la Foret des Brumes : '#' = rocher, 'T' = arbre, '.' = sol libre
 // (AYLIS commence a gauche, en colonne 1, ligne 3 : cette case reste toujours libre)
-static const TCHAR* CARTES[3][AVespGrille::Lignes] = {
+static const TCHAR* CARTES[6][AVespGrille::Lignes] = {
 	{	// la clairiere
 		TEXT("..T....T...."),
 		TEXT(".....#......"),
@@ -38,6 +38,37 @@ static const TCHAR* CARTES[3][AVespGrille::Lignes] = {
 		TEXT("...#....#..."),
 		TEXT("T..........T"),
 		TEXT(".T.T....T.T."),
+	},
+	// ----- Acte II : le Bois des Pendus (des arbres morts, serres, et des tombes) -----
+	{	// l'entree du bois
+		TEXT("TT..T...T.TT"),
+		TEXT("T....#.....T"),
+		TEXT("..T.....T..."),
+		TEXT("......T....."),
+		TEXT("..T#.....T.."),
+		TEXT("T......T...."),
+		TEXT("...T.#....T."),
+		TEXT("TT....T..TTT"),
+	},
+	{	// le cimetiere des pendus
+		TEXT("T.#.T.#.T.#T"),
+		TEXT("..........T."),
+		TEXT("T..#..T..#.."),
+		TEXT("......#....."),
+		TEXT("..T......T.."),
+		TEXT("T..#.T...#.."),
+		TEXT("..........#."),
+		TEXT("T.T.#..T.T.T"),
+	},
+	{	// la clairiere de la Matriarche
+		TEXT("TT.T....T.TT"),
+		TEXT("T..........T"),
+		TEXT("....#..#...."),
+		TEXT("..T........."),
+		TEXT("..........T."),
+		TEXT("....#..#...."),
+		TEXT("T..........T"),
+		TEXT("TT.T....T.TT"),
 	},
 };
 
@@ -117,13 +148,15 @@ void AVespGrille::BeginPlay()
 {
 	Super::BeginPlay();
 	// Les vrais decors (s'ils sont importes) : les sapins et les rochers KayKit, avec leurs couleurs d'origine
-	if (UStaticMesh* Sapin = ModeleDuDecor({TEXT("tree_pine"), TEXT("tree")}))
+	ConeDeSecours = Arbres->GetStaticMesh();
+	Sapin = ModeleDuDecor({TEXT("tree_pine"), TEXT("tree")});
+	ArbreMort = ModeleDuDecor({TEXT("tree_dead")});
+	if (!ArbreMort)
 	{
-		Arbres->SetStaticMesh(Sapin);
-		Arbres->EmptyOverrideMaterials();
-		bVraisArbres = true;
+		ArbreMort = Sapin;		// pas encore d'arbres morts importes : les sapins feront l'affaire
 	}
-	else
+	bVraisArbres = Sapin != nullptr;
+	if (!bVraisArbres)
 	{
 		Couleur(Arbres, FLinearColor(0.08f, 0.30f, 0.26f));
 	}
@@ -229,6 +262,11 @@ void AVespGrille::ConstruireCarte()
 	Sol->ClearInstances();
 	Rochers->ClearInstances();
 	Arbres->ClearInstances();
+	if (bVraisArbres)
+	{
+		Arbres->SetStaticMesh(NumeroCarte >= 3 ? ArbreMort.Get() : Sapin.Get());	// l'acte II : des arbres morts
+		Arbres->EmptyOverrideMaterials();
+	}
 	for (int32 L = 0; L < Lignes; L++)
 	{
 		for (int32 C = 0; C < Colonnes; C++)
@@ -362,7 +400,7 @@ void AVespGrille::AfficherCasesAtteignables(const TArray<int32>& Pas)
 
 void AVespGrille::ChangerCarte(int32 Numero)
 {
-	NumeroCarte = FMath::Clamp(Numero, 0, 2);
+	NumeroCarte = FMath::Clamp(Numero, 0, 5);
 	ConstruireCarte();
 	AfficherDanger({});
 }

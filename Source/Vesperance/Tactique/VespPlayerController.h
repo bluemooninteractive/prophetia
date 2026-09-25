@@ -1,11 +1,11 @@
-// VespPlayerController : le deroulement de l'acte I, salle apres salle (comme regles.cpp et route.cpp du prototype).
+// VespPlayerController : le deroulement de la route, acte apres acte, salle apres salle
+// (comme regles.cpp, route.cpp et boss.cpp dans le prototype).
 //
-//   La route : salle 1 = un combat, salles 2 et 3 = au choix (combat, elite, feu de camp), salle 4 = Skarn.
+//   Chaque acte : salle 1 = un combat, salles 2 et 3 = au choix (combat, elite, feu de camp), salle 4 = le boss.
+//     Acte I  : la Foret des Brumes, puis Skarn le Brise-Cranes (coups de masse annonces).
+//     Acte II : le Bois des Pendus, puis la Matriarche (malefice empoisonne, loups, decoctions).
 //   Apres chaque victoire : une rune a choisir parmi 3.
-//   Tour d'AYLIS : clic sur une case bleue pour se deplacer (une fois), puis une action (touches 1 a 5, ou clic
-//                  sur une carte) et un clic sur un Haschen au contact. ESPACE : passer.
-//   Tour des Haschen : le poison et la brulure font effet, puis chacun agit selon son style
-//                      (au contact, a distance, en chargeant). Skarn annonce ses coups de masse (cases rouges).
+//   L'interface (VespInterface) appelle les fonctions publiques : choisir une action, une rune, une salle...
 #pragma once
 
 #include "CoreMinimal.h"
@@ -24,7 +24,8 @@ enum class EVespPhase : uint8
 	Dialogue,		// quelqu'un parle (le parchemin)
 	ChoixRune,		// apres une victoire : une rune parmi 3
 	ChoixSalle,		// la vision : ou aller ensuite
-	Victoire,		// Skarn est tombe : l'acte I est termine
+	NouvelActe,		// le titre d'un nouvel acte
+	Victoire,		// le dernier boss est tombe
 	Defaite,		// AYLIS tombe : la vision se brise
 };
 
@@ -52,59 +53,74 @@ UCLASS()
 class VESPERANCE_API AVespPlayerController : public APlayerController
 {
 	GENERATED_BODY()
-	friend class AVespHUD;		// l'interface lit l'etat du combat
+	friend class AVespHUD;
+	friend class SVespInterface;		// l'interface lit l'etat du combat
 
 public:
 	AVespPlayerController();
 	virtual void PlayerTick(float Secondes) override;
+	virtual void EndPlay(const EEndPlayReason::Type Raison) override;
 
 	void Commencer(AVespGrille* LaGrille, AVespUnite* LAylis, ACameraActor* LaCamera);
+
+	// Ce que l'interface peut demander
+	void ChoisirAction(EVespAction Action);
+	void ChoisirRune(int32 Numero);
+	void ChoisirSalle(int32 Numero);
+	void AvancerDialogue();
+	void ContinuerApresLActe();
+	void PasserLeTour();
+	void Recommencer();
 
 	static FString NomAction(EVespAction Action);
 	static FString DetailAction(EVespAction Action, int32 Potions);
 	static FString AideAction(EVespAction Action);
 	bool ActionDisponible(EVespAction Action) const;
-	static FString NomSalle(EVespSalle Salle);
+	static FString NomSalle(EVespSalle Salle, int32 Acte);
 	static FString AideSalle(EVespSalle Salle);
 	static FString NomRune(int32 Rune);
 	static FString AideRune(int32 Rune);
+	FString NomDuLieu() const;
+	FString NomDeLActe() const;
 
 	UPROPERTY(EditAnywhere, Category = "Vesperance") int32 DeplacementParTour = 3;	// comme dans le prototype
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float PauseEntreHaschen = 0.5f;
-	static constexpr int32 NombreDeSalles = 4;		// l'acte I : 3 salles, puis Skarn
+	static constexpr int32 NombreDeSalles = 4;		// par acte : 3 salles, puis le boss
+	static constexpr int32 NombreDActes = 2;
 
 private:
 	// La route
 	void PreparerCombat(EVespSalle Type);
 	void ApresVictoire();
 	void ProposerRunes();
-	void ChoisirRune(int32 Numero);
 	void SalleSuivante();
 	void ProposerSalles();
-	void ChoisirSalle(int32 Numero);
-	void DialogueDeSkarn();
+	void DialogueDuBoss();
+	void AmbianceDeLActe();
 	AVespUnite* CreerHaschen(const FString& Nom, const FString& Dossier, FIntPoint Case, int32 Pv, int32 Attaque, int32 Defense,
 	                         FLinearColor Teinte, EVespStyle Style, bool bPoison, float Taille = 170.0f);
+	void HaschenAuHasard(TArray<FIntPoint>& Places);
+	bool CaseLibrePres(FIntPoint Centre, FIntPoint& Trouvee) const;
 
 	// Le combat
 	void TourDAylis();
 	void FinDuTourDAylis();
 	void JouerTourHaschen(float Secondes);
-	bool TourDeSkarn(AVespUnite* Skarn);		// true : il a utilise son tour (annonce ou fracas)
+	bool TourDeSkarn(AVespUnite* Skarn);			// true : il a utilise son tour (annonce ou fracas)
+	bool TourDeLaMatriarche(AVespUnite* Matriarche);
 	void MontrerCasesAtteignables();
 	bool CaseSousLaSouris(FIntPoint& Case) const;
 	bool ResteDesHaschen() const;
 	void Ecrire(const FString& Message);			// le journal (les 3 derniers messages)
-	void ChoisirAction(EVespAction Action);
 	void AgirSur(AVespUnite* Cible);
 	void ToucherAylis(AVespUnite* Attaquant, int32 Degats, bool bCritique);
 	void Trembler(float Force) { Secousse = FMath::Min(1.5f, Secousse + Force); }
-	int32 CarteCliquee(int32 Nombre) const;			// la carte de choix (runes, salles) sous la souris, ou -1
 
 	UPROPERTY() TObjectPtr<AVespGrille> Grille;
 	UPROPERTY() TObjectPtr<AVespUnite> Aylis;
 	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Haschen;
 	UPROPERTY() TObjectPtr<ACameraActor> CameraArene;
+	TSharedPtr<class SVespInterface> Interface;
 	FVector PositionCamera;
 	float Secousse = 0.0f;
 
@@ -122,8 +138,10 @@ private:
 	float Minuteur = 0.0f;
 	TArray<FIntPoint> ZonesDanger;	// les cases annoncees par Skarn
 	int32 DegatsDanger = 0;
+	int32 PotionsDuBoss = 2;		// les decoctions de la Matriarche
 
 	// La route et les runes
+	int32 Acte = 1;
 	int32 Salle = 1;
 	EVespSalle TypeSalle = EVespSalle::Combat;
 	TArray<EVespSalle> Propositions;
@@ -133,6 +151,7 @@ private:
 	bool bSeve = false;				// +5 pv a chaque Haschen abattu
 	bool bFureur = false;			// la rage monte 2 fois plus vite
 	FString MessageRoute;			// ce qui vient de se passer (affiche sur les ecrans de choix)
+	float TempsPhase = 0.0f;		// depuis combien de temps l'ecran en cours est affiche (pour les fondus)
 
 	// Le dialogue
 	TArray<FString> Orateurs;
