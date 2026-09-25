@@ -74,7 +74,8 @@ void AVespUnite::Preparer(AVespGrille* LaGrille, FIntPoint NouvelleCase, const F
 	Texte->SetTextRenderColor(bAylis ? FColor(120, 180, 255) : FColor(255, 110, 90));
 	// AYLIS porte la lumiere violette de la prophetie ; les Haschen, une faible lueur rouge (leurs yeux)
 	Lueur->SetLightColor(bAylis ? FLinearColor(0.55f, 0.45f, 1.0f) : FLinearColor(1.0f, 0.25f, 0.15f));
-	Lueur->SetIntensity(bAylis ? 1400.0f : 160.0f);
+	IntensiteLueur = bAylis ? 1400.0f : 160.0f;
+	Lueur->SetIntensity(IntensiteLueur);
 	Lueur->SetAttenuationRadius(bAylis ? 520.0f : 220.0f);
 
 	Habiller(Dossier);
@@ -304,6 +305,13 @@ void AVespUnite::Tick(float Secondes)
 			MettreAJourTexte();
 		}
 	}
+	if (TempsEclat > 0.0f)
+	{
+		TempsEclat -= Secondes;
+		Lueur->SetIntensity(TempsEclat > 0.0f ? IntensiteLueur + 6000.0f : IntensiteLueur);
+		Lueur->SetLightColor(TempsEclat > 0.0f ? FLinearColor(1.0f, 0.85f, 0.6f)
+		                                       : (bAylis ? FLinearColor(0.55f, 0.45f, 1.0f) : FLinearColor(1.0f, 0.25f, 0.15f)));
+	}
 	if (TempsAction > 0.0f)
 	{
 		TempsAction -= Secondes;
@@ -340,7 +348,7 @@ void AVespUnite::Tick(float Secondes)
 
 // ===================== Le combat (les memes regles que le prototype) =====================
 
-int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance)
+int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance, bool* bCritiqueSortie)
 {
 	Regarder(Cible->GetActorLocation());
 	Jouer(AnimAttaque, false);
@@ -356,14 +364,71 @@ int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance)
 	{
 		Degats *= 2;
 	}
+	if (bCritiqueSortie)
+	{
+		*bCritiqueSortie = bCritique;
+	}
 	Degats = FMath::Max(1, FMath::RoundToInt(FMath::Max(1, Degats) * Cible->ReductionDegats));
 	Cible->Encaisser(Degats, bCritique);
 	return Degats;
 }
 
+void AVespUnite::Replacer(FIntPoint NouvelleCase)
+{
+	Grille->Liberer(this);
+	Case = NouvelleCase;
+	CheminRestant.Reset();
+	SetActorLocation(Grille->CentreDeCase(Case));
+	SetActorRotation(FRotator::ZeroRotator);
+	Grille->Occuper(this);
+	Poison = 0;
+	Brulure = 0;
+	Jouer(AnimRepos, true);
+}
+
+void AVespUnite::AfficherMessage(const FString& Message, FColor Couleur)
+{
+	Texte->SetText(FText::FromString(Message));
+	Texte->SetTextRenderColor(Couleur);
+	TempsTexte = 1.0f;
+}
+
+void AVespUnite::Soigner(int32 Quantite)
+{
+	const int32 Avant = Stats.Pv;
+	Stats.Pv = FMath::Min(Stats.PvMax, Stats.Pv + Quantite);
+	if (Stats.Pv > Avant)
+	{
+		AfficherMessage(FString::Printf(TEXT("+%d"), Stats.Pv - Avant), FColor(120, 230, 140));
+	}
+}
+
+// Au debut de son tour : le poison (-3) et la brulure (-4), comme dans le prototype
+int32 AVespUnite::SubirEtats()
+{
+	int32 Total = 0;
+	if (Poison > 0)
+	{
+		Total += 3;
+		Poison--;
+	}
+	if (Brulure > 0)
+	{
+		Total += 4;
+		Brulure--;
+	}
+	if (Total > 0 && EstDebout())
+	{
+		Encaisser(Total, false);
+		Texte->SetTextRenderColor(FColor(190, 110, 255));		// le violet des etats
+	}
+	return Total;
+}
+
 void AVespUnite::Encaisser(int32 Degats, bool bCritique)
 {
 	Stats.Pv = FMath::Max(0, Stats.Pv - Degats);
+	TempsEclat = 0.18f;		// sa lueur eclate un instant (l'impact)
 	TempsAction = 0.7f;
 	Texte->SetText(FText::FromString(FString::Printf(TEXT("%s-%d"), bCritique ? TEXT("CRIT ") : TEXT(""), Degats)));
 	Texte->SetTextRenderColor(bCritique ? FColor::Orange : FColor::Yellow);

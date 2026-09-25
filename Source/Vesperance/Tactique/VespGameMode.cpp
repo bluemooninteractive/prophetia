@@ -3,6 +3,7 @@
 #include "VespUnite.h"
 #include "VespPlayerController.h"
 #include "VespHUD.h"
+#include "VespLucioles.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
@@ -104,7 +105,7 @@ static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionI
 	}
 }
 
-// Le dossier ou chaque personnage range son modele 3D (voir l'import des modeles KayKit)
+// Le dossier ou chaque personnage range son modele 3D
 static const FString DOSSIER = TEXT("/Game/Characters/");
 
 AVespGameMode::AVespGameMode()
@@ -140,20 +141,9 @@ void AVespGameMode::BeginPlay()
 	AVespUnite* Aylis = Monde->SpawnActor<AVespUnite>(FVector::ZeroVector, FRotator::ZeroRotator);
 	Aylis->Preparer(Grille, FIntPoint(1, 3), Stats(TEXT("AYLIS"), 44, 13, 4), DOSSIER + TEXT("Aylis"), FLinearColor(0.2f, 0.35f, 1.0f), true);
 
-	// 3. Les Haschen, a droite : un guerrier, un traqueur, un eclaireur (les stats du prototype)
-	struct FHaschen { const TCHAR* Nom; const TCHAR* Dossier; FIntPoint Case; int32 Pv, Attaque, Defense; FLinearColor Teinte; };
-	const FHaschen Groupe[] = {
-		{TEXT("Haschen guerrier"), TEXT("guerrier"), FIntPoint(9, 2), 22, 9, 2, FLinearColor(0.8f, 0.2f, 0.15f)},
-		{TEXT("Haschen traqueur"), TEXT("traqueur"), FIntPoint(10, 5), 20, 9, 1, FLinearColor(0.2f, 0.6f, 0.25f)},
-		{TEXT("Haschen eclaireur"), TEXT("sbire"), FIntPoint(8, 3), 18, 8, 1, FLinearColor(0.9f, 0.5f, 0.1f)},
-	};
-	TArray<AVespUnite*> Haschen;
-	for (const FHaschen& H : Groupe)
-	{
-		AVespUnite* Unite = Monde->SpawnActor<AVespUnite>(FVector::ZeroVector, FRotator(0, 180, 0));
-		Unite->Preparer(Grille, H.Case, Stats(H.Nom, H.Pv, H.Attaque, H.Defense), DOSSIER + H.Dossier, H.Teinte, false);
-		Haschen.Add(Unite);
-	}
+	// 3. La magie de la clairiere : des feux follets qui flottent autour de l'arene
+	//    (les Haschen, eux, sont places par le PlayerController, salle apres salle)
+	Monde->SpawnActor<AVespLucioles>(Grille->GetActorLocation(), FRotator::ZeroRotator);
 
 	// 4. La camera : vue de haut et un peu de cote, presque sans perspective (un angle de vue etroit)
 	const float Elevation = FMath::DegreesToRadians(ElevationCamera);
@@ -168,6 +158,6 @@ void AVespGameMode::BeginPlay()
 	if (AVespPlayerController* Joueur = Cast<AVespPlayerController>(Monde->GetFirstPlayerController()))
 	{
 		Joueur->SetViewTarget(Camera);
-		Joueur->Commencer(Grille, Aylis, Haschen);
+		Joueur->Commencer(Grille, Aylis, Camera);
 	}
 }

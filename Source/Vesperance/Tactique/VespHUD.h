@@ -19,11 +19,16 @@ public:
 	// Le rectangle d'une carte d'action (numero 0 a 4) : utilise aussi par le PlayerController pour les clics
 	static FBox2D RectangleCarte(int32 Numero, FVector2D Ecran);
 	static constexpr int32 NombreDeCartes = 5;
+	// Les grandes cartes des choix de la route (runes, salles), centrees sur l'ecran
+	static FBox2D RectangleChoix(int32 Numero, int32 Nombre, FVector2D Ecran);
 
 private:
 	void Cadre(FBox2D R, FLinearColor Fond, FLinearColor Bord, float Epaisseur);
 	void Jauge(FBox2D R, float Part, FLinearColor Couleur, const FString& Texte);
 	void Texte(const FString& T, float X, float Y, FLinearColor Couleur, float Echelle, bool bCentre = false);
 	void BarresDeVie();
+	void Parchemin(FBox2D R, FLinearColor Lueur);
+	void EcranDeChoix(class AVespPlayerController* Joueur, FVector2D Ecran);
+	void EcranDeDialogue(class AVespPlayerController* Joueur, FVector2D Ecran);
 	float Taille = 1.0f;		// l'interface grandit avec l'ecran
 };

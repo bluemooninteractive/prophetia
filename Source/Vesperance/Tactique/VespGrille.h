@@ -59,6 +59,13 @@ public:
 	// Encadre la case sous la souris (Case hors de l'arene = rien)
 	void AfficherSurvol(FIntPoint Case);
 
+	// Les cases rouges d'une attaque annoncee par un boss (elles exploseront a son prochain tour)
+	void AfficherDanger(const TArray<FIntPoint>& Cases);
+
+	// Un nouveau combat : une autre carte (0 a 2), et plus personne sur les cases
+	void ChangerCarte(int32 Numero);
+	void ViderOccupants();
+
 protected:
 	virtual void BeginPlay() override;
 
@@ -79,6 +86,8 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Arbres;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Accessibles;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Survol;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Danger;
+	int32 NumeroCarte = 0;
 
 	// Les couleurs : un materiau de base d'Unreal, recolore
 	UMaterialInstanceDynamic* Couleur(UInstancedStaticMeshComponent* Composant, FLinearColor Teinte);

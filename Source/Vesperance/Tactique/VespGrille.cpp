@@ -6,17 +6,39 @@
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Engine/StaticMesh.h"
 
-// La carte de la clairiere de la Foret des Brumes : '#' = rocher, 'T' = arbre, '.' = sol libre
-// (AYLIS commence a gauche, en colonne 1, ligne 3)
-static const TCHAR* CARTE_FORET[AVespGrille::Lignes] = {
-	TEXT("..T....T...."),
-	TEXT(".....#......"),
-	TEXT("..#.....T..."),
-	TEXT("............"),
-	TEXT("....T...#..."),
-	TEXT(".......#...."),
-	TEXT("..#......T.."),
-	TEXT("T.....T....."),
+// Les cartes de la Foret des Brumes : '#' = rocher, 'T' = arbre, '.' = sol libre
+// (AYLIS commence a gauche, en colonne 1, ligne 3 : cette case reste toujours libre)
+static const TCHAR* CARTES[3][AVespGrille::Lignes] = {
+	{	// la clairiere
+		TEXT("..T....T...."),
+		TEXT(".....#......"),
+		TEXT("..#.....T..."),
+		TEXT("............"),
+		TEXT("....T...#..."),
+		TEXT(".......#...."),
+		TEXT("..#......T.."),
+		TEXT("T.....T....."),
+	},
+	{	// le sentier entre les rochers
+		TEXT("T...#...T..T"),
+		TEXT("....#......."),
+		TEXT(".T......#..."),
+		TEXT("......T....."),
+		TEXT("...#......T."),
+		TEXT("T.....#....."),
+		TEXT("...T....#..."),
+		TEXT("........T..T"),
+	},
+	{	// le cercle des anciens (la ou Skarn attend)
+		TEXT("T.T......T.T"),
+		TEXT("...#....#..."),
+		TEXT("............"),
+		TEXT("..T.......T."),
+		TEXT("............"),
+		TEXT("...#....#..."),
+		TEXT("T..........T"),
+		TEXT(".T.T....T.T."),
+	},
 };
 
 AVespGrille::AVespGrille()
@@ -43,6 +65,8 @@ AVespGrille::AVespGrille()
 	Arbres = Creer(TEXT("Arbres"), Cone.Object);
 	Accessibles = Creer(TEXT("Accessibles"), Plan.Object);
 	Survol = Creer(TEXT("Survol"), Plan.Object);
+	Danger = Creer(TEXT("Danger"), Plan.Object);
+	Danger->SetCastShadow(false);
 	Accessibles->SetCastShadow(false);
 	Survol->SetCastShadow(false);
 }
@@ -116,6 +140,7 @@ void AVespGrille::BeginPlay()
 	Couleur(Sol, FLinearColor(0.10f, 0.16f, 0.12f));
 	Couleur(Accessibles, FLinearColor(0.35f, 0.75f, 1.0f));
 	Couleur(Survol, FLinearColor(1.0f, 1.0f, 1.0f));
+	Couleur(Danger, FLinearColor(1.0f, 0.12f, 0.08f));
 	ConstruireCarte();
 }
 
@@ -197,13 +222,19 @@ TArray<FIntPoint> AVespGrille::ApprocheVers(FIntPoint Depart, FIntPoint Cible, i
 void AVespGrille::ConstruireCarte()
 {
 	Carte.SetNum(Colonnes * Lignes);
-	Occupants.Init(nullptr, Colonnes * Lignes);
+	if (Occupants.Num() != Colonnes * Lignes)
+	{
+		Occupants.Init(nullptr, Colonnes * Lignes);
+	}
+	Sol->ClearInstances();
+	Rochers->ClearInstances();
+	Arbres->ClearInstances();
 	for (int32 L = 0; L < Lignes; L++)
 	{
 		for (int32 C = 0; C < Colonnes; C++)
 		{
 			const FIntPoint Case(C, L);
-			Carte[Index(Case)] = CARTE_FORET[L][C];
+			Carte[Index(Case)] = CARTES[NumeroCarte][L][C];
 			const FVector Centre = CentreDeCase(Case);
 			// Le carre de sol, un peu plus petit que la case : on voit la grille entre les cases
 			Sol->AddInstance(FTransform(FRotator::ZeroRotator, Centre, FVector(0.96f, 0.96f, 1.0f)), true);
@@ -326,6 +357,27 @@ void AVespGrille::AfficherCasesAtteignables(const TArray<int32>& Pas)
 			const FIntPoint Case(i % Colonnes, i / Colonnes);
 			Accessibles->AddInstance(FTransform(FRotator::ZeroRotator, CentreDeCase(Case) + FVector(0, 0, 1.5f), FVector(0.86f, 0.86f, 1.0f)), true);
 		}
+	}
+}
+
+void AVespGrille::ChangerCarte(int32 Numero)
+{
+	NumeroCarte = FMath::Clamp(Numero, 0, 2);
+	ConstruireCarte();
+	AfficherDanger({});
+}
+
+void AVespGrille::ViderOccupants()
+{
+	Occupants.Init(nullptr, Colonnes * Lignes);
+}
+
+void AVespGrille::AfficherDanger(const TArray<FIntPoint>& Cases)
+{
+	Danger->ClearInstances();
+	for (const FIntPoint& Case : Cases)
+	{
+		Danger->AddInstance(FTransform(FRotator::ZeroRotator, CentreDeCase(Case) + FVector(0, 0, 3.5f), FVector(0.9f, 0.9f, 1.0f)), true);
 	}
 }
 
