@@ -18,6 +18,8 @@
 
 class UPointLightComponent;
 class UMaterialInstanceDynamic;
+class UNiagaraSystem;
+class UNiagaraComponent;
 
 UENUM()
 enum class EVespEffet : uint8
@@ -51,6 +53,10 @@ public:
 	// Un materiau qui brille (additif, sans ombre), avec un parametre "Color". Partage par tout le jeu.
 	static UMaterialInterface* MateriauLumineux();
 
+	// Un effet magique du pack Free_Magic (Niagara), par son nom (null s'il n'est pas dans le projet)
+	static UNiagaraSystem* Magie(const TCHAR* Nom);
+	static void JouerMagie(UWorld* Monde, const TCHAR* Nom, const FVector& Position, const FRotator& Rotation = FRotator::ZeroRotator, float Echelle = 1.0f);
+
 private:
 	struct FGrain
 	{
@@ -72,6 +78,21 @@ private:
 	void Eclairer(float Intensite, float Rayon, float Duree, float Retard = 0.0f, FVector Vitesse = FVector::ZeroVector);
 
 	TArray<FGrain> Grains;
+
+	// Les effets Niagara de l'effet (ils peuvent attendre, et voler : un projectile)
+	struct FMagieEnCours
+	{
+		UNiagaraSystem* Systeme = nullptr;
+		FVector Position = FVector::ZeroVector;
+		FRotator Rotation = FRotator::ZeroRotator;
+		float Echelle = 1.0f;
+		float Retard = 0.0f;
+		FVector Vitesse = FVector::ZeroVector;
+		float Duree = 0.0f;
+		TWeakObjectPtr<UNiagaraComponent> Composant;
+		bool bLancee = false;
+	};
+	TArray<FMagieEnCours> Magies;
 	FLinearColor Couleur = FLinearColor::White;
 	float Intensite = 6.0f;				// l'eclat des grains (au-dessus de 1 : le "bloom" les fait briller)
 	UPROPERTY() TObjectPtr<UPointLightComponent> Lumiere;

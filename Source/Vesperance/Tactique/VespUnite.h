@@ -80,6 +80,10 @@ public:
 
 	void Suivre(const TArray<FIntPoint>& Chemin);		// il marche case par case
 
+	// Une arme dans la main (pack StylizedCharacter) : son chemin, sa longueur (en part de la taille du personnage),
+	// la main gauche (un arc) ou droite ; et un bouclier dans l'autre main
+	void Equiper(const FString& Arme, float Longueur, bool bMainGauche = false, const FString& Bouclier = FString());
+
 	// L'exploration : AYLIS se deplace librement dans le monde (hors de la grille, au clavier ou a la manette)
 	void PasserEnModeLibre(bool bLeModeLibre);
 	bool EstLibre() const { return bLibre; }
@@ -132,7 +136,9 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UTextRenderComponent> Texte;	// les degats recus, au-dessus de la tete
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UPointLightComponent> Lueur;	// la lumiere de la prophetie (AYLIS) ou les yeux (Haschen)
 
-	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> Pieces;	// les autres morceaux du modele (bras, jambes, tete...)
+	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> Pieces;
+	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> Armes;
+	FName OsDeLaMain(bool bGauche) const;	// les autres morceaux du modele (bras, jambes, tete...)
 	UPROPERTY() TObjectPtr<UAnimSequence> AnimRepos;
 	UPROPERTY() TObjectPtr<UAnimSequence> AnimMarche;
 	UPROPERTY() TObjectPtr<UAnimSequence> AnimAttaque;

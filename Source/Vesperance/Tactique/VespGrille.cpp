@@ -2,6 +2,7 @@
 #include "VespUnite.h"
 #include "VespEffet.h"
 #include "VespStyles.h"
+#include "VespMonde.h"
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "UObject/ConstructorHelpers.h"
@@ -454,10 +455,32 @@ void AVespGrille::ConstruireCarte()
 	Sol->ClearInstances();
 	Rochers->ClearInstances();
 	Arbres->ClearInstances();
-	const bool bMorts = Style(Acte).bArbresMorts;
-	if (bVraisArbres)
+	// Les obstacles de l'arene : les rochers et les arbres des packs, selon l'acte (comme le monde autour)
+	static const TCHAR* ROCHERS[7] = {
+		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Rock_2.SMF_Forest_Rock_2"), TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Rock_3.SMF_Forest_Rock_3"),
+		TEXT("/Game/StylizedProvencal/Meshes/SM_Rock_Small_02.SM_Rock_Small_02"), TEXT("/Game/StylizedProvencal/Meshes/SM_RockBrick_Medium_01.SM_RockBrick_Medium_01"),
+		TEXT("/Game/StylizedProvencal/Meshes/SM_Rock_Large_02.SM_Rock_Large_02"), TEXT("/Game/Planet385CY/Meshes/Rocks/SM_PorousRock_01.SM_PorousRock_01"),
+		TEXT("/Game/StylizedProvencal/Meshes/SM_RockBrick_Medium_02.SM_RockBrick_Medium_02")};
+	static const TCHAR* ARBRES[7] = {
+		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Tree02.SMF_Forest_Tree02"), TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Tree05.SMF_Forest_Tree05"),
+		TEXT("/Game/StylizedProvencal/Meshes/SM_Tree_Cypress.SM_Tree_Cypress"), TEXT("/Game/StylizedProvencal/Meshes/SM_Tree_Cypress.SM_Tree_Cypress"),
+		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Tree04.SMF_Forest_Tree04"), TEXT("/Game/Planet385CY/Meshes/Tree/SM_Tree01a.SM_Tree01a"),
+		TEXT("/Game/Planet385CY/Meshes/Tendrils/SM_Tendrils_01_Cluster_01.SM_Tendrils_01_Cluster_01")};
+	if (UStaticMesh* R = AVespMonde::Modele(ROCHERS[FMath::Clamp(Acte, 1, 7) - 1]))
 	{
-		Arbres->SetStaticMesh(bMorts ? ArbreMort.Get() : Sapin.Get());
+		Rochers->SetStaticMesh(R);
+		Rochers->EmptyOverrideMaterials();
+		bVraisRochers = true;
+	}
+	if (UStaticMesh* A = AVespMonde::Modele(ARBRES[FMath::Clamp(Acte, 1, 7) - 1]))
+	{
+		Arbres->SetStaticMesh(A);
+		Arbres->EmptyOverrideMaterials();
+		bVraisArbres = true;
+	}
+	else if (bVraisArbres)
+	{
+		Arbres->SetStaticMesh(Style(Acte).bArbresMorts ? ArbreMort.Get() : Sapin.Get());
 	}
 	for (int32 L = 0; L < Lignes; L++)
 	{
@@ -471,7 +494,7 @@ void AVespGrille::ConstruireCarte()
 			{
 				if (bVraisRochers)
 				{
-					const float E = EchelleSur(Rochers->GetStaticMesh(), 70.0f, 85.0f);
+					const float E = EchelleSur(Rochers->GetStaticMesh(), 85.0f, 110.0f);
 					Rochers->AddInstance(FTransform(FRotator(0, 37.0f * C + 11.0f * L, 0), Centre, FVector(E)), true);
 				}
 				else
@@ -483,7 +506,7 @@ void AVespGrille::ConstruireCarte()
 			{
 				if (bVraisArbres)
 				{
-					const float E = EchelleSur(Arbres->GetStaticMesh(), 260.0f + 40.0f * ((C + L) % 3), 150.0f);
+					const float E = EchelleSur(Arbres->GetStaticMesh(), 330.0f + 50.0f * ((C + L) % 3), 260.0f);
 					Arbres->AddInstance(FTransform(FRotator(0, 53.0f * C, 0), Centre, FVector(E)), true);
 				}
 				else
@@ -497,6 +520,13 @@ void AVespGrille::ConstruireCarte()
 	{
 		CouleurSol->SetVectorParameterValue(TEXT("Color"), Style(Acte).Sol);
 	}
+	// Les dalles de l'arene : les materiaux du Pack_Bonus (herbe, planches, carrelage, pierre) ; une couleur unie sinon
+	static const TCHAR* DALLES[7] = {TEXT("M_Pack_Bonus_Grass_1"), TEXT("M_Pack_Bonus_Grass_3"), TEXT("M_Pack_Bonus_Wooden_Floor_2"), TEXT("M_Pack_Bonus_Tile_1"),
+	                                 nullptr, TEXT("M_Pack_Bonus_Stone_3"), TEXT("M_Pack_Bonus_Tile_2")};
+	const TCHAR* Dalle = DALLES[FMath::Clamp(Acte, 1, 7) - 1];
+	UMaterialInterface* Materiau = Dalle ? LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/Pack_Bonus/Materials/%s.%s"), Dalle, Dalle),
+	                                                                     nullptr, LOAD_NoWarn | LOAD_Quiet) : nullptr;
+	Sol->SetMaterial(0, Materiau ? Materiau : static_cast<UMaterialInterface*>(CouleurSol));
 	if (CouleurPoison)
 	{
 		CouleurPoison->SetVectorParameterValue(TEXT("Color"), Style(Acte).Poison);

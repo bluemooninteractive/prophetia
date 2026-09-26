@@ -207,10 +207,20 @@ private:
 	void Trembler(float Force) { Secousse = FMath::Min(1.5f, Secousse + Force); }
 	void Ralenti(float Echelle, float Duree);		// un instant de ralenti (un coup fatal, un critique)
 	void PlacerCamera(float Secondes);
+	// Le mode photo (le jeu lance avec -VespPhotos) : il parcourt les 7 actes et prend des photos pour la promo
+	void ModePhoto(float Secondes);
+	void Photographier(const FString& Nom, bool bAvecInterface);
 	int32 DeplacementCeTour() const;
 
 	UPROPERTY() TObjectPtr<AVespGrille> Grille;
 	UPROPERTY() TObjectPtr<AVespMonde> Monde;
+	UPROPERTY() TObjectPtr<class UNiagaraComponent> AuraRage;	// l'aura d'AYLIS quand la rage est pleine
+	bool bContours = true;										// les contours "toon" (F4)
+	bool bModePhoto = false;
+	int32 PhotoActe = 0;			// 0 : l'ecran titre
+	int32 PhotoEtape = 0;
+	float PhotoAttente = 0.0f;
+	bool bCameraPhoto = false;		// la camera est placee a la main (le panorama)
 	UPROPERTY() TObjectPtr<AVespUnite> Aylis;
 	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Haschen;
 	UPROPERTY() TObjectPtr<ACameraActor> CameraArene;

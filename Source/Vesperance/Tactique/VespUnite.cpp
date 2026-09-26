@@ -490,6 +490,64 @@ int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance, bool* bCritiqueSor
 	return Degats;
 }
 
+// ===================== Les armes =====================
+// Les personnages KayKit ont un os "handslot" dans chaque main, fait pour tenir une arme.
+
+FName AVespUnite::OsDeLaMain(bool bGauche) const
+{
+	FName Main = NAME_None;
+	for (int32 i = 0; i < Modele->GetNumBones(); i++)
+	{
+		const FName Os = Modele->GetBoneName(i);
+		const FString Nom = Os.ToString().ToLower();
+		const bool bCote = bGauche ? (Nom.EndsWith(TEXT(".l")) || Nom.EndsWith(TEXT("_l")) || Nom.Contains(TEXT("left")))
+		                           : (Nom.EndsWith(TEXT(".r")) || Nom.EndsWith(TEXT("_r")) || Nom.Contains(TEXT("right")));
+		if (!bCote)
+		{
+			continue;
+		}
+		if (Nom.Contains(TEXT("handslot")))
+		{
+			return Os;
+		}
+		if (Main.IsNone() && Nom.Contains(TEXT("hand")))
+		{
+			Main = Os;
+		}
+	}
+	return Main;
+}
+
+void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, const FString& Bouclier)
+{
+	if (!Modele->GetSkeletalMeshAsset())
+	{
+		return;		// la silhouette de secours n'a pas de mains
+	}
+	auto Attacher = [this](const FString& Chemin, bool bGauche, float LongueurVoulue) {
+		USkeletalMesh* M = Chemin.IsEmpty() ? nullptr : LoadObject<USkeletalMesh>(nullptr, *Chemin, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		const FName Os = OsDeLaMain(bGauche);
+		if (!M || Os.IsNone())
+		{
+			return;
+		}
+		USkeletalMeshComponent* A = NewObject<USkeletalMeshComponent>(this);
+		A->SetSkeletalMesh(M);
+		A->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		A->SetupAttachment(Modele, Os);
+		A->RegisterComponent();
+		// A la bonne taille, quelle que soit l'echelle du modele
+		const float Mesure = M->GetBounds().GetBox().GetSize().GetMax();
+		if (Mesure > 1.0f)
+		{
+			A->SetWorldScale3D(FVector(LongueurVoulue / Mesure));
+		}
+		Armes.Add(A);
+	};
+	Attacher(Arme, bMainGauche, Longueur * this->Taille);
+	Attacher(Bouclier, !bMainGauche, 0.38f * this->Taille);
+}
+
 // ===================== L'exploration =====================
 
 void AVespUnite::PasserEnModeLibre(bool bLeModeLibre)

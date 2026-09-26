@@ -6,6 +6,9 @@
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
 
 AVespEffet::AVespEffet()
 {
@@ -41,6 +44,32 @@ UMaterialInterface* AVespEffet::MateriauLumineux()
 #endif
 	Deja = Resultat;
 	return Resultat;
+}
+
+// ===================== Les effets magiques (Free_Magic, Niagara) =====================
+
+UNiagaraSystem* AVespEffet::Magie(const TCHAR* Nom)
+{
+	static TMap<FString, TWeakObjectPtr<UNiagaraSystem>> Deja;
+	const FString Cle(Nom);
+	if (TWeakObjectPtr<UNiagaraSystem>* S = Deja.Find(Cle))
+	{
+		if (S->IsValid())
+		{
+			return S->Get();
+		}
+	}
+	UNiagaraSystem* S = LoadObject<UNiagaraSystem>(nullptr, *FString::Printf(TEXT("/Game/Free_Magic/VFX_Niagara/%s.%s"), Nom, Nom), nullptr, LOAD_NoWarn | LOAD_Quiet);
+	Deja.Add(Cle, S);
+	return S;
+}
+
+void AVespEffet::JouerMagie(UWorld* Monde, const TCHAR* Nom, const FVector& Position, const FRotator& Rotation, float Echelle)
+{
+	if (UNiagaraSystem* S = Magie(Nom))
+	{
+		UNiagaraFunctionLibrary::SpawnSystemAtLocation(Monde, S, Position, Rotation, FVector(Echelle), true);
+	}
 }
 
 void AVespEffet::Ajouter(const FVector& Position, const FVector& Vitesse, float VieMax, float TailleDebut, float TailleFin,
@@ -100,6 +129,54 @@ void AVespEffet::Jouer(UWorld* Monde, EVespEffet Type, FVector Position, FVector
 	E->Couleur = LaCouleur;
 	const FVector Dir = Direction.GetSafeNormal();
 	auto Hasard = [](float A, float B) { return FMath::FRandRange(A, B); };
+
+	// Les effets magiques du pack Free_Magic, par-dessus nos grains de lumiere
+	auto AjouterMagie = [E](const TCHAR* Nom, const FVector& P, const FRotator& R, float Echelle, float LeRetard,
+	                        const FVector& Vitesse = FVector::ZeroVector, float Duree = 0.0f) {
+		UNiagaraSystem* S = Magie(Nom);
+		if (!S)
+		{
+			return false;
+		}
+		FMagieEnCours M;
+		M.Systeme = S;
+		M.Position = P;
+		M.Rotation = R;
+		M.Echelle = Echelle;
+		M.Retard = LeRetard;
+		M.Vitesse = Vitesse;
+		M.Duree = Duree;
+		E->Magies.Add(M);
+		return true;
+	};
+	const bool bBleu = LaCouleur.B > LaCouleur.R;									// les coups d'AYLIS
+	const bool bVert = LaCouleur.G > LaCouleur.R && LaCouleur.G > LaCouleur.B;		// le poison
+	switch (Type)
+	{
+		case EVespEffet::Impact: AjouterMagie(TEXT("NS_Free_Magic_Hit1"), Position, Dir.Rotation(), 0.7f, Retard); break;
+		case EVespEffet::Critique: AjouterMagie(TEXT("NS_Free_Magic_Hit2"), Position, Dir.Rotation(), 1.1f, Retard); break;
+		case EVespEffet::Trainee:
+			if (AjouterMagie(bBleu ? TEXT("NS_Free_Magic_Slash") : TEXT("NS_Free_Magic_Slash2"), Position + Dir * 40.0f, Dir.Rotation(), 0.8f, Retard))
+			{
+				return;		// la taillade du pack remplace nos grains
+			}
+			break;
+		case EVespEffet::Projectile:
+		{
+			const float Duree = 0.3f;
+			const FVector Vitesse = (Arrivee - Position) / Duree;
+			if (AjouterMagie(bVert ? TEXT("NS_Free_Magic_Projectile2") : TEXT("NS_Free_Magic_Projectile1"), Position, Vitesse.Rotation(), 0.7f, Retard, Vitesse, Duree))
+			{
+				E->Eclairer(2500.0f, 350.0f, Duree, Retard, Vitesse);		// sa lumiere l'accompagne
+				return;
+			}
+			break;
+		}
+		case EVespEffet::Soin: AjouterMagie(TEXT("NS_Free_Magic_Buff"), Position, FRotator::ZeroRotator, 0.8f, Retard); break;
+		case EVespEffet::Onde: AjouterMagie(bBleu ? TEXT("NS_Free_Magic_Area1") : TEXT("NS_Free_Magic_Area2"), Position, FRotator::ZeroRotator, 0.9f, Retard); break;
+		case EVespEffet::Etincelles: AjouterMagie(TEXT("NS_Free_Magic_Circle1"), Position, FRotator::ZeroRotator, 0.7f, Retard); break;
+		default: break;
+	}
 
 	switch (Type)
 	{
@@ -268,6 +345,38 @@ void AVespEffet::Tick(float Secondes)
 		else
 		{
 			Lumiere->SetIntensity(0.0f);
+		}
+	}
+	// Les effets magiques : ils attendent leur tour, puis apparaissent (et volent, pour un projectile)
+	for (FMagieEnCours& M : Magies)
+	{
+		if (!M.bLancee)
+		{
+			M.Retard -= Secondes;
+			if (M.Retard > 0.0f)
+			{
+				bFini = false;
+				continue;
+			}
+			M.bLancee = true;
+			const bool bVole = !M.Vitesse.IsNearlyZero();
+			M.Composant = UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), M.Systeme, M.Position, M.Rotation, FVector(M.Echelle), !bVole);
+		}
+		if (M.Composant.IsValid() && !M.Vitesse.IsNearlyZero())
+		{
+			M.Duree -= Secondes;
+			if (M.Duree > 0.0f)
+			{
+				M.Position += M.Vitesse * Secondes;
+				M.Composant->SetWorldLocation(M.Position);
+				bFini = false;
+			}
+			else
+			{
+				M.Composant->SetAutoDestroy(true);		// il finit ses particules, puis disparait
+				M.Composant->Deactivate();
+				M.Composant = nullptr;
+			}
 		}
 	}
 	if (bFini || Temps > 4.0f)

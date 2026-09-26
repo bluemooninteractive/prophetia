@@ -62,6 +62,13 @@ static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionI
 	R.ColorSaturation = FVector4(0.9f, 0.95f, 1.1f, 1.0f);
 	R.bOverride_BloomIntensity = true;
 	R.BloomIntensity = 1.2f;
+	// Des contours "toon" (le filtre du pack StylizedProvencal) : ils unifient le rendu des differents packs
+	// (personnages KayKit, decors peints, armes, et la corruption du Voile). F4 les coupe ou les remet.
+	if (UMaterialInterface* Contours = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/StylizedProvencal/Materials/MI_PP_ToonOutlines.MI_PP_ToonOutlines"),
+	                                                                  nullptr, LOAD_NoWarn | LOAD_Quiet))
+	{
+		R.WeightedBlendables.Array.Add(FWeightedBlendable(1.0f, Contours));
+	}
 
 }
 

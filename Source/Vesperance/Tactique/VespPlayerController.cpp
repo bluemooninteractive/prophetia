@@ -18,6 +18,17 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "Widgets/SWeakWidget.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraComponent.h"
+#include "NiagaraSystem.h"
+#include "Engine/PostProcessVolume.h"
+#include "UnrealClient.h"
+#include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
+#include "AssetCompilingManager.h"
+#if WITH_EDITOR
+#include "ShaderCompiler.h"
+#endif
 
 // Le dossier ou chaque personnage range son modele 3D
 static const FString DOSSIER = TEXT("/Game/Characters/");
@@ -174,6 +185,10 @@ static const FVespModeleHaschen BOSS[7] = {
 	{TEXT("L'Oracle de Karn"), TEXT("chaman"), 270, 25, 6, FLinearColor(0.75f, 0.55f, 1.0f), LANCEUR, POISON, 0, 0, 0, 6, 12, 260.0f},
 };
 
+// Les armes des personnages (plus bas)
+static FString Arme(const TCHAR* Dossier, const TCHAR* Nom);
+static void Armer(AVespUnite* H, const FVespModeleHaschen& M, int32 BossActe);
+
 // ===================== La mise en route =====================
 
 AVespPlayerController::AVespPlayerController()
@@ -210,10 +225,14 @@ void AVespPlayerController::Commencer(AVespGrille* LaGrille, AVespMonde* LeMonde
 		Interface = SNew(SVespInterface).Joueur(this);
 		GEngine->GameViewport->AddViewportWidgetContent(Interface.ToSharedRef());
 	}
+	// AYLIS, voie de l'epee
+	Aylis->Equiper(Arme(TEXT("Sword"), TEXT("SK_Sword_1H_Newbie_02")), 0.5f);
 	// Le monde du premier acte ; l'ecran titre le montre, la camera tourne lentement autour d'AYLIS
 	GenererMonde();
 	Phase = EVespPhase::Titre;
 	TempsPhase = 0.0f;
+	bModePhoto = FParse::Param(FCommandLine::Get(), TEXT("VespPhotos"));
+	PhotoAttente = 8.0f;
 }
 
 void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
@@ -952,8 +971,57 @@ AVespUnite* AVespPlayerController::CreerHaschen(const FVespModeleHaschen& M, FIn
 	AVespUnite* H = GetWorld()->SpawnActor<AVespUnite>(FVector::ZeroVector, FRotator(0, 180, 0));
 	H->Taille = M.Taille;
 	H->Preparer(Grille, Case, S, DOSSIER + M.Dossier, M.Teinte, false);
+	const bool bBoss = &M >= &BOSS[0] && &M <= &BOSS[6];
+	Armer(H, M, bBoss ? int32(&M - &BOSS[0]) + 1 : 0);
 	Haschen.Add(H);
 	return H;
+}
+
+// ===================== Les armes (pack StylizedCharacter) =====================
+
+static FString Arme(const TCHAR* Dossier, const TCHAR* Nom)
+{
+	return FString::Printf(TEXT("/Game/StylizedCharacter/Meshes/Item/Weapons/%s/%s.%s"), Dossier, Nom, Nom);
+}
+
+// Chaque Haschen a l'arme de son metier : hache (guerrier), arc (traqueur), baton (chaman), dague (sbire)...
+// Les grands (elites) ont des armes plus lourdes ; chaque boss a la sienne.
+static void Armer(AVespUnite* H, const FVespModeleHaschen& M, int32 BossActe)
+{
+	switch (BossActe)
+	{
+		case 1: H->Equiper(Arme(TEXT("Axe"), TEXT("SK_Axe_2HL_Newbie_01")), 0.7f); return;					// Skarn et sa masse
+		case 2: H->Equiper(Arme(TEXT("Staff"), TEXT("SK_Staff_Newbie_03")), 0.95f); return;				// la Matriarche
+		case 3: H->Equiper(Arme(TEXT("Sword"), TEXT("SK_Sword_2H_Newbie_02")), 0.65f); return;			// le Roi Noye
+		case 4: return;																						// le Gardien frappe de ses poings de pierre
+		case 5: H->Equiper(Arme(TEXT("Bow"), TEXT("SK_Bow_Newbie_03")), 0.75f, true); return;				// Ashka et son arc
+		case 6: H->Equiper(Arme(TEXT("Axe"), TEXT("SK_Axe_2HL_Newbie_01")), 0.75f, false, Arme(TEXT("Shield"), TEXT("SK_Shield_Newbie_03"))); return;
+		case 7: H->Equiper(Arme(TEXT("Staff"), TEXT("SK_Staff_Newbie_04")), 1.0f); return;				// l'Oracle
+		default: break;
+	}
+	const FString Dossier = M.Dossier;
+	const bool bGrand = M.Taille >= 205.0f;
+	if (Dossier == TEXT("guerrier"))
+	{
+		H->Equiper(bGrand ? Arme(TEXT("Axe"), TEXT("SK_Axe_2HL_Newbie_01")) : Arme(TEXT("Axe"), TEXT("SK_Axe_1H_Newbie_02")), bGrand ? 0.65f : 0.45f, false,
+		           M.Defense >= 5 ? Arme(TEXT("Shield"), TEXT("SK_Shield_Newbie_01")) : FString());
+	}
+	else if (Dossier == TEXT("traqueur"))
+	{
+		H->Equiper(Arme(TEXT("Bow"), bGrand ? TEXT("SK_Bow_Newbie_02") : TEXT("SK_Bow_Newbie_01")), 0.65f, true);
+	}
+	else if (Dossier == TEXT("chaman"))
+	{
+		H->Equiper(Arme(TEXT("Staff"), bGrand ? TEXT("SK_Staff_Newbie_02") : TEXT("SK_Staff_Newbie_01")), 0.9f);
+	}
+	else if (Dossier == TEXT("Aylis"))
+	{
+		H->Equiper(Arme(TEXT("Sword"), TEXT("SK_Sword_1H_Newbie_01")), 0.5f);			// les echos d'AYLIS
+	}
+	else
+	{
+		H->Equiper(Arme(TEXT("Dagger"), bGrand ? TEXT("SK_Dagger_1H_Newbie_03") : TEXT("SK_Dagger_1H_Newbie_01")), 0.32f);
+	}
 }
 
 static FIntPoint TirerPlace(TArray<FIntPoint>& Places)
@@ -1089,6 +1157,7 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 	Grille->ViderOccupants();
 	Grille->SetActorLocation(FVector(Centre.X, Centre.Y, Grille->GetActorLocation().Z));
 	Grille->PreparerCarte(Acte, Type == EVespSalle::Boss);
+	AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Circle2"), Grille->GetActorLocation() + FVector(0, 0, 5), FRotator::ZeroRotator, 3.0f);
 	const FIntPoint Depart = CaseLaPlusProche(Aylis->GetActorLocation());
 	Aylis->Replacer(Depart);
 	Aylis->SetActorRotation(FRotator(0, 90.0f, 0));
@@ -1937,6 +2006,42 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	}
 	TempsPhase += Secondes;
 	TempsMessage = FMath::Max(0.0f, TempsMessage - Secondes);
+	if (bModePhoto)
+	{
+		ModePhoto(Secondes);
+		if (!bCameraPhoto)
+		{
+			PlacerCamera(Secondes);
+		}
+		return;
+	}
+	// La rage pleine : une aura magique enveloppe AYLIS
+	const bool bRagePleine = Rage >= 100 && (Phase == EVespPhase::TourAylis || Phase == EVespPhase::TourHaschen);
+	if (bRagePleine && !AuraRage)
+	{
+		if (UNiagaraSystem* Aura = AVespEffet::Magie(TEXT("NS_Free_Magic_Aura")))
+		{
+			AuraRage = UNiagaraFunctionLibrary::SpawnSystemAttached(Aura, Aylis->GetRootComponent(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator,
+			                                                        EAttachLocation::KeepRelativeOffset, false);
+		}
+	}
+	else if (!bRagePleine && AuraRage)
+	{
+		AuraRage->DestroyComponent();
+		AuraRage = nullptr;
+	}
+	// F4 : les contours "toon" (le filtre du pack StylizedProvencal), en marche ou pas
+	if (WasInputKeyJustPressed(EKeys::F4))
+	{
+		bContours = !bContours;
+		for (TActorIterator<APostProcessVolume> It(GetWorld()); It; ++It)
+		{
+			for (FWeightedBlendable& B : It->Settings.WeightedBlendables.Array)
+			{
+				B.Weight = bContours ? 1.0f : 0.0f;
+			}
+		}
+	}
 	Repetition = FMath::Max(0.0f, Repetition - Secondes);
 	PlacerCamera(Secondes);
 	// La souris a bouge : on vise de nouveau a la souris (et plus au curseur)
@@ -2044,6 +2149,177 @@ bool AVespPlayerController::DirectionPressee(FIntPoint& Direction, float Seconde
 		Direction.Y = SY > 0 ? -1 : 1;		// le stick vers le haut = vers le haut de l'ecran
 	}
 	return true;
+}
+
+// ===================== Le mode photo (pour la promo) =====================
+// Lance le jeu avec -VespPhotos : il attend que tout soit pret (shaders, modeles), puis, acte par acte, il prend
+// 4 photos (l'exploration, un panorama, un combat au moment d'un coup, le boss) dans Saved/Photos, et quitte.
+
+static TArray<FIntPoint> Carre(const AVespGrille* G, FIntPoint Centre);
+
+void AVespPlayerController::Photographier(const FString& Nom, bool bAvecInterface)
+{
+	FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir() / TEXT("Photos") / (Nom + TEXT(".png")), bAvecInterface, false);
+}
+
+void AVespPlayerController::ModePhoto(float Secondes)
+{
+	PhotoAttente -= Secondes;
+	if (PhotoAttente > 0.0f)
+	{
+		return;
+	}
+	// On attend que les shaders et les modeles soient prets (la premiere fois, ca peut etre long)
+#if WITH_EDITOR
+	if (GShaderCompilingManager && GShaderCompilingManager->IsCompiling())
+	{
+		PhotoAttente = 1.0f;
+		return;
+	}
+#endif
+	if (FAssetCompilingManager::Get().GetNumRemainingAssets() > 0)
+	{
+		PhotoAttente = 1.0f;
+		return;
+	}
+	const FString Prefixe = FString::Printf(TEXT("Acte%d_%s"), PhotoActe, *Romain(FMath::Max(1, PhotoActe)));
+	auto PremiereZone = [this](std::initializer_list<EVespSalle> Types) {
+		for (int32 i = 0; i < Noeuds.Num(); i++)
+		{
+			for (EVespSalle T : Types)
+			{
+				if (Noeuds[i].Type == T)
+				{
+					return i;
+				}
+			}
+		}
+		return 1;
+	};
+	switch (PhotoEtape)
+	{
+		case 0:		// l'ecran titre
+			if (PhotoActe == 0)
+			{
+				Photographier(TEXT("00_Ecran_titre"), true);
+				PhotoActe = 1;
+				PhotoAttente = 1.5f;
+				return;
+			}
+			// Un acte : son monde, son ambiance
+			Acte = PhotoActe;
+			Aylis->Stats.Pv = Aylis->Stats.PvMax;
+			AmbianceDeLActe();
+			Phase = EVespPhase::Exploration;
+			bCameraPhoto = false;
+			PhotoEtape = 1;
+			PhotoAttente = 8.0f;
+			return;
+		case 1:		// AYLIS sur le sentier, entre la 1re et la 2e clairiere
+		{
+			const FVector P = FMath::Lerp(Noeuds[1].Centre, Noeuds[2].Centre, 0.45f);
+			Aylis->SetActorLocation(Monde->Contraindre(P, P));
+			Aylis->SetActorRotation(FRotator(0, 80.0f, 0));
+			bCaleCamera = true;
+			PhotoEtape = 2;
+			PhotoAttente = 3.0f;
+			return;
+		}
+		case 2:
+			Photographier(Prefixe + TEXT("_1_Exploration"), false);
+			PhotoEtape = 3;
+			PhotoAttente = 1.0f;
+			return;
+		case 3:		// un panorama : plus bas, plus loin, le long du sentier vers l'est
+		{
+			const FVector Cible = FMath::Lerp(Noeuds[2].Centre, Noeuds[3].Centre, 0.35f) + FVector(0, 0, 180.0f);
+			const FVector Position = Cible + FVector(-2600.0f, -2100.0f, 1100.0f);
+			bCameraPhoto = true;
+			CameraArene->SetActorLocation(Position);
+			CameraArene->SetActorRotation((Cible - Position).Rotation());
+			CameraArene->GetCameraComponent()->SetFieldOfView(55.0f);
+			Aylis->SetActorLocation(Monde->Contraindre(Cible, FVector(Cible.X, Cible.Y, Aylis->GetActorLocation().Z)));
+			PhotoEtape = 4;
+			PhotoAttente = 3.0f;
+			return;
+		}
+		case 4:
+			Photographier(Prefixe + TEXT("_2_Panorama"), false);
+			PhotoEtape = 5;
+			PhotoAttente = 1.0f;
+			return;
+		case 5:		// un combat, dans la premiere clairiere gardee
+		{
+			bCameraPhoto = false;
+			const int32 Zone = PremiereZone({EVespSalle::Elite, EVespSalle::Combat});
+			Aylis->SetActorLocation(Noeuds[Zone].Centre + FVector(0, -700.0f, 0));
+			Declencher(Zone);
+			Rage = 100;
+			PhotoEtape = 6;
+			PhotoAttente = 3.5f;
+			return;
+		}
+		case 6:		// AYLIS frappe (le coup special) : la photo au moment de l'impact
+		{
+			AVespUnite* Cible = nullptr;
+			for (AVespUnite* H : Haschen)
+			{
+				if (H->EstDebout() && (!Cible || H->Stats.PvMax > Cible->Stats.PvMax))
+				{
+					Cible = H;
+				}
+			}
+			FIntPoint Case;
+			if (Cible && CaseLibrePres(Cible->GetCase(), Case, 1))
+			{
+				Aylis->Replacer(Case);
+				Aylis->Frapper(Cible, 220);
+				AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Aylis->GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, FLinearColor(0.6f, 0.5f, 1.0f));
+				MontrerCasesAtteignables();
+			}
+			PhotoEtape = 7;
+			PhotoAttente = 0.25f;
+			return;
+		}
+		case 7:
+			Photographier(Prefixe + TEXT("_3_Combat"), true);
+			PhotoEtape = 8;
+			PhotoAttente = 1.5f;
+			return;
+		case 8:		// le boss, dans sa clairiere
+		{
+			RetourExploration();
+			const int32 Zone = PremiereZone({EVespSalle::Boss});
+			Aylis->SetActorLocation(Noeuds[Zone].Centre + FVector(0, -1000.0f, 0));
+			ZoneActuelle = Zone;
+			Etage = Noeuds[Zone].Etage;
+			PreparerCombat(EVespSalle::Boss);
+			PhotoEtape = 9;
+			PhotoAttente = 3.5f;
+			return;
+		}
+		case 9:		// son attaque annoncee : les cases rouges autour d'AYLIS
+			Annoncer(Carre(Grille, Aylis->GetCase()), 10, 0, '.');
+			PhotoEtape = 10;
+			PhotoAttente = 0.6f;
+			return;
+		case 10:
+			Photographier(Prefixe + TEXT("_4_Boss"), true);
+			PhotoEtape = 11;
+			PhotoAttente = 1.5f;
+			return;
+		default:	// l'acte suivant, ou la fin
+			RetourExploration();
+			PhotoActe++;
+			PhotoEtape = 0;
+			PhotoAttente = 1.0f;
+			if (PhotoActe > NombreDActes)
+			{
+				bModePhoto = false;
+				Quitter();
+			}
+			return;
+	}
 }
 
 // ===================== L'exploration =====================
