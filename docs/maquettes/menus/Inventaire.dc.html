@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Inventaire</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&amp;family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07050D;font-family:'Alegreya Sans',Georgia,serif;color:#EFE8F8}
+a{color:#E2B95C}a:hover{color:#F3D48E}
+button{font-family:inherit}
+.onglet{position:relative;padding:10px 0;font-family:Cinzel,Georgia,serif;font-size:14px;letter-spacing:4px;color:#8E86A6;text-decoration:none;transition:color .25s}
+.onglet::after{content:"";position:absolute;left:0;right:100%;bottom:0;height:2px;background:#E2B95C;transition:right .3s ease}
+.onglet:hover{color:#EFE8F8}.onglet:hover::after{right:0}
+.onglet-actif{color:#E2B95C}.onglet-actif::after{right:0}
+@keyframes flotte{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+@keyframes tourne{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes respire{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.8;transform:scale(1.05)}}
+@keyframes entre-a{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+@keyframes entre-b{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:none}}
+.flotte{animation:flotte 5s ease-in-out infinite}
+.anneau{animation:tourne 90s linear infinite}
+.halo{animation:respire 6s ease-in-out infinite}
+.entre-a{animation:entre-a .45s cubic-bezier(.2,.8,.2,1) both}
+.entre-b{animation:entre-b .45s cubic-bezier(.2,.8,.2,1) both}
+.tuile{transition:transform .2s ease, box-shadow .2s ease, background .2s ease}
+.tuile:hover{transform:translateY(-5px);background:#1A1330}
+.slot{transition:transform .2s ease, box-shadow .2s ease}
+.slot:hover{transform:scale(1.08)}
+.filtre{transition:color .2s}.filtre:hover{color:#EFE8F8}
+.action{transition:transform .15s ease, background .2s}.action:hover{transform:translateY(-2px)}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: #07050D; color: #EFE8F8; font-family: 'Alegreya Sans', Georgia, serif;">
+
+<!-- La lumiere de la prophetie, derriere AYLIS -->
+<div class="halo" style="position: absolute; left: 90px; top: 150px; width: 580px; height: 580px; border-radius: 50%; background: radial-gradient(circle, rgba(123,92,214,0.34) 0%, rgba(123,92,214,0.08) 45%, rgba(7,5,13,0) 70%);"></div>
+
+<!-- En-tete -->
+<div style="position: absolute; left: 60px; right: 60px; top: 36px; height: 44px; display: flex; align-items: center; justify-content: space-between;">
+<nav aria-label="Menu" style="display: flex; gap: 40px; align-items: center;">
+<a class="onglet onglet-actif" href="Main.dc.html">INVENTAIRE</a>
+<a class="onglet" href="Competences.dc.html">COMPÉTENCES</a>
+<span style="padding: 10px 0; font-family: Cinzel, Georgia, serif; font-size: 14px; letter-spacing: 4px; color: #4F4766;">RUNES</span>
+<span style="padding: 10px 0; font-family: Cinzel, Georgia, serif; font-size: 14px; letter-spacing: 4px; color: #4F4766;">CARTE</span>
+</nav>
+<div style="display: flex; gap: 28px; align-items: center; font-size: 16px;">
+<span style="display: flex; align-items: center; gap: 8px; color: #E2B95C;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#E2B95C" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L16 10 L12 21 L8 10 Z"></path></svg>248</span>
+<span style="display: flex; align-items: center; gap: 8px; color: #F08C8C;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F08C8C" stroke-width="2" stroke-linejoin="round"><path d="M10 3 h4 M11 3 v5 L6 17 a3 3 0 0 0 2.7 4 h6.6 a3 3 0 0 0 2.7-4 L13 8 V3"></path></svg>3</span>
+</div>
+</div>
+
+<!-- AYLIS au centre de son anneau d'equipement -->
+<div style="position: absolute; left: 150px; top: 200px; width: 460px; height: 460px; box-sizing: border-box; border-radius: 50%; border: 1px dashed rgba(176,140,255,0.28);" class="anneau"></div>
+<div style="position: absolute; left: 212px; top: 262px; width: 336px; height: 336px; box-sizing: border-box; border-radius: 50%; border: 1px solid rgba(176,140,255,0.12);"></div>
+<div class="flotte" style="position: absolute; left: 290px; top: 250px; width: 180px; height: 360px; display: flex; align-items: center; justify-content: center;">
+<svg width="170" height="340" viewBox="0 0 120 260" fill="none" stroke="#9DB6FF" stroke-width="1.6" stroke-linejoin="round" aria-label="Silhouette d’AYLIS">
+<path d="M60 18 C38 18 30 42 32 62 C33 74 40 84 60 86 C80 84 87 74 88 62 C90 42 82 18 60 18 Z" fill="#1E2A55"></path>
+<path d="M36 88 C28 110 26 150 30 200 L90 200 C94 150 92 110 84 88 C76 94 44 94 36 88 Z" fill="#17214A"></path>
+<path d="M30 200 L24 236 L50 236 L54 200 M90 200 L96 236 L70 236 L66 200"></path>
+<path d="M84 100 L102 128 L98 132 M100 130 L112 52" stroke="#E2B95C" stroke-width="2"></path>
+</svg>
+</div>
+<div style="position: absolute; left: 290px; top: 640px; width: 180px; text-align: center;">
+<div style="font-family: Cinzel, Georgia, serif; font-size: 30px; letter-spacing: 8px; color: #EFE8F8;">AYLIS</div>
+<div style="font-size: 14px; font-style: italic; color: #8E86A6;">voie de l’épée</div>
+</div>
+<sc-for list="{{emplacements}}" as="s" hint-placeholder-count="6">
+<div style="{{s.cadre}}">
+<sc-if value="{{s.plein}}" hint-placeholder-val="{{true}}">
+<button class="slot" onClick="{{s.pick}}" aria-label="{{s.nom}}" style="{{s.style}}">
+<svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="{{s.couleur}}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="{{s.icone}}"></path></svg>
+</button>
+</sc-if>
+<sc-if value="{{s.vide}}" hint-placeholder-val="{{false}}">
+<div style="width: 68px; height: 68px; box-sizing: border-box; border-radius: 50%; border: 1px dashed #3A2F57; display: flex; align-items: center; justify-content: center;">
+<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4F4766" stroke-width="2" stroke-linecap="round"><path d="M12 6 V18 M6 12 H18"></path></svg>
+</div>
+</sc-if>
+<span style="font-size: 12px; letter-spacing: 2px; color: #6E6684;">{{s.label}}</span>
+</div>
+</sc-for>
+
+<!-- Les stats : quatre chiffres, deux jauges -->
+<div style="position: absolute; left: 110px; top: 752px; width: 540px; display: flex; flex-direction: column; gap: 18px;">
+<div style="display: flex; justify-content: space-between;">
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: Cinzel, Georgia, serif; font-size: 26px;">17</span><span style="font-size: 12px; letter-spacing: 2px; color: #8E86A6;">ATTAQUE</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: Cinzel, Georgia, serif; font-size: 26px;">7</span><span style="font-size: 12px; letter-spacing: 2px; color: #8E86A6;">DÉFENSE</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: Cinzel, Georgia, serif; font-size: 26px;">22%</span><span style="font-size: 12px; letter-spacing: 2px; color: #8E86A6;">CRITIQUE</span></div>
+<div style="display: flex; flex-direction: column; gap: 2px;"><span style="font-family: Cinzel, Georgia, serif; font-size: 26px;">3</span><span style="font-size: 12px; letter-spacing: 2px; color: #8E86A6;">CASES</span></div>
+</div>
+<div style="display: flex; gap: 24px;">
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; justify-content: space-between; font-size: 13px; color: #8E86A6;"><span>VIE</span><span style="color: #EFE8F8;">58 / 64</span></div>
+<div style="height: 4px; border-radius: 2px; background: #1E1830;"><div style="width: 90%; height: 4px; border-radius: 2px; background: #7FD69A;"></div></div>
+</div>
+<div style="flex-grow: 1; display: flex; flex-direction: column; gap: 6px;">
+<div style="display: flex; justify-content: space-between; font-size: 13px; color: #8E86A6;"><span>RAGE</span><span style="color: #EFE8F8;">60 %</span></div>
+<div style="height: 4px; border-radius: 2px; background: #1E1830;"><div style="width: 60%; height: 4px; border-radius: 2px; background: #F0A070;"></div></div>
+</div>
+</div>
+</div>
+
+<!-- La sacoche -->
+<div style="position: absolute; left: 780px; top: 128px; width: 600px; display: flex; flex-direction: column; gap: 22px;">
+<div style="display: flex; justify-content: space-between; align-items: baseline;">
+<div style="display: flex; gap: 26px;">
+<sc-for list="{{filtres}}" as="f" hint-placeholder-count="4">
+<button class="filtre" onClick="{{f.pick}}" style="{{f.style}}">{{f.nom}}</button>
+</sc-for>
+</div>
+<span style="font-size: 13px; letter-spacing: 1px; color: #6E6684;">{{remplissage}}</span>
+</div>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px;">
+<sc-for list="{{sac}}" as="c" hint-placeholder-count="10">
+<button class="tuile" onClick="{{c.pick}}" aria-label="{{c.nom}}" style="{{c.style}}">
+<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="{{c.couleur}}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="{{c.icone}}"></path></svg>
+<sc-if value="{{c.pile}}" hint-placeholder-val="{{false}}">
+<span style="position: absolute; right: 9px; top: 7px; font-size: 13px; font-weight: 700; color: #EFE8F8;">{{c.quantite}}</span>
+</sc-if>
+<span style="{{c.barre}}"></span>
+</button>
+</sc-for>
+</div>
+</div>
+
+<!-- La fiche : elle glisse a chaque nouvel objet -->
+<div class="{{animation}}" style="position: absolute; left: 780px; top: 440px; width: 600px; display: flex; flex-direction: column; gap: 14px;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<span style="width: 28px; height: 2px; background: {{fiche.couleur}};"></span>
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 4px; color: {{fiche.couleur}};">{{fiche.rarete}}</span>
+<span style="font-size: 13px; letter-spacing: 1px; color: #6E6684;">{{fiche.type}}</span>
+</div>
+<div style="font-family: Cinzel, Georgia, serif; font-size: 38px; line-height: 1.1; color: #EFE8F8;">{{fiche.nom}}</div>
+<div style="display: flex; flex-direction: column; gap: 6px;">
+<sc-for list="{{fiche.effets}}" as="e" hint-placeholder-count="2">
+<div style="font-size: 18px; line-height: 1.4; color: #EFE8F8;">{{e}}</div>
+</sc-for>
+</div>
+<div style="font-size: 16px; font-style: italic; line-height: 1.45; color: #8E86A6; max-width: 520px;">{{fiche.recit}}</div>
+<div style="display: flex; align-items: center; gap: 12px; margin-top: 14px;">
+<button class="action" style="height: 48px; padding: 0 30px; border-radius: 24px; border: none; background: #E2B95C; color: #1A1206; font-size: 16px; font-weight: 700; letter-spacing: 1px; cursor: pointer;">{{fiche.action}}</button>
+<button class="action" style="height: 48px; padding: 0 24px; border-radius: 24px; border: 1px solid #3A2F57; background: transparent; color: #EFE8F8; font-size: 15px; cursor: pointer;">Comparer</button>
+<span style="flex-grow: 1;"></span>
+<span style="font-size: 14px; color: #6E6684;">{{fiche.quantite}}</span>
+</div>
+</div>
+
+<!-- Les commandes -->
+<div style="position: absolute; right: 60px; bottom: 34px; display: flex; gap: 22px; font-size: 13px; color: #6E6684;">
+<span><b style="color: #A79FBD;">A</b> examiner</span>
+<span><b style="color: #A79FBD;">X</b> équiper</span>
+<span><b style="color: #A79FBD;">Y</b> jeter</span>
+<span><b style="color: #A79FBD;">B</b> fermer</span>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: 'givre', filtre: 'tout', vue: 0 };
+  }
+  renderVals() {
+    const RARETES = {
+      commun: { nom: 'COMMUN', c: '#A79FBD' },
+      rare: { nom: 'RARE', c: '#6FA8FF' },
+      epique: { nom: 'ÉPIQUE', c: '#B08CFF' },
+      legendaire: { nom: 'LÉGENDAIRE', c: '#E2B95C' },
+    };
+    const ICONES = {
+      epee: 'M19 5 L9 15 M7 13 L11 17 M8 16 L5 19 M19 5 L15 5 M19 5 L19 9',
+      dague: 'M17 7 L10 14 M8 12 L12 16 M9 15 L6 18 M17 7 L14 7 M17 7 L17 10',
+      potion: 'M9 3 h6 M10 3 v5 L5.5 17 a3 3 0 0 0 2.7 4 h7.6 a3 3 0 0 0 2.7-4 L14 8 V3 M7.5 14 h9',
+      bouclier: 'M12 3 L19 6 V11 C19 16 16 19.5 12 21 C8 19.5 5 16 5 11 V6 Z M12 7 V17',
+      gemme: 'M6 4 h12 l3 5 -9 11 -9-11 z M3 9 h18 M9 4 l3 16 3-16',
+      parchemin: 'M7 4 h11 a2 2 0 0 1 0 4 h-1 v10 a2 2 0 0 1 -2 2 H6 a2 2 0 0 1 0-4 h1 Z M10 9 h5 M10 12 h5',
+      cle: 'M4 8a4 4 0 1 0 8 0a4 4 0 1 0 -8 0 M12 8h9 M17 8v3 M20 8v4',
+      anneau: 'M12 20a6 6 0 1 0 0-12a6 6 0 1 0 0 12 M9 5l3-2 3 2 -3 3z',
+      capuche: 'M12 3 C7 3 4 8 4 13 V20 H20 V13 C20 8 17 3 12 3 Z M8 20 V14 a4 4 0 0 1 8 0 V20',
+      cape: 'M8 3 h8 l3 18 H5 Z M8 3 C9 6 15 6 16 3 M12 6 V21',
+      amulette: 'M6 3 C6 9 18 9 18 3 M12 9 v2 M12 11 l4 5 -4 5 -4-5 z',
+      eclat: 'M12 3 L16 10 L12 21 L8 10 Z M8 10 H16',
+      pierre: 'M4 15 L9 8 H17 L20 13 L15 19 H7 Z M9 8 L11 13 H20 M11 13 L7 19',
+    };
+    const OBJETS = [
+      { id: 'epee', nom: 'Épée de la vision', rarete: 'epique', famille: 'equipement', type: 'Arme · une main', place: 'arme', icone: 'epee', effets: ['+4 attaque', 'Les coups lourds fissurent deux plaques d’armure'], recit: 'Forgée dans la lumière d’une prophétie qui n’a pas encore eu lieu.', quantite: 1 },
+      { id: 'capuche', nom: 'Capuche du voyage', rarete: 'rare', famille: 'equipement', type: 'Tête', place: 'tete', icone: 'capuche', effets: ['+1 défense', 'Le blizzard ne ralentit plus la marche'], recit: 'Le tissu garde l’odeur des Terres Brumeuses.', quantite: 1 },
+      { id: 'cape', nom: 'Cape brodée d’étoiles', rarete: 'epique', famille: 'equipement', type: 'Corps', place: 'corps', icone: 'cape', effets: ['+2 défense', '10 % de chances d’esquiver une flèche'], recit: 'Les étoiles brodées ne sont pas celles de ce ciel.', quantite: 1 },
+      { id: 'amulette', nom: 'Amulette de sureau', rarete: 'rare', famille: 'equipement', type: 'Amulette', place: 'amulette', icone: 'amulette', effets: ['+6 points de vie max'], recit: 'Achetée à un marchand qui ne voulait pas dire son nom.', quantite: 1 },
+      { id: 'givre', nom: 'Anneau de givre', rarete: 'legendaire', famille: 'equipement', type: 'Anneau', icone: 'anneau', equipable: true, effets: ['Tes coups ont 1 chance sur 4 de geler', '+1 défense contre les tireurs'], recit: 'Taillé dans la glace du col d’Ashka. Il ne fond jamais.', quantite: 1 },
+      { id: 'potion', nom: 'Potion de soin', rarete: 'commun', famille: 'soins', type: 'Consommable', icone: 'potion', effets: ['Rend 15 points de vie', 'Guérit le poison'], recit: 'Une lumière liquide, un peu amère.', quantite: 3 },
+      { id: 'onguent', nom: 'Onguent des marais', rarete: 'rare', famille: 'soins', type: 'Consommable', icone: 'potion', effets: ['Rend 50 % des points de vie'], recit: 'Ça sent la vase. Ça marche quand même.', quantite: 1 },
+      { id: 'pierre', nom: 'Pierre à aiguiser', rarete: 'commun', famille: 'soins', type: 'Consommable', icone: 'pierre', effets: ['+1 attaque jusqu’à la fin du prochain combat'], recit: 'Quelques coups sur la lame, et le monde paraît plus fragile.', quantite: 2 },
+      { id: 'bouclier', nom: 'Bouclier clouté', rarete: 'rare', famille: 'equipement', type: 'Main gauche', icone: 'bouclier', equipable: true, effets: ['+2 défense', 'L’attaque lourde rate plus souvent'], recit: 'Arraché à une sentinelle de la forteresse.', quantite: 1 },
+      { id: 'dague', nom: 'Dague des Haschen', rarete: 'commun', famille: 'equipement', type: 'Arme · une main', icone: 'dague', equipable: true, effets: ['+2 attaque', 'Frappe deux fois quand la rage est pleine'], recit: 'Une arme de secours. Rapide, fragile.', quantite: 1 },
+      { id: 'cle', nom: 'Clé rouillée', rarete: 'rare', famille: 'tresors', type: 'Objet de quête', icone: 'cle', effets: ['Ouvre une porte de la forteresse d’Ashka'], recit: 'Quelqu’un l’a cachée dans le bec d’un corbeau empaillé.', quantite: 1 },
+      { id: 'parchemin', nom: 'Parchemin de la Matriarche', rarete: 'legendaire', famille: 'tresors', type: 'Objet de quête', icone: 'parchemin', effets: ['Révèle la recette des décoctions'], recit: 'Une recette de décoction… et un nom, raturé.', quantite: 1 },
+      { id: 'eclats', nom: 'Éclat de mémoire', rarete: 'rare', famille: 'tresors', type: 'Monnaie du Seuil', icone: 'eclat', effets: ['Débloque une compétence de l’arbre'], recit: 'Un souvenir d’une vision passée, pris dans le cristal.', quantite: 4 },
+      { id: 'gemme', nom: 'Gemme du Voile', rarete: 'epique', famille: 'tresors', type: 'Gemme', icone: 'gemme', effets: ['Se glisse dans une rune pour en doubler l’effet'], recit: 'Elle bat, doucement, comme un cœur.', quantite: 1 },
+    ];
+    const sel = this.state.sel;
+    const choisir = (id) => () => this.setState({ sel: id, vue: this.state.vue + 1 });
+
+    // L'anneau d'equipement : six emplacements en cercle autour d'AYLIS
+    const PLACES = [['tete', 'TÊTE', -90], ['amulette', 'AMULETTE', -30], ['arme', 'ARME', 30], ['anneau', 'ANNEAU', 90], ['gauche', 'MAIN GAUCHE', 150], ['corps', 'CORPS', 210]];
+    const cx = 380, cy = 430, rayon = 230;
+    const emplacements = PLACES.map(([cle, label, angle]) => {
+      const a = angle * Math.PI / 180;
+      const x = cx + Math.cos(a) * rayon, y = cy + Math.sin(a) * rayon;
+      const cadre = 'position: absolute; left: ' + (x - 60) + 'px; top: ' + (y - 34) + 'px; width: 120px; display: flex; flex-direction: column; align-items: center; gap: 8px;';
+      const o = OBJETS.find((z) => z.place === cle);
+      if (!o) {
+        return { cadre, label, vide: true, plein: false };
+      }
+      const r = RARETES[o.rarete];
+      const choisi = o.id === sel;
+      return {
+        cadre, label, plein: true, vide: false, nom: o.nom, icone: ICONES[o.icone], couleur: r.c, pick: choisir(o.id),
+        style: 'width: 68px; height: 68px; box-sizing: border-box; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; background: #0F0B1A; '
+          + 'border: ' + (choisi ? '2px solid #E2B95C' : '1.5px solid ' + r.c) + '; box-shadow: 0 0 ' + (choisi ? '26px' : '14px') + ' ' + (choisi ? 'rgba(226,185,92,0.45)' : 'rgba(123,92,214,0.25)') + ';',
+      };
+    });
+
+    const filtre = this.state.filtre;
+    const portes = ['epee', 'capuche', 'cape', 'amulette'];
+    const dansLeSac = OBJETS.filter((o) => !portes.includes(o.id) && (filtre === 'tout' || o.famille === filtre));
+    const sac = dansLeSac.map((o) => {
+      const r = RARETES[o.rarete];
+      const choisi = o.id === sel;
+      return {
+        nom: o.nom, icone: ICONES[o.icone], couleur: r.c, pick: choisir(o.id), pile: o.quantite > 1, quantite: 'x' + o.quantite,
+        style: 'position: relative; height: 104px; box-sizing: border-box; border-radius: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; overflow: hidden; '
+          + 'background: ' + (choisi ? '#1D1535' : '#110C1D') + '; border: ' + (choisi ? '1.5px solid #E2B95C' : '1px solid #1E1830') + '; '
+          + (choisi ? 'transform: translateY(-5px); box-shadow: 0 10px 30px rgba(226,185,92,0.18);' : ''),
+        barre: 'position: absolute; left: 22px; right: 22px; bottom: 0; height: 3px; border-radius: 3px 3px 0 0; background: ' + r.c + ';',
+      };
+    });
+    const filtres = [['tout', 'Tout'], ['equipement', 'Équipement'], ['soins', 'Soins'], ['tresors', 'Trésors']].map(([id, nom]) => ({
+      nom,
+      pick: () => this.setState({ filtre: id }),
+      style: 'padding: 6px 0; border: none; background: transparent; cursor: pointer; font-size: 16px; '
+        + (filtre === id ? 'color: #E2B95C; font-weight: 700; box-shadow: inset 0 -2px 0 #E2B95C;' : 'color: #8E86A6;'),
+    }));
+
+    const o = OBJETS.find((x) => x.id === sel) || OBJETS[0];
+    const r = RARETES[o.rarete];
+    const porte = portes.includes(o.id);
+    return {
+      emplacements,
+      sac,
+      filtres,
+      remplissage: dansLeSac.length + ' / 30',
+      animation: this.state.vue % 2 === 0 ? 'entre-a' : 'entre-b',
+      fiche: {
+        nom: o.nom, rarete: r.nom, couleur: r.c, type: o.type, effets: o.effets, recit: o.recit,
+        quantite: o.quantite > 1 ? o.quantite + ' dans la sacoche' : (porte ? 'porté par AYLIS' : 'dans la sacoche'),
+        action: porte ? 'Retirer' : (o.place || o.equipable ? 'Équiper' : (o.famille === 'soins' ? 'Utiliser' : 'Examiner')),
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>

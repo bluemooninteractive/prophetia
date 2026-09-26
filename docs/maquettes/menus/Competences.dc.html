@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Arbre de compétences</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&amp;family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07050D;font-family:'Alegreya Sans',Georgia,serif;color:#EFE8F8}
+a{color:#E2B95C}a:hover{color:#F3D48E}
+button{font-family:inherit}
+.onglet{position:relative;padding:10px 0;font-family:Cinzel,Georgia,serif;font-size:14px;letter-spacing:4px;color:#8E86A6;text-decoration:none;transition:color .25s}
+.onglet::after{content:"";position:absolute;left:0;right:100%;bottom:0;height:2px;background:#E2B95C;transition:right .3s ease}
+.onglet:hover{color:#EFE8F8}.onglet:hover::after{right:0}
+.onglet-actif{color:#E2B95C}.onglet-actif::after{right:0}
+@keyframes scintille{0%,100%{opacity:.15}50%{opacity:.9}}
+@keyframes tourne{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes tourne-inverse{from{transform:rotate(360deg)}to{transform:rotate(0)}}
+@keyframes coule{from{background-position:0 0}to{background-position:36px 0}}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(239,232,248,0.35)}50%{box-shadow:0 0 0 12px rgba(239,232,248,0)}}
+@keyframes entre-a{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+@keyframes entre-b{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:none}}
+.etoile{animation:scintille ease-in-out infinite}
+.orbite{animation:tourne 160s linear infinite}
+.orbite-inverse{animation:tourne-inverse 220s linear infinite}
+.flux{animation:coule 1.2s linear infinite}
+.dispo{animation:pulse 2.4s ease-out infinite}
+.choix{animation:tourne 9s linear infinite}
+.entre-a{animation:entre-a .45s cubic-bezier(.2,.8,.2,1) both}
+.entre-b{animation:entre-b .45s cubic-bezier(.2,.8,.2,1) both}
+.astre{transition:transform .2s ease}.astre:hover{transform:scale(1.14)}
+.astre-ultime{transition:transform .2s ease}.astre-ultime:hover{transform:rotate(45deg) scale(1.12)}
+.action{transition:transform .15s ease}.action:hover{transform:translateY(-2px)}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: #07050D; color: #EFE8F8; font-family: 'Alegreya Sans', Georgia, serif;">
+
+<!-- Le ciel : des etoiles qui scintillent -->
+<sc-for list="{{etoiles}}" as="e" hint-placeholder-count="90">
+<span class="etoile" style="{{e.style}}"></span>
+</sc-for>
+
+<!-- L'astrolabe : des cercles qui tournent lentement autour de l'origine -->
+<div class="orbite" style="position: absolute; left: 490px; top: 380px; width: 460px; height: 460px; box-sizing: border-box; border-radius: 50%; border: 1px dashed rgba(176,140,255,0.16);"></div>
+<div class="orbite-inverse" style="position: absolute; left: 280px; top: 170px; width: 880px; height: 880px; box-sizing: border-box; border-radius: 50%; border: 1px dashed rgba(176,140,255,0.12);"></div>
+<div style="position: absolute; left: 385px; top: 275px; width: 670px; height: 670px; box-sizing: border-box; border-radius: 50%; border: 1px solid rgba(176,140,255,0.07);"></div>
+
+<!-- En-tete -->
+<div style="position: absolute; left: 60px; right: 60px; top: 36px; height: 44px; display: flex; align-items: center; justify-content: space-between;">
+<nav aria-label="Menu" style="display: flex; gap: 40px; align-items: center;">
+<a class="onglet" href="Main.dc.html">INVENTAIRE</a>
+<a class="onglet onglet-actif" href="Competences.dc.html">COMPÉTENCES</a>
+<span style="padding: 10px 0; font-family: Cinzel, Georgia, serif; font-size: 14px; letter-spacing: 4px; color: #4F4766;">RUNES</span>
+<span style="padding: 10px 0; font-family: Cinzel, Georgia, serif; font-size: 14px; letter-spacing: 4px; color: #4F4766;">CARTE</span>
+</nav>
+<span style="display: flex; align-items: center; gap: 10px; font-size: 16px; color: #C9B2FF;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#B08CFF" stroke-width="2" stroke-linejoin="round"><path d="M12 3 L16 10 L12 21 L8 10 Z"></path></svg><b style="font-size: 20px; color: #EFE8F8;">{{points}}</b> éclats de mémoire</span>
+</div>
+
+<!-- Les chemins : la lumiere coule vers ce qu'on peut debloquer -->
+<sc-for list="{{liens}}" as="l" hint-placeholder-count="12">
+<div class="{{l.classe}}" style="{{l.style}}"></div>
+</sc-for>
+
+<!-- Les noms des trois voies -->
+<sc-for list="{{voies}}" as="v" hint-placeholder-count="3">
+<div style="{{v.style}}">
+<span style="font-family: Cinzel, Georgia, serif; font-size: 16px; letter-spacing: 6px; color: {{v.couleur}};">{{v.nom}}</span>
+<span style="font-size: 12px; letter-spacing: 1px; color: #6E6684;">{{v.devise}}</span>
+</div>
+</sc-for>
+
+<!-- Les competences : des astres -->
+<sc-for list="{{astres}}" as="n" hint-placeholder-count="13">
+<sc-if value="{{n.choisi}}" hint-placeholder-val="{{false}}">
+<div class="choix" style="{{n.styleChoix}}"></div>
+</sc-if>
+<button onClick="{{n.pick}}" aria-label="{{n.nom}}" class="{{n.classe}}" style="{{n.style}}">
+<svg width="{{n.icone}}" height="{{n.icone}}" viewBox="0 0 24 24" fill="none" stroke="{{n.trait}}" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="{{n.styleIcone}}"><path d="{{n.dessin}}"></path></svg>
+</button>
+<div style="{{n.styleNom}}">{{n.nom}}</div>
+</sc-for>
+
+<!-- La fiche : elle monte a chaque nouvel astre -->
+<div class="{{animation}}" style="position: absolute; left: 1010px; top: 600px; width: 370px; display: flex; flex-direction: column; gap: 10px;">
+<div style="display: flex; align-items: center; gap: 12px;">
+<span style="width: 28px; height: 2px; background: {{fiche.couleur}};"></span>
+<span style="font-size: 12px; font-weight: 700; letter-spacing: 4px; color: {{fiche.couleur}};">{{fiche.voie}}</span>
+</div>
+<div style="font-family: Cinzel, Georgia, serif; font-size: 32px; line-height: 1.1; color: #EFE8F8;">{{fiche.nom}}</div>
+<div style="font-size: 17px; line-height: 1.4; color: #EFE8F8;">{{fiche.effet}}</div>
+<div style="font-size: 14px; color: #8E86A6;">{{fiche.meta}}</div>
+<div style="display: flex; align-items: center; gap: 14px; margin-top: 8px;">
+<button class="action" onClick="{{debloquer}}" disabled="{{fiche.bloque}}" style="{{fiche.styleBouton}}">{{fiche.bouton}}</button>
+<span style="font-size: 14px; font-weight: 700; color: {{fiche.couleurEtat}};">{{fiche.etat}}</span>
+</div>
+</div>
+
+<!-- Le rappel du Seuil -->
+<div style="position: absolute; left: 60px; bottom: 34px; font-size: 13px; font-style: italic; color: #6E6684;">L’arbre du Seuil se garde d’une vision à l’autre.</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { sel: 'fente', acquis: ['eveil', 'fendant', 'affutee', 'garde'], points: 3, vue: 0 };
+  }
+  renderVals() {
+    const VOIES = {
+      racine: { nom: 'ORIGINE', c: '#E2B95C' },
+      lame: { nom: 'LAME', c: '#F0A070', devise: 'frapper plus fort, plus loin', angle: -158, sens: -1 },
+      rempart: { nom: 'REMPART', c: '#8FE3D8', devise: 'encaisser, parer, riposter', angle: -90, sens: 0 },
+      prophetie: { nom: 'PROPHÉTIE', c: '#B08CFF', devise: 'lire l’avenir, le plier', angle: -22, sens: 1 },
+    };
+    const DESSINS = {
+      racine: 'M12 3 L14 9.5 L21 9.5 L15.5 13.5 L17.5 20 L12 16 L6.5 20 L8.5 13.5 L3 9.5 L10 9.5 Z',
+      lame: 'M19 5 L9 15 M7 13 L11 17 M8 16 L5 19 M19 5 L15 5 M19 5 L19 9',
+      rempart: 'M12 3 L19 6 V11 C19 16 16 19.5 12 21 C8 19.5 5 16 5 11 V6 Z',
+      prophetie: 'M2 12 C5 6.5 8.5 4.5 12 4.5 C15.5 4.5 19 6.5 22 12 C19 17.5 15.5 19.5 12 19.5 C8.5 19.5 5 17.5 2 12 Z M12 9 a3 3 0 1 0 0 6 a3 3 0 1 0 0-6',
+    };
+    const NOEUDS = [
+      { id: 'eveil', nom: 'Éveil', voie: 'racine', rang: 0, cout: 0, parent: null, effet: 'La voie de l’épée s’ouvre. Chaque boss vaincu laisse un éclat de mémoire.' },
+      { id: 'fendant', nom: 'Coup fendant', voie: 'lame', rang: 1, cout: 1, parent: 'eveil', effet: 'L’attaque touche aussi la case derrière la cible.' },
+      { id: 'affutee', nom: 'Lame affûtée', voie: 'lame', rang: 2, cout: 1, parent: 'fendant', effet: '+2 attaque. Les critiques font x2,5 au lieu de x2.' },
+      { id: 'fente', nom: 'Fente', voie: 'lame', rang: 3, cout: 2, parent: 'affutee', effet: 'Bondir de 2 cases en ligne droite et frapper dans la foulée.' },
+      { id: 'tempete', nom: 'Tempête d’acier', voie: 'lame', rang: 4, cout: 3, parent: 'fente', effet: 'Rage pleine : le coup spécial frappe toutes les cases voisines.' },
+      { id: 'garde', nom: 'Garde solide', voie: 'rempart', rang: 1, cout: 1, parent: 'eveil', effet: 'La garde divise les dégâts par 2,5 au lieu de 2.' },
+      { id: 'parade', nom: 'Parade', voie: 'rempart', rang: 2, cout: 1, parent: 'garde', effet: 'En garde, 1 chance sur 3 d’annuler un coup au contact.' },
+      { id: 'riposte', nom: 'Riposte', voie: 'rempart', rang: 3, cout: 2, parent: 'parade', effet: 'Une parade réussie renvoie aussitôt un coup.' },
+      { id: 'bastion', nom: 'Bastion', voie: 'rempart', rang: 4, cout: 3, parent: 'riposte', effet: 'Une fois par combat : ignorer tous les dégâts d’un tour entier.' },
+      { id: 'vision', nom: 'Vision', voie: 'prophetie', rang: 1, cout: 1, parent: 'eveil', effet: 'Les attaques annoncées des boss apparaissent un tour plus tôt.' },
+      { id: 'pas', nom: 'Pas du Voile', voie: 'prophetie', rang: 2, cout: 1, parent: 'vision', effet: 'Une fois par combat : se téléporter jusqu’à 4 cases.' },
+      { id: 'eclat', nom: 'Éclat du destin', voie: 'prophetie', rang: 3, cout: 2, parent: 'pas', effet: '+10 % de critique. Chaque critique remplit 20 % de rage.' },
+      { id: 'reecrire', nom: 'Réécrire le destin', voie: 'prophetie', rang: 4, cout: 3, parent: 'eclat', effet: 'Une fois par vision : un coup mortel laisse AYLIS à 1 point de vie.' },
+    ];
+    // La constellation : l'origine en bas au centre ; les trois voies rayonnent, en s'incurvant un peu
+    const cx = 720, cy = 610;
+    const RAYONS = [0, 125, 230, 335, 440];
+    const pos = (n) => {
+      if (n.rang === 0) return { x: cx, y: cy };
+      const v = VOIES[n.voie];
+      const a = (v.angle + v.sens * 4 * (n.rang - 1)) * Math.PI / 180;
+      return { x: cx + Math.cos(a) * RAYONS[n.rang], y: cy + Math.sin(a) * RAYONS[n.rang] };
+    };
+    const acquis = this.state.acquis;
+    const etatDe = (n) => acquis.includes(n.id) ? 'acquis' : ((!n.parent || acquis.includes(n.parent)) ? 'dispo' : 'verrou');
+    const parId = {};
+    NOEUDS.forEach((n) => { parId[n.id] = n; });
+
+    // Le ciel : des etoiles placees au hasard (toujours le meme hasard)
+    let graine = 7;
+    const hasard = () => { graine = (graine * 16807) % 2147483647; return (graine % 10000) / 10000; };
+    const etoiles = [];
+    for (let i = 0; i < 90; i++) {
+      const t = 1 + Math.round(hasard() * 2);
+      etoiles.push({ style: 'position: absolute; left: ' + Math.round(hasard() * 1440) + 'px; top: ' + Math.round(90 + hasard() * 800) + 'px; width: ' + t + 'px; height: ' + t + 'px; border-radius: 50%; background: #CFC4FF; animation-duration: ' + (2 + hasard() * 4).toFixed(1) + 's; animation-delay: -' + (hasard() * 5).toFixed(1) + 's;' });
+    }
+
+    const liens = NOEUDS.filter((n) => n.parent).map((n) => {
+      const a = pos(parId[n.parent]), b = pos(n);
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const longueur = Math.sqrt(dx * dx + dy * dy);
+      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+      const e = etatDe(n);
+      const c = VOIES[n.voie].c;
+      let fond = 'background: rgba(176,140,255,0.10);';
+      if (e === 'acquis') fond = 'background: #E2B95C; box-shadow: 0 0 10px rgba(226,185,92,0.6);';
+      if (e === 'dispo') fond = 'background: repeating-linear-gradient(90deg, ' + c + ' 0 14px, rgba(0,0,0,0) 14px 36px);';
+      return {
+        classe: e === 'dispo' ? 'flux' : '',
+        style: 'position: absolute; left: ' + a.x + 'px; top: ' + (a.y - 1) + 'px; width: ' + longueur + 'px; height: 2px; transform-origin: 0 50%; transform: rotate(' + angle + 'deg); ' + fond,
+      };
+    });
+
+    // Le nom de chaque voie, au-dessus de son astre ultime
+    const voies = ['lame', 'rempart', 'prophetie'].map((id) => {
+      const v = VOIES[id];
+      const p = pos(NOEUDS.find((z) => z.voie === id && z.rang === 4));
+      return { nom: v.nom, devise: v.devise, couleur: v.c, style: 'position: absolute; left: ' + (p.x - 120) + 'px; top: ' + (p.y - 92) + 'px; width: 240px; display: flex; flex-direction: column; align-items: center; gap: 4px;' };
+    });
+
+    const astres = NOEUDS.map((n) => {
+      const v = VOIES[n.voie];
+      const e = etatDe(n);
+      const p = pos(n);
+      const ultime = n.rang === 4;
+      const taille = n.rang === 0 ? 66 : (ultime ? 60 : (e === 'verrou' ? 38 : 50));
+      const choisi = n.id === this.state.sel;
+      let fond = '#07050D', bord = 'rgba(176,140,255,0.25)', trait = '#4F4766', lueur = '';
+      if (e === 'acquis') { fond = '#2B2110'; bord = '#E2B95C'; trait = '#F3D48E'; lueur = 'box-shadow: 0 0 22px rgba(226,185,92,0.5);'; }
+      if (e === 'dispo') { fond = '#110C1D'; bord = '#EFE8F8'; trait = v.c; }
+      const tailleChoix = taille + 22;
+      return {
+        nom: n.nom,
+        choisi,
+        pick: () => this.setState({ sel: n.id, vue: this.state.vue + 1 }),
+        classe: (ultime ? 'astre-ultime' : 'astre') + (e === 'dispo' && !ultime ? ' dispo' : ''),
+        style: 'position: absolute; left: ' + (p.x - taille / 2) + 'px; top: ' + (p.y - taille / 2) + 'px; width: ' + taille + 'px; height: ' + taille + 'px; box-sizing: border-box; padding: 0; cursor: pointer; '
+          + 'border-radius: ' + (ultime ? '16px' : '50%') + '; ' + (ultime ? 'transform: rotate(45deg); ' : '')
+          + 'background: ' + fond + '; border: ' + (e === 'verrou' ? '1px' : '1.5px') + ' solid ' + bord + '; display: flex; align-items: center; justify-content: center; ' + lueur,
+        icone: e === 'verrou' ? 16 : (n.rang === 0 ? 30 : 24),
+        styleIcone: ultime ? 'transform: rotate(-45deg);' : '',
+        trait,
+        dessin: DESSINS[n.voie],
+        styleChoix: 'position: absolute; left: ' + (p.x - tailleChoix / 2) + 'px; top: ' + (p.y - tailleChoix / 2) + 'px; width: ' + tailleChoix + 'px; height: ' + tailleChoix + 'px; box-sizing: border-box; border-radius: 50%; border: 1.5px dashed ' + (e === 'acquis' ? '#E2B95C' : v.c) + ';',
+        styleNom: 'position: absolute; left: ' + (p.x - 90) + 'px; top: ' + (p.y + taille / 2 + (ultime ? 16 : 10)) + 'px; width: 180px; text-align: center; font-size: 13px; letter-spacing: 1px; '
+          + 'color: ' + (e === 'verrou' ? '#4F4766' : (choisi ? '#EFE8F8' : '#A79FBD')) + '; font-weight: ' + (choisi ? 700 : 500) + ';',
+      };
+    });
+
+    const n = parId[this.state.sel];
+    const v = VOIES[n.voie];
+    const e = etatDe(n);
+    const assez = this.state.points >= n.cout;
+    const peut = e === 'dispo' && assez;
+    const meta = [n.rang === 0 ? 'Origine' : (n.rang === 4 ? 'Ultime' : 'Rang ' + n.rang), n.cout === 0 ? 'gratuite' : n.cout + (n.cout > 1 ? ' éclats' : ' éclat')];
+    if (n.parent) {
+      meta.push('après ' + parId[n.parent].nom);
+    }
+    return {
+      points: this.state.points,
+      etoiles,
+      liens,
+      voies,
+      astres,
+      animation: this.state.vue % 2 === 0 ? 'entre-a' : 'entre-b',
+      fiche: {
+        voie: n.rang === 0 ? 'ORIGINE' : 'VOIE ' + (n.voie === 'lame' ? 'DE LA LAME' : (n.voie === 'rempart' ? 'DU REMPART' : 'DE LA PROPHÉTIE')),
+        couleur: v.c, nom: n.nom, effet: n.effet, meta: meta.join('  ·  '),
+        etat: e === 'acquis' ? 'Acquise' : (e === 'dispo' ? (assez ? '' : 'Pas assez d’éclats') : 'Verrouillée'),
+        couleurEtat: e === 'acquis' ? '#E2B95C' : (e === 'dispo' ? '#F08C8C' : '#6E6684'),
+        bloque: !peut,
+        bouton: e === 'acquis' ? 'Acquise' : 'Débloquer',
+        styleBouton: 'height: 46px; padding: 0 30px; border-radius: 23px; font-size: 16px; font-weight: 700; letter-spacing: 1px; '
+          + (peut ? 'background: #E2B95C; color: #1A1206; border: none; cursor: pointer; box-shadow: 0 0 24px rgba(226,185,92,0.35);' : 'background: transparent; color: #4F4766; border: 1px solid #2A2240; cursor: not-allowed;'),
+      },
+      debloquer: () => {
+        if (peut) {
+          this.setState({ acquis: acquis.concat([n.id]), points: this.state.points - n.cout, vue: this.state.vue + 1 });
+        }
+      },
+    };
+  }
+}
+</script>
+</body>
+</html>
