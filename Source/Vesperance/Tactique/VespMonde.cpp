@@ -183,7 +183,8 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 	static const TCHAR* SOLS[7] = {TEXT("M_Pack_Bonus_Grass_1"), TEXT("M_Pack_Bonus_Grass_3"), TEXT("M_Pack_Bonus_Grass_2"), TEXT("M_Pack_Bonus_Stone_1"),
 	                               nullptr, TEXT("M_Pack_Bonus_Stone_3"), TEXT("M_Pack_Bonus_Tile_3")};
 	static const TCHAR* PAVES[7] = {nullptr, nullptr, TEXT("M_Pack_Bonus_Wooden_Floor_1"), TEXT("M_Pack_Bonus_Stone_2"), nullptr, nullptr, TEXT("M_Pack_Bonus_Tile_1")};
-	P.Sol = MateriauDeSol(SOLS[FMath::Clamp(Acte, 1, 7) - 1]);
+	P.Sol = nullptr;		// (SOLS : essaye, mais une grande etendue de dalles se lit mal ; le sol reste uni)
+	(void)SOLS;
 	P.Pave = MateriauDeSol(PAVES[FMath::Clamp(Acte, 1, 7) - 1]);
 	switch (Acte)
 	{
@@ -1083,6 +1084,15 @@ void AVespMonde::MarquerZoneFaite(int32 Zone)
 	Lettres[Zone]->SetVisibility(false);
 	LumieresBalises[Zone]->SetIntensity(IntensitesBalises[Zone] * 0.2f);
 	AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, Orbes[Zone]->GetComponentLocation(), FVector::UpVector, Zones[Zone].Couleur);
+}
+
+void AVespMonde::CacherBalise(int32 Zone, bool bCachee)
+{
+	if (Orbes.IsValidIndex(Zone) && Lettres.IsValidIndex(Zone))
+	{
+		Orbes[Zone]->SetVisibility(!bCachee);
+		Lettres[Zone]->SetVisibility(!bCachee);
+	}
 }
 
 void AVespMonde::OrienterTextes(const FVector& Camera)

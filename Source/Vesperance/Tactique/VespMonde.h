@@ -61,6 +61,8 @@ public:
 
 	// Une clairiere visitee : sa balise s'eteint (sauf chez le marchand)
 	void MarquerZoneFaite(int32 Zone);
+	// Pendant un combat : la balise de la clairiere se cache (elle flotterait au milieu de l'arene)
+	void CacherBalise(int32 Zone, bool bCachee);
 	// Les lettres des balises regardent la camera
 	void OrienterTextes(const FVector& Camera);
 

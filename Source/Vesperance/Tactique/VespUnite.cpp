@@ -92,7 +92,9 @@ void AVespUnite::Habiller(const FString& Dossier)
 {
 	IAssetRegistry& Registre = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
 	TArray<FAssetData> Assets;
+	Registre.ScanPathsSynchronous({Dossier}, false);
 	Registre.GetAssetsByPath(FName(*Dossier), Assets, true);
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE : %s -> %d assets"), *Dossier, Assets.Num());
 
 	// Unreal importe les personnages KayKit en plusieurs morceaux (le corps, la tete, les bras, les jambes),
 	// qui partagent le meme squelette. Le corps "mene" : les autres morceaux suivent sa pose et ses animations.

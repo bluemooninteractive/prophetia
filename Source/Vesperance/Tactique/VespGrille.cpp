@@ -190,6 +190,7 @@ UStaticMesh* AVespGrille::ModeleDuDecor(std::initializer_list<const TCHAR*> Noms
 {
 	IAssetRegistry& Registre = FModuleManager::LoadModuleChecked<FAssetRegistryModule>("AssetRegistry").Get();
 	TArray<FAssetData> Assets;
+	Registre.ScanPathsSynchronous({TEXT("/Game/Decor")}, false);
 	Registre.GetAssetsByPath(FName(TEXT("/Game/Decor")), Assets, true);
 	for (const TCHAR* Nom : Noms)
 	{
@@ -461,10 +462,11 @@ void AVespGrille::ConstruireCarte()
 		TEXT("/Game/StylizedProvencal/Meshes/SM_Rock_Small_02.SM_Rock_Small_02"), TEXT("/Game/StylizedProvencal/Meshes/SM_RockBrick_Medium_01.SM_RockBrick_Medium_01"),
 		TEXT("/Game/StylizedProvencal/Meshes/SM_Rock_Large_02.SM_Rock_Large_02"), TEXT("/Game/Planet385CY/Meshes/Rocks/SM_PorousRock_01.SM_PorousRock_01"),
 		TEXT("/Game/StylizedProvencal/Meshes/SM_RockBrick_Medium_02.SM_RockBrick_Medium_02")};
+	// (les "arbres" de l'arene sont des obstacles bas : un grand arbre cacherait le combat, vu d'en haut)
 	static const TCHAR* ARBRES[7] = {
-		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Tree02.SMF_Forest_Tree02"), TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Tree05.SMF_Forest_Tree05"),
-		TEXT("/Game/StylizedProvencal/Meshes/SM_Tree_Cypress.SM_Tree_Cypress"), TEXT("/Game/StylizedProvencal/Meshes/SM_Tree_Cypress.SM_Tree_Cypress"),
-		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Tree04.SMF_Forest_Tree04"), TEXT("/Game/Planet385CY/Meshes/Tree/SM_Tree01a.SM_Tree01a"),
+		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Bush_3.SMF_Forest_Bush_3"), TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Bush_2.SMF_Forest_Bush_2"),
+		TEXT("/Game/StylizedProvencal/Meshes/SM_Bush_02.SM_Bush_02"), TEXT("/Game/StylizedProvencal/Meshes/SM_Wooden_Pillar.SM_Wooden_Pillar"),
+		TEXT("/Game/StylizedProvencal/Meshes/SMF_Forest_Rock_4.SMF_Forest_Rock_4"), TEXT("/Game/Planet385CY/Meshes/Rocks/SM_Rock01a.SM_Rock01a"),
 		TEXT("/Game/Planet385CY/Meshes/Tendrils/SM_Tendrils_01_Cluster_01.SM_Tendrils_01_Cluster_01")};
 	if (UStaticMesh* R = AVespMonde::Modele(ROCHERS[FMath::Clamp(Acte, 1, 7) - 1]))
 	{
@@ -506,7 +508,7 @@ void AVespGrille::ConstruireCarte()
 			{
 				if (bVraisArbres)
 				{
-					const float E = EchelleSur(Arbres->GetStaticMesh(), 330.0f + 50.0f * ((C + L) % 3), 260.0f);
+					const float E = EchelleSur(Arbres->GetStaticMesh(), 150.0f + 30.0f * ((C + L) % 3), 120.0f);
 					Arbres->AddInstance(FTransform(FRotator(0, 53.0f * C, 0), Centre, FVector(E)), true);
 				}
 				else

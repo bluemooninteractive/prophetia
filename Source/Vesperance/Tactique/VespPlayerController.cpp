@@ -23,6 +23,10 @@
 #include "NiagaraSystem.h"
 #include "Engine/PostProcessVolume.h"
 #include "UnrealClient.h"
+#include "ImageUtils.h"
+#include "Misc/FileHelper.h"
+#include "Framework/Application/SlateApplication.h"
+#include "Widgets/SWindow.h"
 #include "Misc/Paths.h"
 #include "Misc/CommandLine.h"
 #include "AssetCompilingManager.h"
@@ -634,6 +638,10 @@ void AVespPlayerController::RetourExploration()
 	Eruptions.Reset();
 	bBlizzard = false;
 	Grille->Effacer();
+	if (Noeuds.IsValidIndex(ZoneActuelle) && !Noeuds[ZoneActuelle].bVisite)
+	{
+		Monde->CacherBalise(ZoneActuelle, false);		// (un combat pas fini : la balise revient)
+	}
 	if (!Aylis->EstLibre())
 	{
 		Aylis->PasserEnModeLibre(true);
@@ -1158,6 +1166,7 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 	Grille->SetActorLocation(FVector(Centre.X, Centre.Y, Grille->GetActorLocation().Z));
 	Grille->PreparerCarte(Acte, Type == EVespSalle::Boss);
 	AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Circle2"), Grille->GetActorLocation() + FVector(0, 0, 5), FRotator::ZeroRotator, 3.0f);
+	Monde->CacherBalise(ZoneActuelle, true);
 	const FIntPoint Depart = CaseLaPlusProche(Aylis->GetActorLocation());
 	Aylis->Replacer(Depart);
 	Aylis->SetActorRotation(FRotator(0, 90.0f, 0));
@@ -2022,7 +2031,7 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		if (UNiagaraSystem* Aura = AVespEffet::Magie(TEXT("NS_Free_Magic_Aura")))
 		{
 			AuraRage = UNiagaraFunctionLibrary::SpawnSystemAttached(Aura, Aylis->GetRootComponent(), NAME_None, FVector::ZeroVector, FRotator::ZeroRotator,
-			                                                        EAttachLocation::KeepRelativeOffset, false);
+			                                                        FVector(0.5f), EAttachLocation::KeepRelativeOffset, false, ENCPoolMethod::None);
 		}
 	}
 	else if (!bRagePleine && AuraRage)
@@ -2159,7 +2168,26 @@ static TArray<FIntPoint> Carre(const AVespGrille* G, FIntPoint Centre);
 
 void AVespPlayerController::Photographier(const FString& Nom, bool bAvecInterface)
 {
-	FScreenshotRequest::RequestScreenshot(FPaths::ProjectSavedDir() / TEXT("Photos") / (Nom + TEXT(".png")), bAvecInterface, false);
+	const FString Fichier = FPaths::ProjectSavedDir() / TEXT("Photos") / (Nom + TEXT(".png"));
+	if (!bAvecInterface)
+	{
+		FScreenshotRequest::RequestScreenshot(Fichier, false, false);		// l'image du jeu seule
+		return;
+	}
+	// Avec l'interface : on photographie toute la fenetre (le jeu et l'interface Slate)
+	TSharedPtr<SWindow> Fenetre = GEngine && GEngine->GameViewport ? GEngine->GameViewport->GetWindow() : nullptr;
+	TArray<FColor> Pixels;
+	FIntVector Taille;
+	if (Fenetre.IsValid() && FSlateApplication::Get().TakeScreenshot(Fenetre.ToSharedRef(), Pixels, Taille) && Pixels.Num() > 0)
+	{
+		for (FColor& P : Pixels)
+		{
+			P.A = 255;
+		}
+		TArray64<uint8> Png;
+		FImageUtils::PNGCompressImageArray(Taille.X, Taille.Y, Pixels, Png);
+		FFileHelper::SaveArrayToFile(Png, *Fichier);
+	}
 }
 
 void AVespPlayerController::ModePhoto(float Secondes)
@@ -2201,6 +2229,19 @@ void AVespPlayerController::ModePhoto(float Secondes)
 		case 0:		// l'ecran titre
 			if (PhotoActe == 0)
 			{
+				static bool bPrepare = false;
+				if (!bPrepare)
+				{
+					// La premiere fois : l'image en 1920 x 1080, et un peu plus claire (pour la promo)
+					bPrepare = true;
+					ConsoleCommand(TEXT("r.SetRes 1920x1080w"));
+					for (TActorIterator<APostProcessVolume> It(GetWorld()); It; ++It)
+					{
+						It->Settings.AutoExposureBias += 1.4f;
+					}
+					PhotoAttente = 4.0f;
+					return;
+				}
 				Photographier(TEXT("00_Ecran_titre"), true);
 				PhotoActe = 1;
 				PhotoAttente = 1.5f;
@@ -2215,12 +2256,17 @@ void AVespPlayerController::ModePhoto(float Secondes)
 			PhotoEtape = 1;
 			PhotoAttente = 8.0f;
 			return;
-		case 1:		// AYLIS sur le sentier, entre la 1re et la 2e clairiere
+		case 1:		// AYLIS sur le sentier : un plan rapproche, de trois quarts, avec la foret derriere
 		{
 			const FVector P = FMath::Lerp(Noeuds[1].Centre, Noeuds[2].Centre, 0.45f);
 			Aylis->SetActorLocation(Monde->Contraindre(P, P));
-			Aylis->SetActorRotation(FRotator(0, 80.0f, 0));
-			bCaleCamera = true;
+			Aylis->SetActorRotation(FRotator(0, 60.0f, 0));
+			const FVector Regard = Aylis->GetActorLocation() + FVector(0, 0, 110.0f);
+			const FVector Position = Regard + FVector(-520.0f, -330.0f, 260.0f);
+			bCameraPhoto = true;
+			CameraArene->SetActorLocation(Position);
+			CameraArene->SetActorRotation((Regard + FVector(250.0f, 250.0f, 60.0f) - Position).Rotation());
+			CameraArene->GetCameraComponent()->SetFieldOfView(50.0f);
 			PhotoEtape = 2;
 			PhotoAttente = 3.0f;
 			return;
@@ -2230,10 +2276,10 @@ void AVespPlayerController::ModePhoto(float Secondes)
 			PhotoEtape = 3;
 			PhotoAttente = 1.0f;
 			return;
-		case 3:		// un panorama : plus bas, plus loin, le long du sentier vers l'est
+		case 3:		// un panorama : en hauteur, dans l'axe du sentier, qui regarde vers l'est
 		{
 			const FVector Cible = FMath::Lerp(Noeuds[2].Centre, Noeuds[3].Centre, 0.35f) + FVector(0, 0, 180.0f);
-			const FVector Position = Cible + FVector(-2600.0f, -2100.0f, 1100.0f);
+			const FVector Position = Cible + FVector(-700.0f, -2900.0f, 1500.0f);	// dans l'axe du sentier (rien de haut ne peut boucher la vue)
 			bCameraPhoto = true;
 			CameraArene->SetActorLocation(Position);
 			CameraArene->SetActorRotation((Cible - Position).Rotation());
