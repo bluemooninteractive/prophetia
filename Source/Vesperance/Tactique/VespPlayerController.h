@@ -9,9 +9,10 @@
 //     VI  Les Terres de Cendre  - la faille ardente         - Vorgath le Destructeur (eruptions, deuxieme phase)
 //     VII Karn                  - la cite voilee            - l'Oracle de Karn (tout ce qu'AYLIS a affronte)
 //
-//   Chaque acte est une carte de route de 14 etages. Les chemins se separent et se rejoignent ; des raccourcis
-//   (dangereux) sautent plusieurs etages. En ligne droite, un acte dure environ 20 minutes ; en prenant les
-//   detours, 40 minutes et plus.
+//   Chaque acte est un monde d'un seul tenant (VespMonde), qu'AYLIS parcourt librement, au clavier ou a la manette :
+//   un sentier principal jusqu'au boss, et des embranchements vers d'autres clairieres. En entrant dans une
+//   clairiere gardee, l'arene apparait et le combat se joue au tour par tour. Le seul chargement : entre deux actes.
+//   En ligne droite, un acte dure 15 a 20 minutes ; en explorant les embranchements, 40 minutes et plus.
 //   Apres chaque victoire : des eclats (la monnaie du marchand) et une rune a choisir parmi 3.
 //   L'interface (VespInterface) appelle les fonctions publiques : choisir une action, une rune, une salle...
 #pragma once
@@ -22,6 +23,7 @@
 #include "VespPlayerController.generated.h"
 
 class AVespGrille;
+class AVespMonde;
 class ACameraActor;
 struct FVespModeleHaschen;
 
@@ -33,7 +35,7 @@ enum class EVespPhase : uint8
 	TourHaschen,
 	Dialogue,		// quelqu'un parle (le parchemin)
 	ChoixRune,		// apres une victoire : une rune parmi 3
-	ChoixSalle,		// la carte de la route : ou aller ensuite
+	Exploration,	// AYLIS marche librement dans le monde de l'acte
 	Marchand,
 	Evenement,
 	NouvelActe,		// le titre d'un nouvel acte
@@ -61,6 +63,8 @@ enum class EVespSalle : uint8
 	Marchand,
 	Evenement,
 	Boss,
+	Depart,			// la clairiere ou commence l'acte
+	Tresor,			// au bout d'un embranchement : un coffre (des eclats et une rune)
 };
 
 // Une salle sur la carte de la route
@@ -68,9 +72,9 @@ struct FVespNoeud
 {
 	EVespSalle Type = EVespSalle::Combat;
 	int32 Etage = 0;
-	float Hauteur = 0.5f;			// sa place sur la carte, de 0 (en haut) a 1 (en bas)
-	TArray<int32> Suivants;			// les salles ou l'on peut aller ensuite (un raccourci saute des etages)
-	bool bVisite = false;
+	FVector Centre = FVector::ZeroVector;	// sa place dans le monde
+	TArray<int32> Suivants;			// les clairieres reliees par un sentier
+	bool bVisite = false;			// deja faite (combat gagne, coffre ouvert...)
 };
 
 // Un objet du marchand
@@ -97,14 +101,13 @@ public:
 	virtual void PlayerTick(float Secondes) override;
 	virtual void EndPlay(const EEndPlayReason::Type Raison) override;
 
-	void Commencer(AVespGrille* LaGrille, AVespUnite* LAylis, ACameraActor* LaCamera);
+	void Commencer(AVespGrille* LaGrille, AVespMonde* LeMonde, AVespUnite* LAylis, ACameraActor* LaCamera);
 
 	// Ce que l'interface peut demander
 	void NouvellePartie(int32 ActeDeDepart = 1);
 	void Quitter();
 	void ChoisirAction(EVespAction Action);
 	void ChoisirRune(int32 Numero);
-	void ChoisirNoeud(int32 Noeud);			// une salle de la carte de la route
 	void AcheterOffre(int32 Numero);
 	void QuitterMarchand();
 	void ChoisirEvenement(int32 Choix);
@@ -132,17 +135,26 @@ public:
 	FString TexteEvenement() const;
 	FString ChoixEvenement(int32 Choix) const;
 	FString AideEvenement(int32 Choix) const;
+	FString Invite() const;					// ce qu'on peut faire ici (parler au marchand...)
+	bool CaseVisee(FIntPoint& Case) const;	// la case sous la souris, ou sous le curseur (clavier, manette)
 
 	UPROPERTY(EditAnywhere, Category = "Vesperance") int32 DeplacementParTour = 3;	// comme dans le prototype
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float PauseEntreHaschen = 0.45f;
-	static constexpr int32 NombreDEtages = 14;		// par acte : 13 etages de salles, puis le boss
 	static constexpr int32 NombreDActes = 7;
 	static constexpr int32 HaschenMax = 8;			// jamais plus de Haschen debout (les renforts s'arretent la)
 
 private:
-	// La route
-	void GenererRoute();
-	void ProposerSalles();
+	// Le monde de l'acte
+	void GenererMonde();
+	void Declencher(int32 Zone);				// AYLIS entre dans une clairiere
+	void RetourExploration();
+	void Explorer(float Secondes);
+	void RouvrirMarchand(int32 Zone);
+	FIntPoint CaseLaPlusProche(const FVector& Position) const;
+	TArray<FIntPoint> PlacesLoinDe(FIntPoint Depart, int32 DistanceMin) const;
+	bool DirectionPressee(FIntPoint& Direction, float Secondes);	// fleches, croix ou stick (avec repetition)
+	void CommandesDeCombat(float Secondes);
+	void CommandesDeMenu(float Secondes);
 	void PreparerCombat(EVespSalle Type);
 	void ApresVictoire();
 	void ProposerRunes();
@@ -198,12 +210,16 @@ private:
 	int32 DeplacementCeTour() const;
 
 	UPROPERTY() TObjectPtr<AVespGrille> Grille;
+	UPROPERTY() TObjectPtr<AVespMonde> Monde;
 	UPROPERTY() TObjectPtr<AVespUnite> Aylis;
 	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Haschen;
 	UPROPERTY() TObjectPtr<ACameraActor> CameraArene;
 	TSharedPtr<class SVespInterface> Interface;
 	FVector PositionCamera;
 	FRotator RotationCamera;
+	FVector DecalageCamera;			// la camera par rapport a ce qu'elle regarde (toujours le meme angle)
+	FVector CameraActuelle;			// ou elle est (elle glisse doucement vers ou elle doit etre)
+	bool bCaleCamera = true;		// la prochaine image : la camera se place d'un coup (debut d'un acte)
 	float Secousse = 0.0f;
 	float Zoom = 0.0f;				// > 0 : la camera se resserre un instant (un critique)
 	double FinDuRalenti = 0.0;
@@ -235,9 +251,19 @@ private:
 	int32 Acte = 1;
 	int32 Etage = 0;				// l'etage de la salle en cours (0 a 13)
 	EVespSalle TypeSalle = EVespSalle::Combat;
-	TArray<FVespNoeud> Noeuds;		// la carte de la route de l'acte
-	int32 NoeudActuel = -1;
-	TArray<int32> NoeudsPossibles;	// les salles ou l'on peut aller maintenant
+	TArray<FVespNoeud> Noeuds;		// les clairieres du monde de l'acte
+	int32 ZoneActuelle = -1;		// la clairiere ou se passe ce qui se passe
+	int32 MarchandProche = -1;		// en exploration : un marchand a portee de voix
+	int32 MarchandZone = -1;		// le marchand dont on a les offres
+	bool bCarteOuverte = false;		// la carte du monde (TAB)
+	float TempsMessage = 0.0f;		// en exploration : le message s'affiche encore quelques secondes
+	// Le clavier et la manette
+	FIntPoint Curseur = FIntPoint(1, 3);	// en combat : la case visee au clavier ou a la manette
+	bool bCurseur = false;					// true : on vise avec le curseur (sinon avec la souris)
+	FVector2D DerniereSouris = FVector2D::ZeroVector;
+	float Repetition = 0.0f;				// une direction tenue se repete
+	int32 SelectionMenu = 0;				// dans les menus : la carte choisie au clavier ou a la manette
+	bool bSelectionVisible = false;
 	TArray<int32> RunesProposees;
 	TArray<int32> Runes;
 	TArray<FVespOffre> Offres;		// le marchand

@@ -1,4 +1,5 @@
-// VespGrille : l'arene de combat, une grille de 12 x 8 cases vue du dessus, et le monde tout autour.
+// VespGrille : l'arene de combat, une grille de 12 x 8 cases vue du dessus. Elle apparait dans la clairiere ou
+// un combat commence (on la deplace la), et disparait a la fin du combat.
 //
 // C'est la meme idee que dans le prototype 2D (regles.cpp) : chaque case a un terrain, et un "parcours en largeur"
 // calcule les cases qu'AYLIS peut atteindre ce tour-ci. Les terrains :
@@ -8,7 +9,6 @@
 //   '^' dalle piegee : les pointes se levent un tour sur deux (la forteresse)
 //   '*' glace : on glisse plus loin que prevu (le col)
 //   '@' faille du Voile : elle emporte qui s'y arrete vers une autre faille (Karn)
-// Chaque acte a son monde : foret, bois mort, marais, forteresse, col enneige, terres de cendre, cite voilee.
 // Les cases sont dessinees avec des "instances" : un seul modele, repete des milliers de fois.
 #pragma once
 
@@ -66,8 +66,8 @@ public:
 	TArray<FIntPoint> ApprocheVers(FIntPoint Depart, FIntPoint Cible, int32 PasMax) const;
 
 	// Un decor importe dans /Game/Decor : le premier dont le nom contient un des mots (ou rien)
-	UStaticMesh* ModeleDuDecor(std::initializer_list<const TCHAR*> Noms) const;
-	float EchelleSur(UStaticMesh* Modele, float Hauteur, float LargeurMax) const;
+	static UStaticMesh* ModeleDuDecor(std::initializer_list<const TCHAR*> Noms);
+	static float EchelleSur(UStaticMesh* Modele, float Hauteur, float LargeurMax);
 
 	// Allume en bleu les cases accessibles (ou les eteint toutes avec un tableau vide)
 	void AfficherCasesAtteignables(const TArray<int32>& Pas);
@@ -81,6 +81,7 @@ public:
 	// La carte d'un combat : dessinee a la main (actes I et II) ou inventee, avec les terrains de l'acte
 	void PreparerCarte(int32 LActe, bool bBoss);
 	void ViderOccupants();
+	void Effacer();		// la fin du combat : l'arene disparait
 	int32 GetActe() const { return Acte; }
 
 protected:
@@ -92,7 +93,6 @@ private:
 	bool GenererCarte(int32 LActe, bool bBoss);
 	void ConstruireCarte();
 	void ConstruireTerrain();
-	void ConstruireEnvironnement();		// le monde tout autour de l'arene
 
 	// La carte, une lettre par case
 	TArray<TCHAR> Carte;
@@ -108,8 +108,7 @@ private:
 	UPROPERTY() TObjectPtr<UStaticMesh> Cone;
 	UPROPERTY() TObjectPtr<UStaticMesh> Sphere;
 	UPROPERTY() TObjectPtr<UStaticMesh> Cylindre;
-	bool bVraisArbres = false, bVraisRochers = false, bVraisBuissons = false, bVraiesHerbes = false, bVraiesFleurs = false;
-	bool bVraisChampignons = false, bVraisTroncs = false, bVraiesTombes = false;
+	bool bVraisArbres = false, bVraisRochers = false;
 
 	// L'arene
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Racine;
@@ -125,38 +124,11 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrGlace;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrFailles;
 
-	// Le monde autour (des milliers d'instances : arbres, buissons, herbes, colonnes, cristaux...)
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTerre;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvArbres;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvRochers;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvBuissons;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvHerbes;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvFleurs;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvChampignons;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTroncs;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTombes;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTaches;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvChemin;
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvSpecial;	// eau, colonnes, glace, lave, cristaux
-	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvBlocs;	// blocs tombes, congeres, obsidienne
-
-	// Les couleurs (recolorees a chaque acte)
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurSol;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurArbres;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurTerre;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurBuissons;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurHerbes;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurFleurs;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurChampignons;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurTaches;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurChemin;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurPoison;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> PiegeBaisse;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> PiegeLeve;
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SpecialMat;			// eclaire par la scene
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SpecialLumineux;		// qui brille
-	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurBlocs;
-	int32 EnvironnementConstruit = -1;		// l'acte du monde deja pose (on ne le refait qu'en changeant d'acte)
 
 	UMaterialInstanceDynamic* Couleur(UInstancedStaticMeshComponent* Composant, FLinearColor Teinte);
 	UMaterialInstanceDynamic* Lumineux(UInstancedStaticMeshComponent* Composant, FLinearColor Teinte);

@@ -79,6 +79,12 @@ public:
 	void Replacer(FIntPoint NouvelleCase);			// au debut d'un nouveau combat
 
 	void Suivre(const TArray<FIntPoint>& Chemin);		// il marche case par case
+
+	// L'exploration : AYLIS se deplace librement dans le monde (hors de la grille, au clavier ou a la manette)
+	void PasserEnModeLibre(bool bLeModeLibre);
+	bool EstLibre() const { return bLibre; }
+	// Deplacement : le pas de cette image (deja limite au praticable) ; Allure : 1 = marche, plus = course
+	void DeplacerLibrement(const FVector& Deplacement, float Allure, float Secondes);
 	bool EstEnMarche() const { return !CheminRestant.IsEmpty(); }
 	bool EstOccupe() const { return EstEnMarche() || TempsAction > 0.0f; }	// en train de marcher ou d'attaquer
 	FIntPoint GetCase() const { return Case; }
@@ -154,4 +160,7 @@ private:
 	FVector DirectionCoup = FVector::ForwardVector;	// d'ou vient le coup qu'il encaisse
 	FLinearColor CouleurCoup = FLinearColor::White;
 	float RetardImpact = 0.0f;		// le coup vient de loin (fleche, sort) : l'eclat attend qu'il arrive
+	bool bLibre = false;			// en exploration : hors de la grille
+	bool bMarcheLibre = false;
+	float DistancePoussiere = 0.0f;
 };

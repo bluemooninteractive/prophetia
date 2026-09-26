@@ -1,5 +1,5 @@
-// VespLucioles : la magie de la clairiere. Des feux follets (de petites lumieres colorees) qui flottent
-// lentement autour de l'arene, en decrivant des boucles, et qui palpitent.
+// VespLucioles : la magie de la prophetie. Des feux follets (de petites lumieres colorees) qui flottent
+// lentement autour d'AYLIS et l'accompagnent sur la route, en decrivant des boucles, et qui palpitent.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -32,4 +32,5 @@ private:
 	UPROPERTY() TArray<TObjectPtr<UPointLightComponent>> Lumieres;
 	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Boules;
 	float Temps = 0.0f;
+	TWeakObjectPtr<class AVespUnite> Cible;	// AYLIS
 };

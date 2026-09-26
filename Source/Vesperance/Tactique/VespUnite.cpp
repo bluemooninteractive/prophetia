@@ -350,6 +350,10 @@ void AVespUnite::Tick(float Secondes)
 		Corps->SetRelativeScale3D(FVector(0.45f * Large, 0.45f * Large, Haut));
 	}
 
+	if (bLibre)
+	{
+		return;			// en exploration, c'est DeplacerLibrement qui le fait bouger
+	}
 	if (CheminRestant.IsEmpty())
 	{
 		// A sa place : l'elan vers la cible (un aller-retour) et le recul d'un coup
@@ -486,6 +490,60 @@ int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance, bool* bCritiqueSor
 	return Degats;
 }
 
+// ===================== L'exploration =====================
+
+void AVespUnite::PasserEnModeLibre(bool bLeModeLibre)
+{
+	bLibre = bLeModeLibre;
+	CheminRestant.Reset();
+	Recul = FVector::ZeroVector;
+	TempsElan = 0.0f;
+	bMarcheLibre = false;
+	Modele->SetRelativeLocation(FVector::ZeroVector);
+	Modele->SetPlayRate(1.0f);
+	if (bLibre && Grille)
+	{
+		Grille->Liberer(this);
+	}
+	Jouer(AnimRepos, true);
+}
+
+void AVespUnite::DeplacerLibrement(const FVector& Deplacement, float Allure, float Secondes)
+{
+	const float Pas = Deplacement.Size2D();
+	if (Pas < 0.2f)
+	{
+		if (bMarcheLibre)
+		{
+			bMarcheLibre = false;
+			Modele->SetRelativeLocation(FVector::ZeroVector);
+			Modele->SetPlayRate(1.0f);
+			Jouer(AnimRepos, true);
+		}
+		return;
+	}
+	SetActorLocation(GetActorLocation() + FVector(Deplacement.X, Deplacement.Y, 0));
+	// Il se tourne (en douceur) vers ou il va
+	const FRotator Vise(0, Deplacement.Rotation().Yaw, 0);
+	SetActorRotation(FMath::RInterpTo(GetActorRotation(), Vise, Secondes, 14.0f));
+	if (!bMarcheLibre)
+	{
+		bMarcheLibre = true;
+		Jouer(AnimMarche, true);
+	}
+	Modele->SetPlayRate(FMath::Clamp(Allure, 0.6f, 1.8f));
+	// Un petit bond a chaque pas, et un peu de poussiere
+	DistanceMarche += Pas;
+	Modele->SetRelativeLocation(FVector(0, 0, FMath::Abs(FMath::Sin(DistanceMarche / 110.0f * PI)) * 9.0f));
+	DistancePoussiere += Pas;
+	if (DistancePoussiere > 190.0f)
+	{
+		DistancePoussiere = 0.0f;
+		AVespEffet::Jouer(GetWorld(), EVespEffet::Poussiere, GetActorLocation(), FVector::UpVector,
+		                  bAylis ? FLinearColor(0.45f, 0.45f, 0.7f) : FLinearColor(0.5f, 0.35f, 0.3f));
+	}
+}
+
 void AVespUnite::Bondir(FIntPoint Arrivee)
 {
 	AVespEffet::Jouer(GetWorld(), EVespEffet::Mort, GetActorLocation(), FVector::UpVector, FLinearColor(0.7f, 0.4f, 1.0f));
@@ -501,6 +559,9 @@ void AVespUnite::Bondir(FIntPoint Arrivee)
 
 void AVespUnite::Replacer(FIntPoint NouvelleCase)
 {
+	bLibre = false;
+	Modele->SetPlayRate(1.0f);
+	Modele->SetRelativeLocation(FVector::ZeroVector);
 	Grille->Liberer(this);
 	Case = NouvelleCase;
 	CheminRestant.Reset();

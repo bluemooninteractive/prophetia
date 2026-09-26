@@ -1,5 +1,6 @@
 #include "VespPlayerController.h"
 #include "VespGrille.h"
+#include "VespMonde.h"
 #include "VespUnite.h"
 #include "VespEffet.h"
 #include "VespInterface.h"
@@ -190,13 +191,16 @@ void AVespPlayerController::Ecrire(const FString& Message)
 	}
 }
 
-void AVespPlayerController::Commencer(AVespGrille* LaGrille, AVespUnite* LAylis, ACameraActor* LaCamera)
+void AVespPlayerController::Commencer(AVespGrille* LaGrille, AVespMonde* LeMonde, AVespUnite* LAylis, ACameraActor* LaCamera)
 {
 	Grille = LaGrille;
+	Monde = LeMonde;
 	Aylis = LAylis;
 	CameraArene = LaCamera;
 	PositionCamera = CameraArene ? CameraArene->GetActorLocation() : FVector::ZeroVector;
 	RotationCamera = CameraArene ? CameraArene->GetActorRotation() : FRotator::ZeroRotator;
+	DecalageCamera = PositionCamera - Grille->GetActorLocation();
+	CameraActuelle = PositionCamera;
 	FInputModeGameAndUI Mode;
 	Mode.SetHideCursorDuringCapture(false);
 	SetInputMode(Mode);
@@ -206,9 +210,8 @@ void AVespPlayerController::Commencer(AVespGrille* LaGrille, AVespUnite* LAylis,
 		Interface = SNew(SVespInterface).Joueur(this);
 		GEngine->GameViewport->AddViewportWidgetContent(Interface.ToSharedRef());
 	}
-	// L'ecran titre : la clairiere, vide, et la camera qui tourne lentement autour
-	Grille->ChangerCarte(0);
-	Aylis->Replacer(FIntPoint(1, 3));
+	// Le monde du premier acte ; l'ecran titre le montre, la camera tourne lentement autour d'AYLIS
+	GenererMonde();
 	Phase = EVespPhase::Titre;
 	TempsPhase = 0.0f;
 }
@@ -299,6 +302,8 @@ FString AVespPlayerController::NomSalle(EVespSalle S, int32 LActe)
 		case EVespSalle::Repos: return TEXT("Feu de camp");
 		case EVespSalle::Marchand: return TEXT("Marchand");
 		case EVespSalle::Evenement: return TEXT("Inconnu");
+		case EVespSalle::Depart: return TEXT("Depart");
+		case EVespSalle::Tresor: return TEXT("Tresor");
 		default: return BOSS[FMath::Clamp(LActe, 1, 7) - 1].Nom;
 	}
 }
@@ -312,6 +317,8 @@ FString AVespPlayerController::AideSalle(EVespSalle S)
 		case EVespSalle::Repos: return TEXT("Un feu de camp : +60% pv et une potion.");
 		case EVespSalle::Marchand: return TEXT("Un marchand ambulant. Des potions, des runes... contre des eclats.");
 		case EVespSalle::Evenement: return TEXT("La vision est trouble. Une rencontre, un tresor... ou un piege.");
+		case EVespSalle::Depart: return TEXT("Le debut de la route.");
+		case EVespSalle::Tresor: return TEXT("Un coffre, au bout du chemin : des eclats et une rune.");
 		default: return TEXT("Le gardien de cette terre.");
 	}
 }
@@ -325,6 +332,8 @@ FString AVespPlayerController::LettreSalle(EVespSalle S)
 		case EVespSalle::Repos: return TEXT("R");
 		case EVespSalle::Marchand: return TEXT("$");
 		case EVespSalle::Evenement: return TEXT("?");
+		case EVespSalle::Depart: return TEXT("");
+		case EVespSalle::Tresor: return TEXT("T");
 		default: return TEXT("B");
 	}
 }
@@ -338,6 +347,8 @@ FLinearColor AVespPlayerController::CouleurSalle(EVespSalle S)
 		case EVespSalle::Repos: return FLinearColor(0.48f, 0.85f, 0.52f);
 		case EVespSalle::Marchand: return FLinearColor(0.45f, 0.8f, 0.95f);
 		case EVespSalle::Evenement: return FLinearColor(0.75f, 0.58f, 1.0f);
+		case EVespSalle::Depart: return FLinearColor(0.73f, 0.55f, 1.0f);
+		case EVespSalle::Tresor: return FLinearColor(1.0f, 0.85f, 0.4f);
 		default: return FLinearColor(1.0f, 0.3f, 0.3f);
 	}
 }
@@ -434,164 +445,228 @@ FString AVespPlayerController::TexteEvenement() const { return EVENEMENTS[Evenem
 FString AVespPlayerController::ChoixEvenement(int32 Choix) const { return EVENEMENTS[EvenementActuel].Choix[Choix]; }
 FString AVespPlayerController::AideEvenement(int32 Choix) const { return EVENEMENTS[EvenementActuel].Aide[Choix]; }
 
-// ===================== La carte de la route =====================
-// 14 etages. L'etage 0 : 3 combats. Le 12 : des feux de camp. Le 13 : le boss.
-// Entre les deux, 2 a 4 salles par etage, reliees a leurs voisines de l'etage suivant.
-// Et des raccourcis : un sentier cache saute de 3 etages en 3 etages (0, 3, 6, 9, 12), plus quelques autres ;
-// ils menent toujours a un combat (souvent une elite). En ligne droite : 5 salles et le boss.
-// En prenant les detours : 12 salles et le boss.
+// ===================== Le monde de l'acte =====================
+// Un sentier principal d'ouest en est : 9 clairieres, du depart jusqu'au boss. Et des embranchements de 1 a 3
+// clairieres vers le nord ou le sud, qui finissent sur un tresor ou une elite.
+// En ligne droite : 4 ou 5 combats et le boss (15 a 20 minutes). En explorant tout : 40 minutes et plus.
 
-static EVespSalle SalleAuHasard(int32 LEtage)
+static EVespSalle SalleDEmbranchement(bool bDerniere)
 {
 	const int32 D = FMath::RandRange(0, 99);
-	if (LEtage < 2)
+	if (bDerniere)
 	{
-		return D < 60 ? EVespSalle::Combat : (D < 85 ? EVespSalle::Evenement : EVespSalle::Marchand);
+		return D < 55 ? EVespSalle::Tresor : EVespSalle::Elite;
 	}
-	if (D < 38) return EVespSalle::Combat;
-	if (D < 53) return EVespSalle::Elite;
-	if (D < 75) return EVespSalle::Evenement;
-	if (D < 87) return EVespSalle::Marchand;
+	if (D < 45) return EVespSalle::Combat;
+	if (D < 60) return EVespSalle::Elite;
+	if (D < 82) return EVespSalle::Evenement;
+	if (D < 94) return EVespSalle::Marchand;
 	return EVespSalle::Repos;
 }
 
-void AVespPlayerController::GenererRoute()
+void AVespPlayerController::GenererMonde()
 {
 	Noeuds.Reset();
-	NoeudActuel = -1;
-	TArray<TArray<int32>> ParEtage;
-	ParEtage.SetNum(NombreDEtages);
-	for (int32 E = 0; E < NombreDEtages; E++)
+	ZoneActuelle = -1;
+	MarchandZone = -1;
+	Offres.Reset();
+	const FVector Base = Monde->GetActorLocation();
+	const float Pas = 2900.0f;
+	// Le sentier principal
+	const EVespSalle Principal[9] = {
+		EVespSalle::Depart, EVespSalle::Combat, FMath::RandBool() ? EVespSalle::Combat : EVespSalle::Evenement, EVespSalle::Elite,
+		FMath::RandBool() ? EVespSalle::Marchand : EVespSalle::Evenement, EVespSalle::Combat, EVespSalle::Combat, EVespSalle::Repos, EVespSalle::Boss};
+	for (int32 i = 0; i < 9; i++)
 	{
-		const bool bBoss = E == NombreDEtages - 1;
-		const bool bRepos = E == NombreDEtages - 2;
-		const int32 Nombre = bBoss ? 1 : (E == 0 ? 3 : (bRepos ? 2 : FMath::RandRange(2, 4)));
-		for (int32 i = 0; i < Nombre; i++)
+		FVespNoeud N;
+		N.Type = Principal[i];
+		N.Etage = i;
+		N.Centre = Base + FVector(i > 0 && i < 8 ? FMath::FRandRange(-450.0f, 450.0f) : 0.0f, i * Pas, 0);
+		if (i > 0)
+		{
+			Noeuds[i - 1].Suivants.Add(i);
+		}
+		Noeuds.Add(N);
+	}
+	// Les embranchements (au moins 3)
+	int32 Branches = 0;
+	for (int32 i = 1; i <= 6; i++)
+	{
+		if (FMath::RandRange(0, 99) >= 70 && !(i >= 5 && Branches < 3))
+		{
+			continue;
+		}
+		const float Cote = FMath::RandBool() ? 1.0f : -1.0f;
+		const int32 Longueur = FMath::RandRange(1, 3);
+		const FVector Depuis = Noeuds[i].Centre;
+		const FVector Positions[3] = {
+			FVector(Base.X + Cote * (2700.0f + FMath::FRandRange(-250.0f, 250.0f)), Depuis.Y + 1000.0f, Base.Z),
+			FVector(Base.X + Cote * 5200.0f, Depuis.Y + 1800.0f, Base.Z),
+			FVector(Base.X + Cote * 7700.0f, Depuis.Y + 1000.0f, Base.Z),
+		};
+		int32 Precedent = i;
+		for (int32 k = 0; k < Longueur; k++)
 		{
 			FVespNoeud N;
-			N.Etage = E;
-			N.Hauteur = Nombre == 1 ? 0.5f : FMath::Clamp((i + 0.5f) / Nombre + FMath::FRandRange(-0.05f, 0.05f), 0.05f, 0.95f);
-			N.Type = bBoss ? EVespSalle::Boss : (E == 0 ? EVespSalle::Combat : (bRepos ? EVespSalle::Repos : SalleAuHasard(E)));
-			ParEtage[E].Add(Noeuds.Add(N));
+			N.Type = SalleDEmbranchement(k == Longueur - 1);
+			N.Etage = i + k + 1;
+			N.Centre = Positions[k];
+			const int32 Nouveau = Noeuds.Add(N);
+			Noeuds[Precedent].Suivants.Add(Nouveau);
+			Precedent = Nouveau;
 		}
+		Branches++;
 	}
-	// Les liens : chaque salle mene a la plus proche de l'etage suivant (et parfois a une deuxieme)
-	for (int32 E = 0; E + 1 < NombreDEtages; E++)
+	Noeuds[0].bVisite = true;
+
+	// On construit le monde (c'est le chargement de l'acte)
+	TArray<FVespZone> Zones;
+	TArray<FVespCouloir> Couloirs;
+	for (int32 i = 0; i < Noeuds.Num(); i++)
 	{
-		const TArray<int32>& Ici = ParEtage[E];
-		const TArray<int32>& Apres = ParEtage[E + 1];
-		for (int32 A : Ici)
+		const FVespNoeud& N = Noeuds[i];
+		FVespZone Z;
+		Z.Centre = N.Centre;
+		Z.Type = (int32)N.Type;
+		Z.Lettre = LettreSalle(N.Type);
+		Z.Couleur = CouleurSalle(N.Type);
+		Z.Rayon = N.Type == EVespSalle::Boss ? 1300.0f : ((N.Type == EVespSalle::Combat || N.Type == EVespSalle::Elite) ? 1050.0f : 850.0f);
+		Zones.Add(Z);
+		for (int32 S : N.Suivants)
 		{
-			TArray<int32> Tries = Apres;
-			Tries.Sort([this, A](int32 X, int32 Y) {
-				return FMath::Abs(Noeuds[X].Hauteur - Noeuds[A].Hauteur) < FMath::Abs(Noeuds[Y].Hauteur - Noeuds[A].Hauteur);
-			});
-			Noeuds[A].Suivants.Add(Tries[0]);
-			if (Tries.Num() > 1 && FMath::RandRange(0, 99) < 55 && FMath::Abs(Noeuds[Tries[1]].Hauteur - Noeuds[A].Hauteur) < 0.45f)
-			{
-				Noeuds[A].Suivants.Add(Tries[1]);
-			}
-		}
-		// Aucune salle ne doit rester inaccessible
-		for (int32 B : Apres)
-		{
-			bool bAtteinte = false;
-			for (int32 A : Ici)
-			{
-				bAtteinte |= Noeuds[A].Suivants.Contains(B);
-			}
-			if (!bAtteinte)
-			{
-				int32 Meilleure = Ici[0];
-				for (int32 A : Ici)
-				{
-					if (FMath::Abs(Noeuds[A].Hauteur - Noeuds[B].Hauteur) < FMath::Abs(Noeuds[Meilleure].Hauteur - Noeuds[B].Hauteur))
-					{
-						Meilleure = A;
-					}
-				}
-				Noeuds[Meilleure].Suivants.Add(B);
-			}
+			FVespCouloir C;
+			C.A = i;
+			C.B = S;
+			Couloirs.Add(C);
 		}
 	}
-	// Le sentier cache : de 3 etages en 3 etages, jusqu'au dernier feu de camp
-	int32 Depuis = ParEtage[0][FMath::RandRange(0, ParEtage[0].Num() - 1)];
-	for (int32 E = 3; E <= NombreDEtages - 2; E += 3)
-	{
-		const int32 Vers = ParEtage[E][FMath::RandRange(0, ParEtage[E].Num() - 1)];
-		Noeuds[Depuis].Suivants.AddUnique(Vers);
-		if (E < NombreDEtages - 2 && Noeuds[Vers].Type != EVespSalle::Combat && Noeuds[Vers].Type != EVespSalle::Elite)
-		{
-			Noeuds[Vers].Type = FMath::RandBool() ? EVespSalle::Elite : EVespSalle::Combat;		// un raccourci se paie
-		}
-		Depuis = Vers;
-	}
-	// Deux autres raccourcis, plus courts, vers une elite
-	for (int32 k = 0; k < 2; k++)
-	{
-		const int32 E = FMath::RandRange(1, NombreDEtages - 5);
-		const int32 A = ParEtage[E][FMath::RandRange(0, ParEtage[E].Num() - 1)];
-		const int32 B = ParEtage[E + 2][FMath::RandRange(0, ParEtage[E + 2].Num() - 1)];
-		Noeuds[A].Suivants.AddUnique(B);
-		Noeuds[B].Type = EVespSalle::Elite;
-	}
+	Monde->Construire(Acte, Zones, Couloirs);
+
+	// AYLIS au depart, tournee vers l'est
+	Aylis->PasserEnModeLibre(true);
+	Aylis->SetActorLocation(Noeuds[0].Centre + FVector(0, -250.0f, 0));
+	Aylis->SetActorRotation(FRotator(0, 90.0f, 0));
+	bCaleCamera = true;
+	bCarteOuverte = false;
 }
 
-void AVespPlayerController::ProposerSalles()
+// AYLIS entre dans une clairiere
+void AVespPlayerController::Declencher(int32 Zone)
 {
-	NoeudsPossibles.Reset();
-	if (NoeudActuel < 0)
+	ZoneActuelle = Zone;
+	FVespNoeud& N = Noeuds[Zone];
+	Etage = N.Etage;
+	MessageRoute.Reset();
+	switch (N.Type)
 	{
-		for (int32 i = 0; i < Noeuds.Num(); i++)
-		{
-			if (Noeuds[i].Etage == 0)
-			{
-				NoeudsPossibles.Add(i);
-			}
-		}
-	}
-	else
-	{
-		NoeudsPossibles = Noeuds[NoeudActuel].Suivants;
-	}
-	NoeudsPossibles.Sort([this](int32 A, int32 B) {
-		return Noeuds[A].Etage != Noeuds[B].Etage ? Noeuds[A].Etage < Noeuds[B].Etage : Noeuds[A].Hauteur < Noeuds[B].Hauteur;
-	});
-	Grille->AfficherCasesAtteignables({});
-	Grille->AfficherDanger({});
-	Phase = EVespPhase::ChoixSalle;
-	TempsPhase = 0.0f;
-}
-
-void AVespPlayerController::ChoisirNoeud(int32 Noeud)
-{
-	if (Phase != EVespPhase::ChoixSalle || !NoeudsPossibles.Contains(Noeud))
-	{
-		return;
-	}
-	NoeudActuel = Noeud;
-	Noeuds[Noeud].bVisite = true;
-	Etage = Noeuds[Noeud].Etage;
-	const EVespSalle S = Noeuds[Noeud].Type;
-	switch (S)
-	{
+		case EVespSalle::Combat:
+		case EVespSalle::Elite:
+			PreparerCombat(N.Type);
+			return;
+		case EVespSalle::Boss:
+			DialogueDuBoss();
+			return;
+		case EVespSalle::Evenement:
+			N.bVisite = true;
+			Monde->MarquerZoneFaite(Zone);
+			OuvrirEvenement();
+			return;
+		case EVespSalle::Marchand:
+			N.bVisite = true;
+			OuvrirMarchand();
+			return;
 		case EVespSalle::Repos:
 		{
+			N.bVisite = true;
+			Monde->MarquerZoneFaite(Zone);
 			const int32 Soin = Aylis->Stats.PvMax * 60 / 100;
 			Aylis->Soigner(Soin);
 			Potions++;
 			MessageRoute = FString::Printf(TEXT("AYLIS se repose au coin du feu : +%d pv et une potion."), Soin);
-			ProposerSalles();
+			TempsMessage = 5.0f;
 			return;
 		}
-		case EVespSalle::Marchand: OuvrirMarchand(); return;
-		case EVespSalle::Evenement: OuvrirEvenement(); return;
-		case EVespSalle::Boss: DialogueDuBoss(); return;
+		case EVespSalle::Tresor:
+		{
+			N.bVisite = true;
+			Monde->MarquerZoneFaite(Zone);
+			const int32 Gain = 30 + Acte * 8 + FMath::RandRange(0, 10);
+			Eclats += Gain;
+			AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, N.Centre + FVector(0, 0, 80), FVector::UpVector, FLinearColor(1.0f, 0.85f, 0.4f));
+			MessageRoute = FString::Printf(TEXT("Le coffre s'ouvre : +%d eclats... et une rune."), Gain);
+			ProposerRunes();
+			return;
+		}
 		default:
-			MessageRoute.Reset();
-			PreparerCombat(S);
 			return;
 	}
+}
+
+// Retour a l'exploration : l'arene disparait, les Haschen tombes s'effacent, AYLIS reprend la route
+void AVespPlayerController::RetourExploration()
+{
+	for (AVespUnite* H : Haschen)
+	{
+		AVespEffet::Jouer(GetWorld(), EVespEffet::Mort, H->GetActorLocation(), FVector::UpVector, FLinearColor(0.5f, 0.35f, 0.6f));
+		H->Destroy();
+	}
+	Haschen.Reset();
+	ZonesDanger.Reset();
+	Eruptions.Reset();
+	bBlizzard = false;
+	Grille->Effacer();
+	if (!Aylis->EstLibre())
+	{
+		Aylis->PasserEnModeLibre(true);
+	}
+	Phase = EVespPhase::Exploration;
+	TempsPhase = 0.0f;
+	TempsMessage = MessageRoute.IsEmpty() ? 0.0f : 5.0f;
+}
+
+FString AVespPlayerController::Invite() const
+{
+	if (Phase == EVespPhase::Exploration && MarchandProche >= 0)
+	{
+		return TEXT("E  /  (A)  :  parler au marchand");
+	}
+	return FString();
+}
+
+// La case libre (et sans danger) de l'arene la plus proche d'une position du monde
+FIntPoint AVespPlayerController::CaseLaPlusProche(const FVector& Position) const
+{
+	FIntPoint Meilleure(1, 3);
+	float MeilleureDistance = MAX_flt;
+	for (const FIntPoint& C : Grille->CasesLibres(0))
+	{
+		const float D = FVector::Dist2D(Grille->CentreDeCase(C), Position);
+		if (D < MeilleureDistance)
+		{
+			MeilleureDistance = D;
+			Meilleure = C;
+		}
+	}
+	return Meilleure;
+}
+
+// Les cases libres loin d'une case (pour placer les Haschen de l'autre cote de l'arene)
+TArray<FIntPoint> AVespPlayerController::PlacesLoinDe(FIntPoint Depart, int32 DistanceMin) const
+{
+	TArray<FIntPoint> Places;
+	for (int32 D = DistanceMin; D >= 2 && Places.Num() < 6; D -= 2)
+	{
+		Places.Reset();
+		for (const FIntPoint& C : Grille->CasesLibres(0))
+		{
+			const FIntPoint E = C - Depart;
+			if (FMath::Abs(E.X) + FMath::Abs(E.Y) >= D)
+			{
+				Places.Add(C);
+			}
+		}
+	}
+	return Places;
 }
 
 // ===================== Le marchand =====================
@@ -655,6 +730,21 @@ void AVespPlayerController::OuvrirMarchand()
 			default: Ajouter(TEXT("Bouclier cloute"), TEXT("+1 defense"), 30, 5); break;
 		}
 	}
+	MarchandZone = ZoneActuelle;
+	SelectionMenu = 0;
+	Phase = EVespPhase::Marchand;
+	TempsPhase = 0.0f;
+}
+
+void AVespPlayerController::RouvrirMarchand(int32 Zone)
+{
+	ZoneActuelle = Zone;
+	if (Zone != MarchandZone || Offres.Num() == 0)
+	{
+		OuvrirMarchand();
+		return;
+	}
+	SelectionMenu = 0;
 	Phase = EVespPhase::Marchand;
 	TempsPhase = 0.0f;
 }
@@ -688,8 +778,8 @@ void AVespPlayerController::QuitterMarchand()
 {
 	if (Phase == EVespPhase::Marchand)
 	{
-		MessageRoute = TEXT("Le marchand remballe ses fioles et disparait dans la brume.");
-		ProposerSalles();
+		MessageRoute = TEXT("\"Reviens quand tu veux. Je ne bouge pas d'ici.\"");
+		RetourExploration();
 	}
 }
 
@@ -710,6 +800,7 @@ void AVespPlayerController::OuvrirEvenement()
 		}
 	}
 	EvenementActuel = Possibles[FMath::RandRange(0, Possibles.Num() - 1)];
+	SelectionMenu = 0;
 	Phase = EVespPhase::Evenement;
 	TempsPhase = 0.0f;
 }
@@ -836,7 +927,7 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 		case 25: Aylis->Stats.Attaque += 1; MessageRoute = TEXT("La couronne d'epines roule dans la poussiere. +1 attaque."); break;
 		default: break;
 	}
-	ProposerSalles();
+	RetourExploration();
 }
 
 // ===================== Les Haschen =====================
@@ -952,7 +1043,7 @@ void AVespPlayerController::LancerVague()
 {
 	VaguesRestantes--;
 	VagueActuelle++;
-	TArray<FIntPoint> Places = Grille->CasesLibres(8);
+	TArray<FIntPoint> Places = PlacesLoinDe(Aylis->GetCase(), 5);
 	const int32 Nombre = 2 + (Acte >= 3 ? 1 : 0) + (Etage >= 8 ? 1 : 0);
 	for (int32 i = 0; i < Nombre; i++)
 	{
@@ -992,9 +1083,18 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 		H->Destroy();
 	}
 	Haschen.Reset();
+	// L'arene apparait dans la clairiere, et AYLIS y entre, sur la case la plus proche de l'endroit ou AYLIS se tient
+	const FVector Centre = Noeuds.IsValidIndex(ZoneActuelle) ? Noeuds[ZoneActuelle].Centre : Aylis->GetActorLocation();
+	Aylis->PasserEnModeLibre(false);
 	Grille->ViderOccupants();
+	Grille->SetActorLocation(FVector(Centre.X, Centre.Y, Grille->GetActorLocation().Z));
 	Grille->PreparerCarte(Acte, Type == EVespSalle::Boss);
-	Aylis->Replacer(FIntPoint(1, 3));
+	const FIntPoint Depart = CaseLaPlusProche(Aylis->GetActorLocation());
+	Aylis->Replacer(Depart);
+	Aylis->SetActorRotation(FRotator(0, 90.0f, 0));
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Aylis->GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, FLinearColor(0.6f, 0.5f, 1.0f));
+	Curseur = Depart;
+	bCarteOuverte = false;
 	ZonesDanger.Reset();
 	Eruptions.Reset();
 	bBlizzard = false;
@@ -1002,11 +1102,22 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 	VagueActuelle = 1;
 	VaguesRestantes = 0;
 
-	// Les cases de depart des Haschen, a droite, sur du sol libre
-	TArray<FIntPoint> Places = Grille->CasesLibres(8);
+	// Les Haschen : de l'autre cote de l'arene
+	TArray<FIntPoint> Places = PlacesLoinDe(Depart, 6);
 	if (Type == EVespSalle::Boss)
 	{
-		const FIntPoint CaseDuBoss(9, 3);
+		// Le boss : la case libre la plus eloignee d'AYLIS
+		FIntPoint CaseDuBoss = Places.Num() > 0 ? Places[0] : FIntPoint(9, 3);
+		int32 Loin = -1;
+		for (const FIntPoint& C : Places)
+		{
+			const FIntPoint E = C - Depart;
+			if (FMath::Abs(E.X) + FMath::Abs(E.Y) > Loin)
+			{
+				Loin = FMath::Abs(E.X) + FMath::Abs(E.Y);
+				CaseDuBoss = C;
+			}
+		}
 		Places.Remove(CaseDuBoss);
 		AVespUnite* Boss = CreerHaschen(BOSS[Acte - 1], CaseDuBoss, false);
 		Boss->Stats.Boss = Acte;
@@ -1026,14 +1137,14 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 	}
 	else
 	{
-		int32 Nombre = (Acte == 1 && Etage == 0) ? 2 : 3;
+		int32 Nombre = (Acte == 1 && Etage <= 1) ? 2 : 3;
 		Nombre += Etage >= 6 ? 1 : 0;
 		Nombre += (Acte >= 5 && Etage >= 3) ? 1 : 0;
 		for (int32 i = 0; i < FMath::Min(Nombre, 5); i++)
 		{
 			HaschenAuHasard(Places);
 		}
-		VaguesRestantes = (Etage >= 4 ? 1 : 0) + (Acte >= 4 && Etage >= 9 ? 1 : 0);
+		VaguesRestantes = (Etage >= 4 ? 1 : 0) + (Acte >= 4 && Etage >= 6 ? 1 : 0);
 	}
 	// Chaque Haschen surgit dans une bouffee de brume
 	for (AVespUnite* H : Haschen)
@@ -1041,7 +1152,7 @@ void AVespPlayerController::PreparerCombat(EVespSalle Type)
 		AVespEffet::Jouer(GetWorld(), EVespEffet::Poussiere, H->GetActorLocation(), FVector::UpVector, FLinearColor(0.5f, 0.3f, 0.3f));
 	}
 	Tour = 0;
-	Ecrire(FString::Printf(TEXT("Acte %s, etage %d/%d : %s"), *Romain(Acte), Etage + 1, NombreDEtages, *NomDuLieu()));
+	Ecrire(FString::Printf(TEXT("Acte %s : %s"), *Romain(Acte), *NomDuLieu()));
 	if (VaguesRestantes > 0)
 	{
 		Ecrire(FString::Printf(TEXT("D'autres Haschen attendent dans l'ombre (%d vague%s de plus)."), VaguesRestantes, VaguesRestantes > 1 ? TEXT("s") : TEXT("")));
@@ -1056,6 +1167,11 @@ void AVespPlayerController::ApresVictoire()
 	Eruptions.Reset();
 	Grille->AfficherDanger({});
 	Grille->LeverPieges(false);
+	if (Noeuds.IsValidIndex(ZoneActuelle))
+	{
+		Noeuds[ZoneActuelle].bVisite = true;
+		Monde->MarquerZoneFaite(ZoneActuelle);
+	}
 	if (TypeSalle == EVespSalle::Boss)
 	{
 		if (Acte >= NombreDActes)
@@ -1118,17 +1234,18 @@ void AVespPlayerController::AmbianceDeLActe()
 	Haschen.Reset();
 	Grille->ViderOccupants();
 	TypeSalle = EVespSalle::Combat;
-	Grille->PreparerCarte(Acte, false);
-	Aylis->Replacer(FIntPoint(1, 3));
+	ZonesDanger.Reset();
+	Eruptions.Reset();
+	Grille->Effacer();
+	GenererMonde();
 }
 
 void AVespPlayerController::ContinuerApresLActe()
 {
 	if (Phase == EVespPhase::NouvelActe && TempsPhase > 1.0f)
 	{
-		GenererRoute();
-		MessageRoute = FString::Printf(TEXT("%s. Quelque part au bout de la route, %s attend."), InfoActe(Acte).Lieu, *NomDuBoss());
-		ProposerSalles();
+		MessageRoute = FString::Printf(TEXT("%s. Suis le sentier vers l'est : %s attend au bout."), InfoActe(Acte).Lieu, *NomDuBoss());
+		RetourExploration();
 	}
 }
 
@@ -1149,6 +1266,7 @@ void AVespPlayerController::ProposerRunes()
 		RunesProposees.Add(Possibles[i]);
 		Possibles.RemoveAt(i);
 	}
+	SelectionMenu = 0;
 	Phase = EVespPhase::ChoixRune;
 	TempsPhase = 0.0f;
 }
@@ -1186,7 +1304,7 @@ void AVespPlayerController::ChoisirRune(int32 Numero)
 	const int32 R = RunesProposees[Numero];
 	AppliquerRune(R);
 	MessageRoute = FString::Printf(TEXT("Rune %s : %s."), *NomRune(R), *AideRune(R));
-	ProposerSalles();
+	RetourExploration();
 }
 
 // Le boss parle avant le combat (toujours sans genre pour AYLIS)
@@ -1775,21 +1893,30 @@ void AVespPlayerController::PlacerCamera(float Secondes)
 	{
 		return;
 	}
-	const FVector Centre = Grille->GetActorLocation();
+	// Sur l'ecran titre : elle tourne lentement autour d'AYLIS, au depart de la route
 	if (Phase == EVespPhase::Titre)
 	{
+		const FVector Centre = Aylis->GetActorLocation();
 		const float Angle = FMath::Sin(TempsPhase * 0.1f) * 0.5f;
-		const FVector Ecart = (PositionCamera - Centre).RotateAngleAxis(FMath::RadiansToDegrees(Angle), FVector::UpVector) * 0.8f;
-		const FVector Position = Centre + FVector(Ecart.X, Ecart.Y, Ecart.Z * 0.55f);
+		const FVector Ecart = DecalageCamera.RotateAngleAxis(FMath::RadiansToDegrees(Angle), FVector::UpVector) * 0.7f;
+		const FVector Position = Centre + FVector(Ecart.X, Ecart.Y, Ecart.Z * 0.5f);
 		CameraArene->SetActorLocation(Position);
-		CameraArene->SetActorRotation((Centre + FVector(0, 0, 150) - Position).Rotation());
+		CameraArene->SetActorRotation((Centre + FVector(0, 0, 180) - Position).Rotation());
+		bCaleCamera = true;
 		return;
 	}
+	// En combat (tant que l'arene est la) : elle cadre l'arene ; sinon, elle suit AYLIS, toujours sous le meme angle
+	const bool bArene = Haschen.Num() > 0 && Phase != EVespPhase::Exploration;
+	const FVector Cible = bArene ? Grille->GetActorLocation() : Aylis->GetActorLocation() + FVector(0, 0, 60);
+	const FVector Voulue = Cible + DecalageCamera * (bArene ? 1.0f : 0.78f);
+	CameraActuelle = bCaleCamera ? Voulue : FMath::VInterpTo(CameraActuelle, Voulue, Secondes, bArene ? 3.0f : 5.0f);
+	bCaleCamera = false;
 	Secousse = FMath::Max(0.0f, Secousse - Secondes * 3.0f);
 	Zoom = FMath::Max(0.0f, Zoom - Secondes * 3.0f);
-	CameraArene->SetActorLocation(PositionCamera + FMath::VRand() * Secousse * 10.0f);
+	CameraArene->SetActorLocation(CameraActuelle + FMath::VRand() * Secousse * 10.0f);
 	CameraArene->SetActorRotation(RotationCamera);
-	CameraArene->GetCameraComponent()->SetFieldOfView(42.0f - Zoom * 4.0f);
+	CameraArene->GetCameraComponent()->SetFieldOfView((bArene ? 42.0f : 46.0f) - Zoom * 4.0f);
+	Monde->OrienterTextes(CameraActuelle);
 }
 
 // ===================== A chaque image : le clavier, et les clics sur l'arene =====================
@@ -1798,7 +1925,7 @@ void AVespPlayerController::PlacerCamera(float Secondes)
 void AVespPlayerController::PlayerTick(float Secondes)
 {
 	Super::PlayerTick(Secondes);
-	if (!Grille || !Aylis)
+	if (!Grille || !Aylis || !Monde)
 	{
 		return;
 	}
@@ -1809,76 +1936,228 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
 	}
 	TempsPhase += Secondes;
+	TempsMessage = FMath::Max(0.0f, TempsMessage - Secondes);
+	Repetition = FMath::Max(0.0f, Repetition - Secondes);
 	PlacerCamera(Secondes);
-	const FKey Touches[5] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five};
-	const bool bValider = WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::SpaceBar);
+	// La souris a bouge : on vise de nouveau a la souris (et plus au curseur)
+	float SourisX = 0.0f, SourisY = 0.0f;
+	GetMousePosition(SourisX, SourisY);
+	if (FVector2D(SourisX, SourisY) != DerniereSouris)
+	{
+		if (!DerniereSouris.IsZero())
+		{
+			bCurseur = false;
+			bSelectionVisible = false;
+		}
+		DerniereSouris = FVector2D(SourisX, SourisY);
+	}
+	const bool bValider = WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom);
 
 	switch (Phase)
 	{
 		case EVespPhase::Titre:
-			if (bValider)
+			if (bValider || WasInputKeyJustPressed(EKeys::SpaceBar))
 			{
 				NouvellePartie(1);
 			}
 			return;
 		case EVespPhase::Victoire:
 		case EVespPhase::Defaite:
-			if (WasInputKeyJustPressed(EKeys::R))
+			if (WasInputKeyJustPressed(EKeys::R) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Right) || (bValider && TempsPhase > 1.5f))
 			{
 				Recommencer();
 			}
 			return;
 		case EVespPhase::Dialogue:
 			Ecriture += Secondes * 45.0f;
-			if (bValider || WasInputKeyJustPressed(EKeys::LeftMouseButton))
+			if (bValider || WasInputKeyJustPressed(EKeys::SpaceBar) || WasInputKeyJustPressed(EKeys::LeftMouseButton))
 			{
 				AvancerDialogue();
 			}
 			return;
 		case EVespPhase::NouvelActe:
-			if (bValider)
+			if (bValider || WasInputKeyJustPressed(EKeys::SpaceBar))
 			{
 				ContinuerApresLActe();
 			}
 			return;
 		case EVespPhase::ChoixRune:
-		case EVespPhase::ChoixSalle:
 		case EVespPhase::Marchand:
 		case EVespPhase::Evenement:
-			for (int32 i = 0; i < 4; i++)
-			{
-				if (!WasInputKeyJustPressed(Touches[i]))
-				{
-					continue;
-				}
-				if (Phase == EVespPhase::ChoixRune) ChoisirRune(i);
-				else if (Phase == EVespPhase::ChoixSalle && NoeudsPossibles.IsValidIndex(i)) ChoisirNoeud(NoeudsPossibles[i]);
-				else if (Phase == EVespPhase::Marchand) AcheterOffre(i);
-				else if (Phase == EVespPhase::Evenement && i < 2) ChoisirEvenement(i);
-				return;
-			}
-			if (Phase == EVespPhase::Marchand && (WasInputKeyJustPressed(EKeys::Escape) || bValider))
-			{
-				QuitterMarchand();
-			}
+			CommandesDeMenu(Secondes);
+			return;
+		case EVespPhase::Exploration:
+			Explorer(Secondes);
+			return;
+		case EVespPhase::TourHaschen:
+			Grille->AfficherSurvol(FIntPoint(-1, -1));
+			JouerTourHaschen(Secondes);
+			return;
+		case EVespPhase::TourAylis:
+			CommandesDeCombat(Secondes);
 			return;
 		default:
-			break;
+			return;
 	}
+}
 
+// Une direction pressee : les fleches (et ZQSD / WASD), la croix, ou le stick gauche (qui se repete si on le tient)
+bool AVespPlayerController::DirectionPressee(FIntPoint& Direction, float Secondes)
+{
+	Direction = FIntPoint(0, 0);
+	auto Presse = [this](std::initializer_list<FKey> Touches) {
+		for (const FKey& K : Touches)
+		{
+			if (WasInputKeyJustPressed(K))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	if (Presse({EKeys::Up, EKeys::Gamepad_DPad_Up})) Direction.Y = -1;
+	else if (Presse({EKeys::Down, EKeys::Gamepad_DPad_Down})) Direction.Y = 1;
+	else if (Presse({EKeys::Left, EKeys::Gamepad_DPad_Left})) Direction.X = -1;
+	else if (Presse({EKeys::Right, EKeys::Gamepad_DPad_Right})) Direction.X = 1;
+	if (Direction != FIntPoint(0, 0))
+	{
+		return true;
+	}
+	const float SX = GetInputAnalogKeyState(EKeys::Gamepad_LeftX);
+	const float SY = GetInputAnalogKeyState(EKeys::Gamepad_LeftY);
+	if (FMath::Max(FMath::Abs(SX), FMath::Abs(SY)) < 0.55f)
+	{
+		Repetition = 0.0f;
+		return false;
+	}
+	if (Repetition > 0.0f)
+	{
+		return false;
+	}
+	Repetition = 0.2f;
+	if (FMath::Abs(SX) > FMath::Abs(SY))
+	{
+		Direction.X = SX > 0 ? 1 : -1;
+	}
+	else
+	{
+		Direction.Y = SY > 0 ? -1 : 1;		// le stick vers le haut = vers le haut de l'ecran
+	}
+	return true;
+}
+
+// ===================== L'exploration =====================
+
+void AVespPlayerController::Explorer(float Secondes)
+{
+	// La carte du monde
+	if (WasInputKeyJustPressed(EKeys::Tab) || WasInputKeyJustPressed(EKeys::M) || WasInputKeyJustPressed(EKeys::Gamepad_Special_Left))
+	{
+		bCarteOuverte = !bCarteOuverte;
+	}
+	// La direction : ZQSD (AZERTY), WASD (QWERTY), les fleches, ou le stick gauche
+	FVector2D Entree(0.0f, 0.0f);
+	auto Tenue = [this](std::initializer_list<FKey> Touches) {
+		for (const FKey& K : Touches)
+		{
+			if (IsInputKeyDown(K))
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	if (Tenue({EKeys::Z, EKeys::W, EKeys::Up, EKeys::Gamepad_DPad_Up})) Entree.Y += 1.0f;
+	if (Tenue({EKeys::S, EKeys::Down, EKeys::Gamepad_DPad_Down})) Entree.Y -= 1.0f;
+	if (Tenue({EKeys::Q, EKeys::A, EKeys::Left, EKeys::Gamepad_DPad_Left})) Entree.X -= 1.0f;
+	if (Tenue({EKeys::D, EKeys::Right, EKeys::Gamepad_DPad_Right})) Entree.X += 1.0f;
+	const FVector2D Stick(GetInputAnalogKeyState(EKeys::Gamepad_LeftX), GetInputAnalogKeyState(EKeys::Gamepad_LeftY));
+	if (Stick.Size() > 0.2f)
+	{
+		Entree += Stick;
+	}
+	const float Force = FMath::Min(1.0f, Entree.Size());
+	if (Force > 0.05f)
+	{
+		Entree /= Entree.Size();
+	}
+	const bool bCourir = Tenue({EKeys::LeftShift, EKeys::RightShift}) || GetInputAnalogKeyState(EKeys::Gamepad_RightTriggerAxis) > 0.3f;
+	const float Vitesse = 430.0f * (bCourir ? 1.75f : 1.0f) * Force;
+	// Le haut de l'ecran, et sa droite, sur le sol
+	const float Yaw = FMath::DegreesToRadians(RotationCamera.Yaw);
+	const FVector Avant(FMath::Cos(Yaw), FMath::Sin(Yaw), 0.0f);
+	const FVector Droite(-FMath::Sin(Yaw), FMath::Cos(Yaw), 0.0f);
+	const FVector Ici = Aylis->GetActorLocation();
+	const FVector Vers = Monde->Contraindre(Ici, Ici + (Avant * Entree.Y + Droite * Entree.X) * Vitesse * Secondes);
+	Aylis->DeplacerLibrement(Vers - Ici, (bCourir ? 1.6f : 1.0f) * FMath::Max(Force, 0.4f), Secondes);
+
+	// Une clairiere pas encore faite : on y entre
+	for (int32 i = 0; i < Noeuds.Num(); i++)
+	{
+		const FVespNoeud& N = Noeuds[i];
+		if (N.bVisite)
+		{
+			continue;
+		}
+		const bool bGardee = N.Type == EVespSalle::Combat || N.Type == EVespSalle::Elite || N.Type == EVespSalle::Boss;
+		if (FVector::Dist2D(Vers, N.Centre) < (bGardee ? 760.0f : 480.0f))
+		{
+			bCarteOuverte = false;
+			Declencher(i);
+			return;
+		}
+	}
+	// Un marchand deja rencontre : on peut lui reparler
+	MarchandProche = -1;
+	for (int32 i = 0; i < Noeuds.Num(); i++)
+	{
+		if (Noeuds[i].Type == EVespSalle::Marchand && FVector::Dist2D(Vers, Noeuds[i].Centre) < 700.0f)
+		{
+			MarchandProche = i;
+		}
+	}
+	if (MarchandProche >= 0 && (WasInputKeyJustPressed(EKeys::E) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom)))
+	{
+		RouvrirMarchand(MarchandProche);
+	}
+}
+
+// ===================== Le combat : la souris, ou le curseur (clavier, manette) =====================
+
+bool AVespPlayerController::CaseVisee(FIntPoint& Case) const
+{
+	if (bCurseur)
+	{
+		Case = Curseur;
+		return Grille->EstDansArene(Case);
+	}
+	return CaseSousLaSouris(Case);
+}
+
+void AVespPlayerController::CommandesDeCombat(float Secondes)
+{
+	// Le curseur : les fleches, la croix ou le stick
+	FIntPoint Direction;
+	if (DirectionPressee(Direction, Secondes))
+	{
+		if (!bCurseur)
+		{
+			bCurseur = true;
+			Curseur = Aylis->GetCase();
+		}
+		// (l'arene : les colonnes vont vers la droite de l'ecran, les lignes vers le bas)
+		Curseur.X = FMath::Clamp(Curseur.X + Direction.X, 0, AVespGrille::Colonnes - 1);
+		Curseur.Y = FMath::Clamp(Curseur.Y + Direction.Y, 0, AVespGrille::Lignes - 1);
+	}
 	FIntPoint Case(-1, -1);
-	const bool bSurLaGrille = CaseSousLaSouris(Case);
-	Grille->AfficherSurvol(bSurLaGrille && Phase == EVespPhase::TourAylis ? Case : FIntPoint(-1, -1));
-
-	if (Phase == EVespPhase::TourHaschen)
-	{
-		JouerTourHaschen(Secondes);
-		return;
-	}
-	if (Phase != EVespPhase::TourAylis || Aylis->EstOccupe())
+	const bool bSurLaGrille = CaseVisee(Case);
+	Grille->AfficherSurvol(bSurLaGrille ? Case : FIntPoint(-1, -1));
+	if (Aylis->EstOccupe())
 	{
 		return;
 	}
+	// Les actions : 1 a 5 ; a la manette, les gachettes hautes changent d'action, X boit une potion, Y passe
+	const FKey Touches[5] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five};
 	for (int32 i = 0; i < 5; i++)
 	{
 		if (WasInputKeyJustPressed(Touches[i]))
@@ -1887,16 +2166,43 @@ void AVespPlayerController::PlayerTick(float Secondes)
 			return;
 		}
 	}
-	if (WasInputKeyJustPressed(EKeys::SpaceBar))
+	const bool bSuivante = WasInputKeyJustPressed(EKeys::Gamepad_RightShoulder);
+	if (bSuivante || WasInputKeyJustPressed(EKeys::Gamepad_LeftShoulder))
+	{
+		const EVespAction Ordre[4] = {EVespAction::Attaque, EVespAction::Lourde, EVespAction::Garde, EVespAction::Speciale};
+		int32 Ici = 0;
+		for (int32 i = 0; i < 4; i++)
+		{
+			Ici = Ordre[i] == ActionChoisie ? i : Ici;
+		}
+		for (int32 k = 1; k <= 4; k++)
+		{
+			const EVespAction A = Ordre[(Ici + (bSuivante ? k : 4 - k)) % 4];
+			if (ActionDisponible(A))
+			{
+				ChoisirAction(A);
+				break;
+			}
+		}
+		return;
+	}
+	if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Left))
+	{
+		ChoisirAction(EVespAction::Potion);
+		return;
+	}
+	if (WasInputKeyJustPressed(EKeys::SpaceBar) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
 	{
 		PasserLeTour();
 		return;
 	}
-	if (!WasInputKeyJustPressed(EKeys::LeftMouseButton) || !bSurLaGrille)
+	const bool bClic = WasInputKeyJustPressed(EKeys::LeftMouseButton) && !bCurseur;
+	const bool bConfirme = WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom);
+	if (!(bClic || bConfirme) || !bSurLaGrille)
 	{
 		return;
 	}
-	// Un clic sur un Haschen au contact : l'action choisie
+	// Sur un Haschen au contact : l'action choisie
 	AVespUnite* Cible = Grille->UniteSur(Case);
 	if (Cible && !Cible->EstAylis())
 	{
@@ -1921,6 +2227,50 @@ void AVespPlayerController::PlayerTick(float Secondes)
 			bADejaBouge = true;
 			MontrerCasesAtteignables();
 		}
+	}
+}
+
+// ===================== Les menus (runes, marchand, evenement) au clavier ou a la manette =====================
+
+void AVespPlayerController::CommandesDeMenu(float Secondes)
+{
+	const int32 Nombre = Phase == EVespPhase::ChoixRune ? RunesProposees.Num() : (Phase == EVespPhase::Marchand ? Offres.Num() : 2);
+	const FKey Touches[4] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four};
+	auto Choisir = [this](int32 i) {
+		if (Phase == EVespPhase::ChoixRune) ChoisirRune(i);
+		else if (Phase == EVespPhase::Marchand) AcheterOffre(i);
+		else if (i < 2) ChoisirEvenement(i);
+	};
+	for (int32 i = 0; i < 4; i++)
+	{
+		if (WasInputKeyJustPressed(Touches[i]))
+		{
+			Choisir(i);
+			return;
+		}
+	}
+	FIntPoint Direction;
+	if (DirectionPressee(Direction, Secondes) && Direction.X != 0 && Nombre > 0)
+	{
+		SelectionMenu = bSelectionVisible ? (SelectionMenu + Direction.X + Nombre) % Nombre : 0;
+		bSelectionVisible = true;
+	}
+	if (WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom))
+	{
+		if (bSelectionVisible)
+		{
+			Choisir(FMath::Clamp(SelectionMenu, 0, FMath::Max(0, Nombre - 1)));
+		}
+		else
+		{
+			SelectionMenu = 0;
+			bSelectionVisible = true;
+		}
+		return;
+	}
+	if (Phase == EVespPhase::Marchand && (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right)))
+	{
+		QuitterMarchand();
 	}
 }
 

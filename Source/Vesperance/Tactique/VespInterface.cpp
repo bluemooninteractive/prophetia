@@ -53,9 +53,9 @@ namespace
 	float Pulsation(float Vitesse = 3.0f) { return 0.5f + 0.5f * FMath::Sin(FPlatformTime::Seconds() * Vitesse); }
 }
 
-// ===================== La carte de la route =====================
-// Un widget dessine a la main : les salles (des disques de couleur, avec leur lettre), les chemins entre elles
-// (en pointilles orange pour les raccourcis), les salles ou l'on peut aller (qui scintillent), et un clic pour choisir.
+// ===================== La carte du monde (TAB) =====================
+// Un widget dessine a la main : les clairieres de l'acte (des disques de couleur, avec leur lettre), les sentiers
+// entre elles, celles deja faites (pleines), et AYLIS (le point bleu). La vision montre toute la route.
 
 class SVespCarteRoute : public SLeafWidget
 {
@@ -64,8 +64,6 @@ public:
 		SLATE_ARGUMENT(TWeakObjectPtr<AVespPlayerController>, Joueur)
 	SLATE_END_ARGS()
 
-	int32 Survol = -1;		// la salle sous la souris
-
 	void Construct(const FArguments& Args)
 	{
 		Joueur = Args._Joueur;
@@ -73,131 +71,65 @@ public:
 		Anneau = FSlateRoundedBoxBrush(FLinearColor(0, 0, 0, 0), 200.0f, FLinearColor::White, 3.0f);
 	}
 
-	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D(1400.0f, 470.0f); }
+	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D(1300.0f, 560.0f); }
 
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Rect, FSlateWindowElementList& Elements,
 	                      int32 Couche, const FWidgetStyle& Style, bool bParentActif) const override
 	{
 		const AVespPlayerController* J = Joueur.Get();
-		if (!J)
+		if (!J || J->Noeuds.Num() == 0)
 		{
 			return Couche;
 		}
 		const FVector2D Taille = Geo.GetLocalSize();
 		const float Pulse = Pulsation(4.0f);
 		const TSharedRef<FSlateFontMeasure> Mesure = FSlateApplication::Get().GetRenderer()->GetFontMeasureService();
-
-		// Les numeros des etages, en bas
-		for (int32 E = 0; E < AVespPlayerController::NombreDEtages; E++)
+		FBox2D Limites(ForceInit);
+		for (const FVespNoeud& N : J->Noeuds)
 		{
-			const FString N = FString::FromInt(E + 1);
-			const FSlateFontInfo F = Police("Regular", 9);
-			const FVector2D T(Mesure->Measure(N, F));
-			const float X = PositionX(E, Taille) - T.X / 2.0f;
-			FSlateDrawElement::MakeText(Elements, Couche, Geo.ToPaintGeometry(FVector2f(T), FSlateLayoutTransform(FVector2f(X, Taille.Y - 16.0f))),
-			                            N, F, ESlateDrawEffect::None, FLinearColor(0.5f, 0.47f, 0.6f, 0.6f));
+			Limites += FVector2D(N.Centre.X, N.Centre.Y);
 		}
-		// Les chemins
-		for (int32 i = 0; i < J->Noeuds.Num(); i++)
+		Limites = Limites.ExpandBy(1200.0f);
+		auto Ecran = [&](const FVector& P) { return Projeter(P, Limites, Taille); };
+
+		// Les sentiers
+		for (const FVespNoeud& N : J->Noeuds)
 		{
-			const FVespNoeud& N = J->Noeuds[i];
 			for (int32 S : N.Suivants)
 			{
 				const FVespNoeud& M = J->Noeuds[S];
-				const bool bRaccourci = M.Etage - N.Etage > 1;
-				const bool bOuvert = i == J->NoeudActuel && J->NoeudsPossibles.Contains(S);
-				const bool bPris = N.bVisite && M.bVisite;
-				FLinearColor C = bPris ? FLinearColor(0.95f, 0.75f, 0.35f, 0.95f)
-				               : (bOuvert ? FLinearColor(1.0f, 1.0f, 1.0f, 0.5f + 0.45f * Pulse) : FLinearColor(0.45f, 0.42f, 0.6f, 0.35f));
-				if (bRaccourci && !bPris)
-				{
-					C = FLinearColor(1.0f, 0.62f, 0.3f, bOuvert ? 0.55f + 0.45f * Pulse : 0.5f);
-				}
-				const FVector2D A = Position(N, Taille), B = Position(M, Taille);
-				const float Epaisseur = bPris || bOuvert ? 3.0f : 2.0f;
-				if (!bRaccourci)
-				{
-					FSlateDrawElement::MakeLines(Elements, Couche, Geo.ToPaintGeometry(), TArray<FVector2f>{FVector2f(A), FVector2f(B)},
-					                             ESlateDrawEffect::None, C, true, Epaisseur);
-					continue;
-				}
-				// Un raccourci : en pointilles
-				const float Longueur = FVector2D::Distance(A, B);
-				const FVector2D Sens = (B - A) / FMath::Max(1.0f, Longueur);
-				for (float D = 0.0f; D < Longueur; D += 16.0f)
-				{
-					const FVector2D P1 = A + Sens * D;
-					const FVector2D P2 = A + Sens * FMath::Min(Longueur, D + 9.0f);
-					FSlateDrawElement::MakeLines(Elements, Couche, Geo.ToPaintGeometry(), TArray<FVector2f>{FVector2f(P1), FVector2f(P2)},
-					                             ESlateDrawEffect::None, C, true, Epaisseur);
-				}
+				const FLinearColor C = N.bVisite && M.bVisite ? FLinearColor(0.95f, 0.75f, 0.35f, 0.9f) : FLinearColor(0.55f, 0.5f, 0.7f, 0.55f);
+				FSlateDrawElement::MakeLines(Elements, Couche, Geo.ToPaintGeometry(), TArray<FVector2f>{FVector2f(Ecran(N.Centre)), FVector2f(Ecran(M.Centre))},
+				                             ESlateDrawEffect::None, C, true, 4.0f);
 			}
 		}
-		// Les salles
+		// Les clairieres
 		for (int32 i = 0; i < J->Noeuds.Num(); i++)
 		{
 			const FVespNoeud& N = J->Noeuds[i];
-			const FVector2D P = Position(N, Taille);
-			const bool bPossible = J->NoeudsPossibles.Contains(i);
-			const bool bIci = i == J->NoeudActuel;
+			const FVector2D P = Ecran(N.Centre);
 			const FLinearColor Couleur = AVespPlayerController::CouleurSalle(N.Type);
-			float R = Rayon(N);
-			if (bPossible)
+			const float R = N.Type == EVespSalle::Boss ? 28.0f : 18.0f;
+			if (!N.bVisite)
 			{
-				R *= i == Survol ? 1.3f : 1.0f + 0.1f * Pulse;
+				Disque(Elements, Couche + 1, Geo, P, R * 1.7f, Rond, FLinearColor(Couleur.R, Couleur.G, Couleur.B, 0.12f + 0.1f * Pulse));
 			}
-			if (bPossible || bIci)
-			{
-				Disque(Elements, Couche + 1, Geo, P, R * 1.8f, Rond, FLinearColor(Couleur.R, Couleur.G, Couleur.B, bIci ? 0.25f : 0.14f + 0.14f * Pulse));
-			}
-			const FLinearColor Fond = N.bVisite ? Couleur * FLinearColor(0.45f, 0.45f, 0.45f, 1.0f)
-			                        : (bPossible ? FLinearColor(0.1f, 0.07f, 0.16f, 1.0f) : FLinearColor(0.04f, 0.035f, 0.07f, 0.9f));
-			Disque(Elements, Couche + 2, Geo, P, R, Rond, Fond);
-			const FLinearColor Bord = (bPossible || N.bVisite) ? Couleur : FLinearColor(Couleur.R * 0.6f, Couleur.G * 0.6f, Couleur.B * 0.6f, 0.7f);
-			Disque(Elements, Couche + 3, Geo, P, R, Anneau, Bord);
+			Disque(Elements, Couche + 2, Geo, P, R, Rond, N.bVisite ? Couleur * FLinearColor(0.45f, 0.45f, 0.45f, 1.0f) : FLinearColor(0.07f, 0.05f, 0.12f, 1.0f));
+			Disque(Elements, Couche + 3, Geo, P, R, Anneau, Couleur);
 			const FString Lettre = AVespPlayerController::LettreSalle(N.Type);
-			const FSlateFontInfo F = Police("Bold", N.Type == EVespSalle::Boss ? 22 : 13);
+			const FSlateFontInfo F = Police("Bold", N.Type == EVespSalle::Boss ? 20 : 12);
 			const FVector2D T(Mesure->Measure(Lettre, F));
 			FSlateDrawElement::MakeText(Elements, Couche + 4, Geo.ToPaintGeometry(FVector2f(T), FSlateLayoutTransform(FVector2f(P - T / 2.0f))),
-			                            Lettre, F, ESlateDrawEffect::None, bPossible || N.bVisite ? FLinearColor::White : Bord);
-			if (bIci)
-			{
-				// AYLIS est ici : un petit medaillon bleu au-dessus
-				Disque(Elements, Couche + 4, Geo, P - FVector2D(0, R + 13.0f), 7.0f, Rond, BLEU_AYLIS);
-			}
+			                            Lettre, F, ESlateDrawEffect::None, FLinearColor::White);
 		}
-		return Couche + 5;
-	}
-
-	virtual FReply OnMouseMove(const FGeometry& Geo, const FPointerEvent& Evenement) override
-	{
-		Survol = SalleSous(Geo, Evenement);
-		return FReply::Unhandled();
-	}
-
-	virtual void OnMouseLeave(const FPointerEvent& Evenement) override
-	{
-		SLeafWidget::OnMouseLeave(Evenement);
-		Survol = -1;
-	}
-
-	virtual FReply OnMouseButtonDown(const FGeometry& Geo, const FPointerEvent& Evenement) override
-	{
-		AVespPlayerController* J = Joueur.Get();
-		const int32 N = SalleSous(Geo, Evenement);
-		if (J && N >= 0 && J->NoeudsPossibles.Contains(N))
+		// AYLIS
+		if (J->Aylis)
 		{
-			J->ChoisirNoeud(N);
-			Survol = -1;
-			return FReply::Handled();
+			const FVector2D P = Ecran(J->Aylis->GetActorLocation());
+			Disque(Elements, Couche + 5, Geo, P, 14.0f + 4.0f * Pulse, Rond, FLinearColor(0.45f, 0.62f, 1.0f, 0.35f));
+			Disque(Elements, Couche + 6, Geo, P, 8.0f, Rond, BLEU_AYLIS);
 		}
-		return FReply::Unhandled();
-	}
-
-	virtual FCursorReply OnCursorQuery(const FGeometry& Geo, const FPointerEvent& Evenement) const override
-	{
-		const AVespPlayerController* J = Joueur.Get();
-		return FCursorReply::Cursor(J && Survol >= 0 && J->NoeudsPossibles.Contains(Survol) ? EMouseCursor::Hand : EMouseCursor::Default);
+		return Couche + 7;
 	}
 
 private:
@@ -205,40 +137,20 @@ private:
 	FSlateBrush Rond;
 	FSlateBrush Anneau;
 
-	static float PositionX(int32 Etage, const FVector2D& Taille)
+	// Le monde vu de haut, a l'echelle du widget : l'est a droite, le nord en haut (comme a l'ecran)
+	static FVector2D Projeter(const FVector& P, const FBox2D& Limites, const FVector2D& Taille)
 	{
-		return 40.0f + Etage * (Taille.X - 80.0f) / (AVespPlayerController::NombreDEtages - 1);
+		const FVector2D T = Limites.GetSize();
+		const float Echelle = FMath::Min((Taille.X - 60.0f) / FMath::Max(1.0f, T.Y), (Taille.Y - 60.0f) / FMath::Max(1.0f, T.X));
+		const FVector2D Milieu = Limites.GetCenter();
+		return Taille / 2.0f + FVector2D((P.Y - Milieu.Y) * Echelle, -(P.X - Milieu.X) * Echelle);
 	}
-	static FVector2D Position(const FVespNoeud& N, const FVector2D& Taille)
-	{
-		return FVector2D(PositionX(N.Etage, Taille), 40.0f + N.Hauteur * (Taille.Y - 90.0f));
-	}
-	static float Rayon(const FVespNoeud& N) { return N.Type == EVespSalle::Boss ? 32.0f : 19.0f; }
 
 	static void Disque(FSlateWindowElementList& Elements, int32 Couche, const FGeometry& Geo, const FVector2D& Centre, float R,
 	                   const FSlateBrush& Pinceau, const FLinearColor& Couleur)
 	{
 		FSlateDrawElement::MakeBox(Elements, Couche, Geo.ToPaintGeometry(FVector2f(2.0f * R, 2.0f * R), FSlateLayoutTransform(FVector2f(Centre - FVector2D(R, R)))),
 		                           &Pinceau, ESlateDrawEffect::None, Couleur);
-	}
-
-	int32 SalleSous(const FGeometry& Geo, const FPointerEvent& Evenement) const
-	{
-		const AVespPlayerController* J = Joueur.Get();
-		if (!J)
-		{
-			return -1;
-		}
-		const FVector2D Ici = Geo.AbsoluteToLocal(Evenement.GetScreenSpacePosition());
-		const FVector2D Taille = Geo.GetLocalSize();
-		for (int32 i = 0; i < J->Noeuds.Num(); i++)
-		{
-			if (FVector2D::Distance(Ici, Position(J->Noeuds[i], Taille)) <= Rayon(J->Noeuds[i]) + 8.0f)
-			{
-				return i;
-			}
-		}
-		return -1;
 	}
 };
 
@@ -267,6 +179,7 @@ void SVespInterface::Construct(const FArguments& Args)
 	[
 		SNew(SOverlay)
 		+ SOverlay::Slot()[CoucheCombat()]
+		+ SOverlay::Slot()[CoucheExploration()]
 		+ SOverlay::Slot()[CoucheRoute()]
 		+ SOverlay::Slot()[CoucheRunes()]
 		+ SOverlay::Slot()[CoucheMarchand()]
@@ -317,7 +230,7 @@ TSharedRef<SWidget> SVespInterface::Jauge(TAttribute<float> Part, TAttribute<FSl
 TSharedRef<SWidget> SVespInterface::GrandBouton(const FText& Libelle, FLinearColor Couleur, TFunction<void()> Action)
 {
 	TSharedRef<TWeakPtr<SButton>> Lien = MakeShared<TWeakPtr<SButton>>();
-	TSharedRef<SButton> Bouton = SNew(SButton).ButtonStyle(&StyleBouton).OnClicked_Lambda([Action]() { Action(); return FReply::Handled(); })
+	TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton).OnClicked_Lambda([Action]() { Action(); return FReply::Handled(); })
 	[
 		SNew(SBorder).Padding(FMargin(34, 12))
 		.BorderImage_Lambda([this, Lien]() { const TSharedPtr<SButton> B = Lien->Pin(); return B.IsValid() && B->IsHovered() ? &CarteChoisie : &Carte; })
@@ -334,7 +247,7 @@ TSharedRef<SWidget> SVespInterface::BoutonMenu(const FText& Libelle, TFunction<v
 {
 	TSharedRef<TWeakPtr<SButton>> Lien = MakeShared<TWeakPtr<SButton>>();
 	auto Survole = [Lien]() { const TSharedPtr<SButton> B = Lien->Pin(); return B.IsValid() && B->IsHovered(); };
-	TSharedRef<SButton> Bouton = SNew(SButton).ButtonStyle(&StyleBouton).OnClicked_Lambda([Action]() { Action(); return FReply::Handled(); })
+	TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton).OnClicked_Lambda([Action]() { Action(); return FReply::Handled(); })
 	[
 		SNew(SHorizontalBox)
 		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 12, 0)
@@ -360,13 +273,17 @@ TSharedRef<SWidget> SVespInterface::CarteCliquable(TAttribute<FText> Titre, TAtt
                                                    TFunction<void()> Clic, int32 Numero, float Largeur, float Hauteur)
 {
 	TSharedRef<TWeakPtr<SButton>> Lien = MakeShared<TWeakPtr<SButton>>();
-	TSharedRef<SButton> Bouton = SNew(SButton).ButtonStyle(&StyleBouton).Visibility(Visible).IsEnabled(Actif)
+	TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton).Visibility(Visible).IsEnabled(Actif)
 	.OnClicked_Lambda([Clic]() { Clic(); return FReply::Handled(); })
 	[
 		SNew(SBox).WidthOverride(Largeur).HeightOverride(Hauteur)
 		[
 			SNew(SBorder).Padding(FMargin(20, 18))
-			.BorderImage_Lambda([this, Lien]() { const TSharedPtr<SButton> B = Lien->Pin(); return B.IsValid() && B->IsHovered() ? &GrandeCarteSurvol : &GrandeCarte; })
+			.BorderImage_Lambda([this, Lien, Numero]() {
+				const TSharedPtr<SButton> B = Lien->Pin();
+				const bool bChoisie = Joueur.IsValid() && Joueur->bSelectionVisible && Joueur->SelectionMenu == Numero;
+				return (B.IsValid() && B->IsHovered()) || bChoisie ? &GrandeCarteSurvol : &GrandeCarte;
+			})
 			.ColorAndOpacity_Lambda([Actif]() { return FLinearColor(1, 1, 1, Actif.Get() ? 1.0f : 0.45f); })
 			[
 				SNew(SVerticalBox)
@@ -437,13 +354,14 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 	auto Commandes = [this]() -> TSharedRef<SWidget> {
 		TSharedRef<SVerticalBox> Liste = SNew(SVerticalBox);
 		const TCHAR* Lignes[] = {
-			TEXT("Clic sur une case bleue : deplacer AYLIS (une fois par tour)"),
-			TEXT("1 a 5 : choisir une action (attaque, lourde, garde, potion, special)"),
-			TEXT("Clic sur un Haschen au contact : frapper"),
-			TEXT("ESPACE : finir le tour sans agir"),
-			TEXT("1 a 4 : choisir une salle, une rune, un objet"),
-			TEXT("ENTREE : valider, continuer un dialogue"),
-			TEXT("R : une nouvelle vision (apres la fin)"),
+			TEXT("EXPLORATION"),
+			TEXT("ZQSD / WASD / fleches / stick : marcher      MAJ / RT : courir"),
+			TEXT("TAB / Select : la carte du monde      E / A : parler au marchand"),
+			TEXT("COMBAT (au tour par tour)"),
+			TEXT("Souris : clic sur une case bleue pour bouger, sur un Haschen au contact pour frapper"),
+			TEXT("Clavier / manette : fleches ou croix pour viser, ENTREE / A pour valider"),
+			TEXT("1 a 5 : l'action (attaque, lourde, garde, potion, special)   -   LB / RB : changer d'action"),
+			TEXT("X : potion      ESPACE / Y : finir le tour"),
 		};
 		for (const TCHAR* L : Lignes)
 		{
@@ -524,7 +442,7 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(0, 0, 80, 0))[Commandes()]
 	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(FMargin(90, 0, 0, 40))
 	[
-		SNew(STextBlock).Text(LOCTEXT("Entree", "ENTREE pour commencer")).Font(Police("Bold", 12, 300))
+		SNew(STextBlock).Text(LOCTEXT("Entree", "ENTREE  /  (A)  pour commencer")).Font(Police("Bold", 12, 300))
 		.ColorAndOpacity_Lambda([]() { return FSlateColor(FLinearColor(OR.R, OR.G, OR.B, 0.35f + 0.65f * Pulsation(2.5f))); })
 	]
 	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom).Padding(FMargin(0, 0, 40, 30))
@@ -581,8 +499,7 @@ TSharedRef<SWidget> SVespInterface::CarteDuLieu()
 				SNew(STextBlock).Font(Police("Bold", 10, 260)).ColorAndOpacity(OR)
 				.Text_Lambda([this]() {
 					const AVespPlayerController* J = Joueur.Get();
-					return J ? Texte(FString::Printf(TEXT("ACTE %s  -  ETAGE %d / %d"), *AVespPlayerController::Romain(J->Acte), J->Etage + 1, AVespPlayerController::NombreDEtages))
-					         : FText::GetEmpty();
+					return J ? Texte(TEXT("ACTE ") + AVespPlayerController::Romain(J->Acte) + TEXT("  -  ") + J->NomDeLActe().ToUpper()) : FText::GetEmpty();
 				})
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 2)
@@ -772,7 +689,7 @@ TSharedRef<SWidget> SVespInterface::BoutonAction(int32 Numero)
 {
 	const EVespAction Action = (EVespAction)Numero;
 	TSharedPtr<SButton> Bouton;
-	SAssignNew(Bouton, SButton).ButtonStyle(&StyleBouton)
+	SAssignNew(Bouton, SButton).IsFocusable(false).ButtonStyle(&StyleBouton)
 	.ToolTipText(Texte(AVespPlayerController::NomAction(Action) + TEXT(" : ") + AVespPlayerController::AideAction(Action)))
 	.IsEnabled_Lambda([this, Action]() { return Joueur.IsValid() && Joueur->Phase == EVespPhase::TourAylis && Joueur->ActionDisponible(Action); })
 	.OnClicked_Lambda([this, Action]() { if (Joueur.IsValid()) Joueur->ChoisirAction(Action); return FReply::Handled(); })
@@ -834,7 +751,7 @@ TSharedRef<SWidget> SVespInterface::BarreDActions()
 	}
 	Rangee->AddSlot().AutoWidth().Padding(12, 0, 0, 0).VAlign(VAlign_Center)
 	[
-		SNew(SButton).ButtonStyle(&StyleBouton).ToolTipText(LOCTEXT("PasserAide", "Finir le tour sans agir (ESPACE)"))
+		SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton).ToolTipText(LOCTEXT("PasserAide", "Finir le tour sans agir (ESPACE)"))
 		.IsEnabled_Lambda([this]() { return EnPhase((uint8)EVespPhase::TourAylis); })
 		.OnClicked_Lambda([this]() { if (Joueur.IsValid()) Joueur->PasserLeTour(); return FReply::Handled(); })
 		[
@@ -864,7 +781,89 @@ TSharedRef<SWidget> SVespInterface::BarreDActions()
 	];
 }
 
-// ===================== La carte de la route =====================
+// ===================== L'exploration =====================
+
+TSharedRef<SWidget> SVespInterface::CoucheExploration()
+{
+	auto Faites = [this]() {
+		const AVespPlayerController* J = Joueur.Get();
+		int32 Nombre = 0, Total = 0;
+		if (J)
+		{
+			for (const FVespNoeud& N : J->Noeuds)
+			{
+				if (N.Type != EVespSalle::Depart)
+				{
+					Total++;
+					Nombre += N.bVisite ? 1 : 0;
+				}
+			}
+		}
+		return FString::Printf(TEXT("Clairieres visitees : %d / %d"), Nombre, Total);
+	};
+	return SNew(SOverlay).Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::Exploration)); })
+	// En haut a gauche : ou l'on est
+	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Top).Padding(24)
+	[
+		SNew(SBorder).BorderImage(&Panneau).Padding(FMargin(20, 14))
+		[
+			SNew(SVerticalBox)
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Font(Police("Bold", 10, 260)).ColorAndOpacity(OR)
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(TEXT("ACTE ") + AVespPlayerController::Romain(Joueur->Acte) + TEXT("  -  ") + Joueur->NomDeLActe().ToUpper()) : FText::GetEmpty(); })
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 4)
+			[
+				SNew(STextBlock).Font(Police("Bold", 20)).ColorAndOpacity(TEXTE)
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->NomDuLieu()) : FText::GetEmpty(); })
+			]
+			+ SVerticalBox::Slot().AutoHeight()
+			[
+				SNew(STextBlock).Font(Police("Italic", 12)).ColorAndOpacity(DOUX)
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(TEXT("Vers l'est : ") + Joueur->NomDuBoss()) : FText::GetEmpty(); })
+			]
+			+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+			[
+				SNew(STextBlock).Font(Police("Regular", 11)).ColorAndOpacity(DOUX).Text_Lambda([Faites]() { return Texte(Faites()); })
+			]
+		]
+	]
+	// En bas a gauche : AYLIS
+	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(24)[FicheAylis()]
+	// Au centre, en bas : ce qu'on peut faire ici, puis les commandes
+	+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(FMargin(0, 0, 0, 28))
+	[
+		SNew(SVerticalBox)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 0, 0, 12)
+		[
+			SNew(SBorder).BorderImage(&Rond).BorderBackgroundColor(FLinearColor(0.45f, 0.8f, 0.95f, 0.22f)).Padding(FMargin(22, 8))
+			.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && !Joueur->Invite().IsEmpty()); })
+			[
+				SNew(STextBlock).Font(Police("Bold", 14, 120)).ColorAndOpacity(BRUME)
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->Invite()) : FText::GetEmpty(); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+		[
+			SNew(STextBlock).Font(Police("Regular", 11)).ColorAndOpacity(FLinearColor(0.66f, 0.63f, 0.75f, 0.75f))
+			.Text(LOCTEXT("CommandesExplo", "ZQSD / WASD / stick : marcher     MAJ / RT : courir     TAB / Select : la carte"))
+		]
+	]
+	// Au milieu : le message qui vient de tomber (repos, marchand, rune...), qui s'efface
+	+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Top).Padding(FMargin(0, 110, 0, 0))
+	[
+		SNew(SBorder).BorderImage(&Rond).BorderBackgroundColor(FLinearColor(0, 0, 0, 0.6f)).Padding(FMargin(24, 10))
+		.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->TempsMessage > 0.0f && !Joueur->MessageRoute.IsEmpty()); })
+		.ColorAndOpacity_Lambda([this]() { return FLinearColor(1, 1, 1, Joueur.IsValid() ? FMath::Clamp(Joueur->TempsMessage, 0.0f, 1.0f) : 0.0f); })
+		[
+			SNew(STextBlock).Font(Police("Italic", 15)).ColorAndOpacity(FLinearColor(0.6f, 0.95f, 0.66f))
+			.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->MessageRoute) : FText::GetEmpty(); })
+		]
+	];
+}
+
+// ===================== La carte du monde (TAB) =====================
 
 TSharedRef<SWidget> SVespInterface::CoucheRoute()
 {
@@ -887,8 +886,8 @@ TSharedRef<SWidget> SVespInterface::CoucheRoute()
 			SNew(STextBlock).Text(Texte(S == EVespSalle::Boss ? FString(TEXT("Boss")) : AVespPlayerController::NomSalle(S, 1))).Font(Police("Regular", 11)).ColorAndOpacity(DOUX)
 		];
 	};
-	return SNew(SBorder).BorderImage(&Voile).BorderBackgroundColor(FLinearColor(1, 1, 1, 0.82f)).VAlign(VAlign_Center)
-	.Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::ChoixSalle)); })
+	return SNew(SBorder).BorderImage(&Voile).BorderBackgroundColor(FLinearColor(1, 1, 1, 0.85f)).VAlign(VAlign_Center)
+	.Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::Exploration) && Joueur->bCarteOuverte); })
 	[
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
@@ -896,69 +895,17 @@ TSharedRef<SWidget> SVespInterface::CoucheRoute()
 			EnTete(TAttribute<FText>::CreateLambda([this]() {
 				       return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ACTE %s  -  %s"), *AVespPlayerController::Romain(Joueur->Acte), *Joueur->NomDeLActe().ToUpper())) : FText::GetEmpty();
 			       }),
-			       LOCTEXT("TitreRoute", "LA ROUTE DE LA VISION"),
-			       TAttribute<FText>::CreateLambda([this]() {
-				       const AVespPlayerController* J = Joueur.Get();
-				       return J && J->Aylis ? Texte(FString::Printf(TEXT("PV %d / %d   -   potions %d   -   eclats %d   -   runes %d"),
-				                                                   J->Aylis->Stats.Pv, J->Aylis->Stats.PvMax, J->Potions, J->Eclats, J->Runes.Num()))
-				                            : FText::GetEmpty();
-			       }))
+			       LOCTEXT("TitreCarte", "LA ROUTE DE LA VISION"),
+			       LOCTEXT("SousCarte", "Le sentier principal mene au boss, a l'est. Les embranchements cachent des tresors... et des elites."))
 		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 10, 0, 0)
-		[
-			SNew(STextBlock).Font(Police("Italic", 13)).ColorAndOpacity(FLinearColor(0.55f, 0.9f, 0.62f)).AutoWrapText(true)
-			.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->MessageRoute) : FText::GetEmpty(); })
-		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(50, 18, 50, 0))
+		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(60, 18, 60, 0))
 		[
 			SNew(SBorder).BorderImage(&Panneau).Padding(FMargin(10, 12))
 			[
-				SNew(SBox).HeightOverride(470)[CarteRoute.ToSharedRef()]
+				SNew(SBox).HeightOverride(540)[CarteRoute.ToSharedRef()]
 			]
 		]
-		// Ce que la salle survolee annonce
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 14, 0, 0)
-		[
-			SNew(SBox).HeightOverride(48)
-			[
-				SNew(SVerticalBox)
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
-				[
-					SNew(STextBlock).Font(Police("Bold", 16))
-					.ColorAndOpacity_Lambda([this]() {
-						const AVespPlayerController* J = Joueur.Get();
-						const int32 S = CarteRoute.IsValid() ? CarteRoute->Survol : -1;
-						return FSlateColor(J && J->Noeuds.IsValidIndex(S) ? AVespPlayerController::CouleurSalle(J->Noeuds[S].Type) : TEXTE);
-					})
-					.Text_Lambda([this]() {
-						const AVespPlayerController* J = Joueur.Get();
-						const int32 S = CarteRoute.IsValid() ? CarteRoute->Survol : -1;
-						if (!J || !J->Noeuds.IsValidIndex(S))
-						{
-							return LOCTEXT("ChoisisSalle", "Choisis une salle qui scintille (clic, ou touches 1 a 4)");
-						}
-						const FVespNoeud& N = J->Noeuds[S];
-						const bool bRaccourci = J->NoeudActuel >= 0 && N.Etage - J->Noeuds[J->NoeudActuel].Etage > 1;
-						return Texte(FString::Printf(TEXT("%s  -  etage %d%s"), *AVespPlayerController::NomSalle(N.Type, J->Acte), N.Etage + 1,
-						                             bRaccourci ? TEXT("  (raccourci)") : TEXT("")));
-					})
-				]
-				+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 4, 0, 0)
-				[
-					SNew(STextBlock).Font(Police("Regular", 13)).ColorAndOpacity(DOUX)
-					.Text_Lambda([this]() {
-						const AVespPlayerController* J = Joueur.Get();
-						const int32 S = CarteRoute.IsValid() ? CarteRoute->Survol : -1;
-						if (!J || !J->Noeuds.IsValidIndex(S))
-						{
-							return LOCTEXT("AideRoute", "Les pointilles orange sont des raccourcis : ils sautent des etages, mais menent au combat.");
-						}
-						return Texte(AVespPlayerController::AideSalle(J->Noeuds[S].Type));
-					})
-				]
-			]
-		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 12, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 16, 0, 0)
 		[
 			SNew(SHorizontalBox)
 			+ SHorizontalBox::Slot().AutoWidth()[Legende(EVespSalle::Combat)]
@@ -966,7 +913,12 @@ TSharedRef<SWidget> SVespInterface::CoucheRoute()
 			+ SHorizontalBox::Slot().AutoWidth()[Legende(EVespSalle::Evenement)]
 			+ SHorizontalBox::Slot().AutoWidth()[Legende(EVespSalle::Marchand)]
 			+ SHorizontalBox::Slot().AutoWidth()[Legende(EVespSalle::Repos)]
+			+ SHorizontalBox::Slot().AutoWidth()[Legende(EVespSalle::Tresor)]
 			+ SHorizontalBox::Slot().AutoWidth()[Legende(EVespSalle::Boss)]
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 14, 0, 0)
+		[
+			SNew(STextBlock).Text(LOCTEXT("FermerCarte", "TAB / Select : fermer la carte")).Font(Police("Regular", 12)).ColorAndOpacity(DOUX)
 		]
 	];
 }
@@ -1009,7 +961,7 @@ TSharedRef<SWidget> SVespInterface::CoucheRunes()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[Cartes]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 28, 0, 0)
 		[
-			SNew(STextBlock).Text(LOCTEXT("AideChoix", "Clique sur une carte, ou tape son numero")).Font(Police("Regular", 12)).ColorAndOpacity(DOUX)
+			SNew(STextBlock).Text(LOCTEXT("AideChoix", "Clique sur une carte, tape son numero, ou choisis avec les fleches / la manette et valide (ENTREE / A)")).Font(Police("Regular", 12)).ColorAndOpacity(DOUX)
 		]
 	];
 }
@@ -1058,7 +1010,7 @@ TSharedRef<SWidget> SVespInterface::CoucheMarchand()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[Cartes]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 30, 0, 0)
 		[
-			GrandBouton(LOCTEXT("QuitterMarchand", "REPRENDRE LA ROUTE  (ENTREE)"), OR_PALE, [this]() { if (Joueur.IsValid()) Joueur->QuitterMarchand(); })
+			GrandBouton(LOCTEXT("QuitterMarchand", "REPRENDRE LA ROUTE  (ECHAP / B)"), OR_PALE, [this]() { if (Joueur.IsValid()) Joueur->QuitterMarchand(); })
 		]
 	];
 }
@@ -1069,13 +1021,17 @@ TSharedRef<SWidget> SVespInterface::CoucheEvenement()
 {
 	auto Choix = [this](int32 c) -> TSharedRef<SWidget> {
 		TSharedRef<TWeakPtr<SButton>> Lien = MakeShared<TWeakPtr<SButton>>();
-		TSharedRef<SButton> Bouton = SNew(SButton).ButtonStyle(&StyleBouton)
+		TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton)
 		.OnClicked_Lambda([this, c]() { if (Joueur.IsValid()) Joueur->ChoisirEvenement(c); return FReply::Handled(); })
 		[
 			SNew(SBox).WidthOverride(360)
 			[
 				SNew(SBorder).Padding(FMargin(20, 14))
-				.BorderImage_Lambda([this, Lien]() { const TSharedPtr<SButton> B = Lien->Pin(); return B.IsValid() && B->IsHovered() ? &CarteChoisie : &Carte; })
+				.BorderImage_Lambda([this, Lien, c]() {
+					const TSharedPtr<SButton> B = Lien->Pin();
+					const bool bChoisie = Joueur.IsValid() && Joueur->bSelectionVisible && Joueur->SelectionMenu == c;
+					return (B.IsValid() && B->IsHovered()) || bChoisie ? &CarteChoisie : &Carte;
+				})
 				[
 					SNew(SVerticalBox)
 					+ SVerticalBox::Slot().AutoHeight()
@@ -1144,7 +1100,7 @@ TSharedRef<SWidget> SVespInterface::CoucheDialogue()
 		if (O == TEXT("Ashka")) return FLinearColor(1.0f, 0.45f, 0.65f);
 		return FLinearColor(1.0f, 0.45f, 0.3f);
 	};
-	return SNew(SButton).ButtonStyle(&StyleBouton)
+	return SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton)
 	.Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::Dialogue)); })
 	.OnClicked_Lambda([this]() { if (Joueur.IsValid()) Joueur->AvancerDialogue(); return FReply::Handled(); })
 	[

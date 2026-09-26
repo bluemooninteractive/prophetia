@@ -4,7 +4,8 @@
 //   Pendant le combat : en haut a gauche l'acte, le lieu et le journal ; en haut au centre "TON TOUR" ;
 //   en bas a gauche la fiche d'AYLIS (jauges de pv et de rage, potions, eclats, runes, etats) ; en bas au centre
 //   la barre des 5 actions (de vrais boutons, avec une bulle d'aide au survol).
-//   Par-dessus, selon le moment : la carte de la route, les runes, le marchand, un evenement, le dialogue,
+//   En exploration : ou l'on est, la fiche d'AYLIS, les commandes ; TAB ouvre la carte du monde.
+//   Par-dessus, selon le moment : les runes, le marchand, un evenement, le dialogue,
 //   le titre d'un nouvel acte, et la fin (victoire ou vision brisee).
 //
 // Slate se "branche" sur le jeu avec des fonctions lambda : a chaque image, un texte ou une couleur
@@ -34,6 +35,7 @@ private:
 	// Les morceaux de l'interface
 	TSharedRef<SWidget> CoucheTitre();
 	TSharedRef<SWidget> CoucheCombat();
+	TSharedRef<SWidget> CoucheExploration();
 	TSharedRef<SWidget> CarteDuLieu();
 	TSharedRef<SWidget> PastilleDuTour();
 	TSharedRef<SWidget> FicheAylis();

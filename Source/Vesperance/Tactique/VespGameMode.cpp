@@ -4,6 +4,7 @@
 #include "VespPlayerController.h"
 #include "VespHUD.h"
 #include "VespLucioles.h"
+#include "VespMonde.h"
 #include "Camera/CameraActor.h"
 #include "Camera/CameraComponent.h"
 #include "EngineUtils.h"
@@ -21,11 +22,10 @@
 #include "Materials/MaterialInstanceDynamic.h"
 
 // ===================== La nuit de la Foret des Brumes =====================
-// On transforme le niveau "Basic" : la lune a la place du soleil, un ciel sombre, une brume bleu-vert,
-// un sol de mousse sous l'arene, et des lumieres magiques (lanternes, autels) autour.
+// On transforme le niveau "Basic" : la lune a la place du soleil, un ciel sombre, une brume bleu-vert.
+// (le sol, la foret, les lanternes : c'est le monde de l'acte, VespMonde, qui les construit)
 static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionImage)
 {
-	const FVector Centre = Grille->GetActorLocation();
 	for (TActorIterator<ADirectionalLight> It(Monde); It; ++It)
 	{
 		UDirectionalLightComponent* Lune = Cast<UDirectionalLightComponent>(It->GetLightComponent());
@@ -45,26 +45,6 @@ static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionI
 		Brume->SetFogInscatteringColor(FLinearColor(0.05f, 0.12f, 0.16f));
 		Brume->SetVolumetricFog(true);
 	}
-	// Un grand tapis de mousse sombre sous l'arene (il cache le sol a damier du niveau)
-	UStaticMesh* Plan = LoadObject<UStaticMesh>(nullptr, TEXT("/Engine/BasicShapes/Plane.Plane"));
-	UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
-	AStaticMeshActor* Mousse = Monde->SpawnActor<AStaticMeshActor>(Centre - FVector(0, 0, 4), FRotator::ZeroRotator);	// sous la grille
-	Mousse->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
-	Mousse->GetStaticMeshComponent()->SetStaticMesh(Plan);
-	Mousse->SetActorScale3D(FVector(60.0f, 60.0f, 1.0f));
-	UMaterialInstanceDynamic* Couleur = UMaterialInstanceDynamic::Create(Base, Mousse);
-	Couleur->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.02f, 0.05f, 0.04f));
-	Mousse->GetStaticMeshComponent()->SetMaterial(0, Couleur);
-	// Les lumieres magiques : des lanternes dorees le long de l'arene, et deux autels (violet et cyan)
-	struct FLumiere { FVector Position; FLinearColor Couleur; float Intensite; float Rayon; bool bAutel; };
-	const FLumiere Lumieres[] = {
-		{FVector(-450, -700, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
-		{FVector(450, -300, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
-		{FVector(-450, 450, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
-		{FVector(300, 700, 80), FLinearColor(1.0f, 0.65f, 0.3f), 900.0f, 450.0f, false},
-		{FVector(-500, -150, 160), FLinearColor(0.7f, 0.45f, 1.0f), 1800.0f, 650.0f, true},
-		{FVector(500, 350, 160), FLinearColor(0.4f, 0.9f, 1.0f), 1800.0f, 650.0f, true},
-	};
 	// L'image : une exposition fixe (sinon Unreal eclaircit la nuit tout seul, comme un appareil photo),
 	// des couleurs un peu plus froides, et les bords de l'ecran assombris
 	APostProcessVolume* Image = Monde->SpawnActor<APostProcessVolume>();
@@ -83,26 +63,6 @@ static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionI
 	R.bOverride_BloomIntensity = true;
 	R.BloomIntensity = 1.2f;
 
-	for (const FLumiere& L : Lumieres)
-	{
-		APointLight* Lampe = Monde->SpawnActor<APointLight>(Centre + L.Position, FRotator::ZeroRotator);
-		Lampe->SetMobility(EComponentMobility::Movable);
-		Lampe->PointLightComponent->SetLightColor(L.Couleur);
-		Lampe->PointLightComponent->SetIntensity(L.Intensite);
-		Lampe->PointLightComponent->SetAttenuationRadius(L.Rayon);
-
-		// Le modele sous la lumiere : une lanterne, ou un autel a bougies (s'ils sont importes dans /Game/Decor)
-		UStaticMesh* Objet = L.bAutel ? Grille->ModeleDuDecor({TEXT("shrine")}) : Grille->ModeleDuDecor({TEXT("lantern")});
-		if (Objet)
-		{
-			FVector Sol = Centre + L.Position;
-			Sol.Z = Centre.Z;
-			AStaticMeshActor* Decor = Monde->SpawnActor<AStaticMeshActor>(Sol, FRotator(0, L.bAutel ? 90.0f : 0.0f, 0));
-			Decor->GetStaticMeshComponent()->SetMobility(EComponentMobility::Movable);
-			Decor->GetStaticMeshComponent()->SetStaticMesh(Objet);
-			Decor->SetActorScale3D(FVector(Grille->EchelleSur(Objet, L.bAutel ? 180.0f : 110.0f, L.bAutel ? 160.0f : 70.0f)));
-		}
-	}
 }
 
 // Le dossier ou chaque personnage range son modele 3D
@@ -132,7 +92,9 @@ void AVespGameMode::BeginPlay()
 	Super::BeginPlay();
 	UWorld* Monde = GetWorld();
 
-	// 1. L'arene, au centre du monde (un peu au-dessus du sol du niveau)
+	// 1. Le monde de l'acte (construit par le PlayerController), et l'arene de combat (elle se deplace de
+	//    clairiere en clairiere)
+	AVespMonde* LeMonde = Monde->SpawnActor<AVespMonde>(FVector(0, 0, 5), FRotator::ZeroRotator);
 	AVespGrille* Grille = Monde->SpawnActor<AVespGrille>(FVector(0, 0, 5), FRotator::ZeroRotator);
 
 	AmbianceDeNuit(Monde, Grille, Exposition);
@@ -158,6 +120,6 @@ void AVespGameMode::BeginPlay()
 	if (AVespPlayerController* Joueur = Cast<AVespPlayerController>(Monde->GetFirstPlayerController()))
 	{
 		Joueur->SetViewTarget(Camera);
-		Joueur->Commencer(Grille, Aylis, Camera);
+		Joueur->Commencer(Grille, LeMonde, Aylis, Camera);
 	}
 }

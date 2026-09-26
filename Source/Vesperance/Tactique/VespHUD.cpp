@@ -67,7 +67,7 @@ void AVespHUD::DrawHUD()
 
 	// La fiche du Haschen sous la souris
 	FIntPoint Case;
-	if (!Joueur->CaseSousLaSouris(Case) || !Joueur->Grille)
+	if (!Joueur->CaseVisee(Case) || !Joueur->Grille)
 	{
 		return;
 	}
