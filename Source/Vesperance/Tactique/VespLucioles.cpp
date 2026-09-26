@@ -16,10 +16,10 @@ void AVespLucioles::BeginPlay()
 	UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	// Les couleurs de la prophetie : cyan, violet, rose
 	const FLinearColor Couleurs[3] = {FLinearColor(0.55f, 0.9f, 0.95f), FLinearColor(0.8f, 0.6f, 1.0f), FLinearColor(1.0f, 0.75f, 0.9f)};
-	for (int32 i = 0; i < 9; i++)
+	for (int32 i = 0; i < 26; i++)
 	{
 		FFeuFollet F;
-		F.Centre = GetActorLocation() + FVector(FMath::FRandRange(-450.0f, 450.0f), FMath::FRandRange(-700.0f, 700.0f), FMath::FRandRange(90.0f, 220.0f));
+		F.Centre = GetActorLocation() + FVector(FMath::FRandRange(-500.0f, 1600.0f), FMath::FRandRange(-1700.0f, 1700.0f), FMath::FRandRange(70.0f, 260.0f));
 		F.Rayon = FMath::FRandRange(80.0f, 220.0f);
 		F.Vitesse = FMath::FRandRange(0.25f, 0.6f) * (FMath::RandBool() ? 1 : -1);
 		F.Phase = FMath::FRandRange(0.0f, 6.28f);

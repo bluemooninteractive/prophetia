@@ -24,6 +24,26 @@ enum class EVespStyle : uint8
 	Chargeur,	// il avance de 4 cases d'un coup
 };
 
+// Les talents d'un Haschen (on peut en cumuler plusieurs : Soigneur | Invocateur...)
+namespace VespCapacite
+{
+	constexpr int32 Soigneur = 1;		// il soigne ses allies blesses
+	constexpr int32 Explosif = 2;		// il explose en tombant (les cases voisines encaissent)
+	constexpr int32 Invocateur = 4;		// il appelle des renforts tous les 3 tours
+	constexpr int32 Sauteur = 8;		// il bondit a cote d'AYLIS un tour sur deux
+	constexpr int32 Vampire = 16;		// ses coups le soignent
+	constexpr int32 Attire = 32;		// ses tirs tirent AYLIS vers lui
+}
+
+// Ce que ses coups infligent en plus des degats
+namespace VespEffetCoup
+{
+	constexpr int32 Aucun = 0;
+	constexpr int32 Poison = 1;
+	constexpr int32 Gel = 2;			// la cible ne peut plus bouger a son prochain tour
+	constexpr int32 Brulure = 3;
+}
+
 // Les stats d'un combattant, comme dans le prototype (types.h)
 USTRUCT(BlueprintType)
 struct FVespStats
@@ -36,8 +56,13 @@ struct FVespStats
 	UPROPERTY(EditAnywhere) int32 Defense = 1;
 	UPROPERTY(EditAnywhere) int32 ChanceCritique = 10;	// sur 100
 	UPROPERTY(EditAnywhere) EVespStyle Style = EVespStyle::Melee;
-	UPROPERTY(EditAnywhere) bool bAttaquePoison = false;	// ses coups peuvent empoisonner (le chaman)
-	UPROPERTY(EditAnywhere) int32 Boss = 0;				// 0 = pas un boss, 1 = Skarn
+	UPROPERTY(EditAnywhere) int32 Effet = 0;				// VespEffetCoup : poison, gel, brulure
+	UPROPERTY(EditAnywhere) int32 Capacites = 0;			// VespCapacite : soigneur, explosif...
+	UPROPERTY(EditAnywhere) int32 Armure = 0;				// ses plaques : tant qu'il en reste, les coups font 4 fois moins mal
+	UPROPERTY(EditAnywhere) int32 ArmureMax = 0;			// (seul un coup lourd fissure une plaque)
+	UPROPERTY(EditAnywhere) int32 Pas = 0;				// cases par tour (0 : selon son style)
+	UPROPERTY(EditAnywhere) int32 Portee = 4;				// un lanceur tire jusqu'a cette distance
+	UPROPERTY(EditAnywhere) int32 Boss = 0;				// 0 = pas un boss, sinon le numero de l'acte
 };
 
 UCLASS()
@@ -71,7 +96,14 @@ public:
 	float ReductionDegats = 1.0f;		// 0.5 quand AYLIS est en garde : les coups font 2 fois moins mal
 	int32 Poison = 0;					// les tours de poison qui restent (-3 pv par tour)
 	int32 Brulure = 0;					// les tours de brulure qui restent (-4 pv par tour)
-	int32 Compteur = 0;					// les tours d'un boss (pour ses attaques speciales)
+	int32 Compteur = 0;					// ses tours (pour les attaques speciales, les sauts, les invocations)
+	int32 Gel = 0;						// > 0 : fige par le givre, il ne bouge pas a son prochain tour
+	int32 TempsBrise = 0;				// > 0 : son armure vient de voler en eclats, il est sonne
+	bool bAExplose = false;
+	bool bPhaseDeux = false;			// un boss a moitie de ses pv change de strategie
+	int32 Appels = 0;
+	bool bVientDArriver = false;		// un renfort : il ne joue pas le tour de son arrivee					// les renforts deja appeles (Ashka)
+	void Bondir(FIntPoint Arrivee);		// un saut (ou une faille) : il disparait, et reapparait ailleurs
 
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float Vitesse = 380.0f;			// cm par seconde
 	UPROPERTY(EditAnywhere, Category = "Vesperance") float Taille = 170.0f;			// la hauteur du modele, en cm
@@ -109,4 +141,17 @@ private:
 	float TempsTexte = 0.0f;		// > 0 : le texte au-dessus de la tete est encore affiche
 	float TempsEclat = 0.0f;		// > 0 : il vient d'etre touche, sa lueur eclate un instant
 	float IntensiteLueur = 0.0f;
+
+	// Le "jeu" du corps : ce qui rend chaque coup et chaque pas vivant
+	float TempsElan = 0.0f;			// > 0 : il se fend vers sa cible
+	FVector DirectionElan = FVector::ZeroVector;
+	FVector Recul = FVector::ZeroVector;	// repousse par un coup, il revient doucement a sa place
+	float TempsEcrase = 0.0f;		// > 0 : il s'ecrase un instant sous l'impact
+	float EchelleModele = 1.0f;
+	float DistanceMarche = 0.0f;	// pour le petit rebond a chaque pas
+	float TempsVie = 0.0f;
+	float DureeTexte = 1.0f;
+	FVector DirectionCoup = FVector::ForwardVector;	// d'ou vient le coup qu'il encaisse
+	FLinearColor CouleurCoup = FLinearColor::White;
+	float RetardImpact = 0.0f;		// le coup vient de loin (fleche, sort) : l'eclat attend qu'il arrive
 };

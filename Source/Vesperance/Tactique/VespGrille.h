@@ -1,8 +1,15 @@
-// VespGrille : l'arene de combat, une grille de 12 x 8 cases vue du dessus.
+// VespGrille : l'arene de combat, une grille de 12 x 8 cases vue du dessus, et le monde tout autour.
 //
-// C'est la meme idee que dans le prototype 2D (regles.cpp) : chaque case est libre ou bloquee (rocher, arbre...),
-// et un "parcours en largeur" calcule les cases qu'AYLIS peut atteindre ce tour-ci.
-// Les cases sont dessinees avec des "instances" : un seul modele (un carre plat), repete sur chaque case.
+// C'est la meme idee que dans le prototype 2D (regles.cpp) : chaque case a un terrain, et un "parcours en largeur"
+// calcule les cases qu'AYLIS peut atteindre ce tour-ci. Les terrains :
+//   '.' sol    '#' rocher    'T' arbre         (les rochers et les arbres bloquent)
+//   'o' boue : on peut y entrer, mais la marche s'arrete la (les marais)
+//   'x' eaux toxiques / lave / dechirure du Voile : on y encaisse des degats en finissant son tour dessus
+//   '^' dalle piegee : les pointes se levent un tour sur deux (la forteresse)
+//   '*' glace : on glisse plus loin que prevu (le col)
+//   '@' faille du Voile : elle emporte qui s'y arrete vers une autre faille (Karn)
+// Chaque acte a son monde : foret, bois mort, marais, forteresse, col enneige, terres de cendre, cite voilee.
+// Les cases sont dessinees avec des "instances" : un seul modele, repete des milliers de fois.
 #pragma once
 
 #include "CoreMinimal.h"
@@ -32,6 +39,15 @@ public:
 
 	bool EstDansArene(FIntPoint Case) const;
 	bool EstBloquee(FIntPoint Case) const;
+	TCHAR TerrainSur(FIntPoint Case) const;
+	bool EstDangereuse(FIntPoint Case) const;		// des eaux toxiques, de la lave, ou une dalle levee
+	void ChangerTerrain(FIntPoint Case, TCHAR Terrain);	// la maree monte, la lave coule...
+	void LeverPieges(bool bLeves);
+	bool PiegesLeves() const { return bPiegesLeves; }
+	void Glisser(FIntPoint Depart, TArray<FIntPoint>& Chemin) const;	// la glace prolonge un chemin
+	bool AutreFaille(FIntPoint Case, FIntPoint& Sortie) const;
+	// Les cases libres (personne dessus, pas un obstacle), a partir d'une colonne ; sans les terrains dangereux
+	TArray<FIntPoint> CasesLibres(int32 ColonneMin = 0) const;
 
 	// Qui est sur quelle case : une unite "occupe" sa case (on ne peut pas passer a travers)
 	void Occuper(AVespUnite* Unite);
@@ -39,50 +55,63 @@ public:
 	AVespUnite* UniteSur(FIntPoint Case) const;
 
 	// Pour chaque case, le nombre de pas depuis Depart (-1 = inaccessible), sans depasser PasMax
-	// (les cases occupees par une unite sont bloquees)
+	// (les cases occupees par une unite sont bloquees ; la boue arrete la marche)
 	TArray<int32> CasesAtteignables(FIntPoint Depart, int32 PasMax) const;
 
 	// Le chemin case par case de Depart a Arrivee (vide si impossible), en PasMax pas au plus
 	TArray<FIntPoint> Chemin(FIntPoint Depart, FIntPoint Arrivee, int32 PasMax) const;
 
 	// Un Haschen s'approche de sa cible : le chemin (au plus PasMax cases) qui le rapproche le plus d'elle,
-	// en contournant les obstacles. Il s'arrete au contact.
+	// en contournant les obstacles et les terrains dangereux. Il s'arrete au contact.
 	TArray<FIntPoint> ApprocheVers(FIntPoint Depart, FIntPoint Cible, int32 PasMax) const;
 
-	// Un decor KayKit importe dans /Game/Decor : le premier dont le nom contient un des mots (ou rien)
+	// Un decor importe dans /Game/Decor : le premier dont le nom contient un des mots (ou rien)
 	UStaticMesh* ModeleDuDecor(std::initializer_list<const TCHAR*> Noms) const;
 	float EchelleSur(UStaticMesh* Modele, float Hauteur, float LargeurMax) const;
 
 	// Allume en bleu les cases accessibles (ou les eteint toutes avec un tableau vide)
 	void AfficherCasesAtteignables(const TArray<int32>& Pas);
-
 	// Encadre la case sous la souris (Case hors de l'arene = rien)
 	void AfficherSurvol(FIntPoint Case);
-
-	// Les cases rouges d'une attaque annoncee par un boss (elles exploseront a son prochain tour)
+	// Les cases rouges d'une attaque annoncee (elles exploseront au prochain tour)
 	void AfficherDanger(const TArray<FIntPoint>& Cases);
 
-	// Un nouveau combat : une autre carte (0 a 2 = la foret, 3 a 5 = le Bois des Pendus), et plus personne sur les cases
+	// Une carte dessinee a la main (0 a 3 la foret, 4 le cercle de Skarn, 5 a 8 le Bois des Pendus, 9 la Matriarche)
 	void ChangerCarte(int32 Numero);
+	// La carte d'un combat : dessinee a la main (actes I et II) ou inventee, avec les terrains de l'acte
+	void PreparerCarte(int32 LActe, bool bBoss);
 	void ViderOccupants();
+	int32 GetActe() const { return Acte; }
 
 protected:
 	virtual void BeginPlay() override;
 
 private:
 	int32 Index(FIntPoint Case) const { return Case.Y * Colonnes + Case.X; }
+	void RemplirDepuis(int32 Numero);
+	bool GenererCarte(int32 LActe, bool bBoss);
 	void ConstruireCarte();
+	void ConstruireTerrain();
+	void ConstruireEnvironnement();		// le monde tout autour de l'arene
 
-
-	// La carte, une lettre par case : '.' = sol, '#' = rocher, 'T' = arbre
+	// La carte, une lettre par case
 	TArray<TCHAR> Carte;
-	bool bVraisArbres = false;
-	UPROPERTY() TObjectPtr<UStaticMesh> Sapin;			// les arbres de la foret (acte I)
-	UPROPERTY() TObjectPtr<UStaticMesh> ArbreMort;		// les arbres morts du Bois des Pendus (acte II)
-	UPROPERTY() TObjectPtr<UStaticMesh> ConeDeSecours;
-	bool bVraisRochers = false;
+	int32 Acte = 1;
+	bool bPiegesLeves = false;
 	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Occupants;	// une case par position : l'unite qui s'y tient (ou rien)
 
+	// Les modeles
+	UPROPERTY() TObjectPtr<UStaticMesh> Sapin;			// les arbres vivants
+	UPROPERTY() TObjectPtr<UStaticMesh> ArbreMort;		// les arbres morts
+	UPROPERTY() TObjectPtr<UStaticMesh> Plan;
+	UPROPERTY() TObjectPtr<UStaticMesh> Cube;
+	UPROPERTY() TObjectPtr<UStaticMesh> Cone;
+	UPROPERTY() TObjectPtr<UStaticMesh> Sphere;
+	UPROPERTY() TObjectPtr<UStaticMesh> Cylindre;
+	bool bVraisArbres = false, bVraisRochers = false, bVraisBuissons = false, bVraiesHerbes = false, bVraiesFleurs = false;
+	bool bVraisChampignons = false, bVraisTroncs = false, bVraiesTombes = false;
+
+	// L'arene
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USceneComponent> Racine;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Sol;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Rochers;
@@ -90,8 +119,45 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Accessibles;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Survol;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> Danger;
-	int32 NumeroCarte = 0;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrBoue;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrPoison;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrPieges;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrGlace;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> TerrFailles;
 
-	// Les couleurs : un materiau de base d'Unreal, recolore
+	// Le monde autour (des milliers d'instances : arbres, buissons, herbes, colonnes, cristaux...)
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTerre;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvArbres;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvRochers;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvBuissons;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvHerbes;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvFleurs;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvChampignons;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTroncs;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTombes;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvTaches;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvChemin;
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvSpecial;	// eau, colonnes, glace, lave, cristaux
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UInstancedStaticMeshComponent> EnvBlocs;	// blocs tombes, congeres, obsidienne
+
+	// Les couleurs (recolorees a chaque acte)
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurSol;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurArbres;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurTerre;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurBuissons;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurHerbes;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurFleurs;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurChampignons;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurTaches;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurChemin;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurPoison;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> PiegeBaisse;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> PiegeLeve;
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SpecialMat;			// eclaire par la scene
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SpecialLumineux;		// qui brille
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurBlocs;
+	int32 EnvironnementConstruit = -1;		// l'acte du monde deja pose (on ne le refait qu'en changeant d'acte)
+
 	UMaterialInstanceDynamic* Couleur(UInstancedStaticMeshComponent* Composant, FLinearColor Teinte);
+	UMaterialInstanceDynamic* Lumineux(UInstancedStaticMeshComponent* Composant, FLinearColor Teinte);
 };
