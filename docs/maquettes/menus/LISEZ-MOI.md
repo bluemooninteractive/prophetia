@@ -9,3 +9,5 @@ Maquettes cliquables (format "Design" de claude.ai), en attente : on les retrava
   chemins qui s'illuminent, bouton Debloquer fonctionnel (eclats de memoire).
 
 Pistes notees pour la suite : apparition des objets un par un, parallaxe du ciel, puis recodage dans Unreal (Slate).
+
+- EcranTitre.dc.html : l'ecran titre dans la meme vibe (sceau de la prophetie qui se dessine, astrolabe, reflet sur le titre, menu qui arrive ligne par ligne, AYLIS sur la colline, feux follets).

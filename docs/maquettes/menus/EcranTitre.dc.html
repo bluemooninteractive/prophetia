@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Écran titre</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&amp;family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#07050D;font-family:'Alegreya Sans',Georgia,serif;color:#EFE8F8}
+a{color:#E2B95C}a:hover{color:#F3D48E}
+button{font-family:inherit}
+@keyframes scintille{0%,100%{opacity:.12}50%{opacity:.9}}
+@keyframes tourne{from{transform:rotate(0)}to{transform:rotate(360deg)}}
+@keyframes tourne-inverse{from{transform:rotate(360deg)}to{transform:rotate(0)}}
+@keyframes trace{from{stroke-dashoffset:900}to{stroke-dashoffset:0}}
+@keyframes apparait{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes lueur{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:.75;transform:scale(1.06)}}
+@keyframes reflet{0%{background-position:-600px 0}60%,100%{background-position:900px 0}}
+@keyframes follet{0%{transform:translate(0,0);opacity:0}15%{opacity:1}50%{transform:translate(40px,-60px)}85%{opacity:.9}100%{transform:translate(-20px,-130px);opacity:0}}
+@keyframes vent{0%,100%{transform:skewX(0)}50%{transform:skewX(-3deg)}}
+.etoile{animation:scintille ease-in-out infinite}
+.orbite{animation:tourne 140s linear infinite}
+.orbite-inverse{animation:tourne-inverse 200s linear infinite}
+.sceau{animation:tourne 60s linear infinite}
+.trace{stroke-dasharray:900;animation:trace 3.2s cubic-bezier(.4,0,.2,1) both}
+.lueur{animation:lueur 7s ease-in-out infinite}
+.titre{background:linear-gradient(100deg,#EFE8F8 0%,#EFE8F8 42%,#FFF6DC 50%,#EFE8F8 58%,#EFE8F8 100%);background-size:600px 100%;background-repeat:no-repeat;background-color:#EFE8F8;-webkit-background-clip:text;background-clip:text;color:transparent;animation:reflet 7s ease-in-out 2.5s infinite}
+.apparait{animation:apparait .9s cubic-bezier(.2,.8,.2,1) both}
+.follet{animation:follet ease-in-out infinite}
+.cape{transform-origin:50% 0;animation:vent 4s ease-in-out infinite}
+.choix{position:relative;display:flex;align-items:center;justify-content:center;gap:18px;height:48px;padding:0 24px;border:none;background:transparent;cursor:pointer;font-family:Cinzel,Georgia,serif;font-size:19px;letter-spacing:6px;color:#8E86A6;transition:color .25s, letter-spacing .35s}
+.choix::before,.choix::after{content:"";width:0;height:1px;background:#E2B95C;transition:width .35s ease}
+.choix:hover{color:#EFE8F8;letter-spacing:8px}
+.choix:hover::before,.choix:hover::after{width:44px}
+.choix-actif{color:#E2B95C}
+.choix-actif::before,.choix-actif::after{width:44px}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 900px; overflow: hidden; background: #07050D; color: #EFE8F8; font-family: 'Alegreya Sans', Georgia, serif;">
+
+<!-- Le ciel -->
+<sc-for list="{{etoiles}}" as="e" hint-placeholder-count="110">
+<span class="etoile" style="{{e.style}}"></span>
+</sc-for>
+
+<!-- La lumiere de la prophetie, et l'astrolabe autour du sceau -->
+<div class="lueur" style="position: absolute; left: 420px; top: -40px; width: 600px; height: 600px; border-radius: 50%; background: radial-gradient(circle, rgba(123,92,214,0.30) 0%, rgba(123,92,214,0.06) 45%, rgba(7,5,13,0) 70%);"></div>
+<div class="orbite" style="position: absolute; left: 470px; top: 10px; width: 500px; height: 500px; box-sizing: border-box; border-radius: 50%; border: 1px dashed rgba(176,140,255,0.16);"></div>
+<div class="orbite-inverse" style="position: absolute; left: 330px; top: -130px; width: 780px; height: 780px; box-sizing: border-box; border-radius: 50%; border: 1px dashed rgba(176,140,255,0.09);"></div>
+
+<!-- Le sceau de la prophetie : il se dessine, puis tourne lentement -->
+<div style="position: absolute; left: 600px; top: 120px; width: 240px; height: 240px;">
+<svg class="sceau" width="240" height="240" viewBox="0 0 240 240" fill="none" stroke="#B08CFF" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; left: 0; top: 0;">
+<circle class="trace" cx="120" cy="120" r="112" stroke="rgba(176,140,255,0.55)"></circle>
+<circle class="trace" cx="120" cy="120" r="96" stroke-dasharray="2 10" stroke="rgba(226,185,92,0.6)"></circle>
+<path class="trace" d="M120 8 L120 32 M120 208 L120 232 M8 120 L32 120 M208 120 L232 120" stroke="rgba(226,185,92,0.7)"></path>
+</svg>
+<svg width="240" height="240" viewBox="0 0 240 240" fill="none" stroke="#E2B95C" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="position: absolute; left: 0; top: 0;">
+<path class="trace" d="M120 44 L152 104 L196 120 L152 136 L120 196 L88 136 L44 120 L88 104 Z" style="animation-delay: .4s;"></path>
+<path class="trace" d="M78 120 C92 98 106 90 120 90 C134 90 148 98 162 120 C148 142 134 150 120 150 C106 150 92 142 78 120 Z" stroke="#EFE8F8" style="animation-delay: 1s;"></path>
+<circle cx="120" cy="120" r="9" fill="#E2B95C" stroke="none" class="apparait" style="animation-delay: 2.2s;"></circle>
+</svg>
+</div>
+
+<!-- Le titre -->
+<div class="apparait" style="position: absolute; left: 0; top: 388px; width: 1440px; display: flex; flex-direction: column; align-items: center; gap: 14px; animation-delay: 1.4s;">
+<div style="font-size: 13px; letter-spacing: 8px; color: #6E6684;">BLUEMOON INTERACTIVE PRÉSENTE</div>
+<h1 class="titre" style="margin: 0; font-family: Cinzel, Georgia, serif; font-weight: 500; font-size: 104px; letter-spacing: 30px; line-height: 1; padding-left: 30px;">VESPERANCE</h1>
+<div style="font-size: 20px; font-style: italic; letter-spacing: 1px; color: #A79FBD;">Une vision. Une route. Sept terres à traverser.</div>
+</div>
+
+<!-- Le menu : chaque ligne arrive a son tour -->
+<nav aria-label="Menu principal" style="position: absolute; left: 0; top: 590px; width: 1440px; display: flex; flex-direction: column; align-items: center; gap: 4px;">
+<sc-for list="{{menu}}" as="m" hint-placeholder-count="5">
+<sc-if value="{{m.lien}}" hint-placeholder-val="{{false}}">
+<a class="choix apparait" href="{{m.href}}" style="{{m.style}}">{{m.nom}}</a>
+</sc-if>
+<sc-if value="{{m.bouton}}" hint-placeholder-val="{{true}}">
+<button class="{{m.classe}}" onClick="{{m.pick}}" style="{{m.style}}">{{m.nom}}</button>
+</sc-if>
+<sc-if value="{{m.detail}}" hint-placeholder-val="{{false}}">
+<div class="apparait" style="{{m.styleDetail}}">{{m.texte}}</div>
+</sc-if>
+</sc-for>
+</nav>
+
+<!-- Les collines, et AYLIS qui regarde le ciel -->
+<svg width="1440" height="220" viewBox="0 0 1440 220" aria-hidden="true" style="position: absolute; left: 0; bottom: 0;">
+<path d="M0 120 C180 80 320 110 480 96 C640 82 760 60 920 88 C1080 116 1240 70 1440 92 L1440 220 L0 220 Z" fill="#120C22"></path>
+<path d="M0 170 C160 140 300 150 420 128 C520 110 600 132 700 150 C860 178 1040 150 1200 160 C1300 166 1380 150 1440 156 L1440 220 L0 220 Z" fill="#0B0716"></path>
+</svg>
+<div style="position: absolute; left: 392px; bottom: 90px; width: 44px; height: 70px;">
+<svg width="44" height="70" viewBox="0 0 44 70" aria-label="AYLIS">
+<path class="cape" d="M12 22 C8 36 6 52 4 66 L30 66 C32 50 31 36 28 22 Z" fill="#1A2447"></path>
+<path d="M20 4 C13 4 10 10 11 16 C11 21 15 24 20 24 C25 24 29 21 29 16 C30 10 27 4 20 4 Z" fill="#20305A"></path>
+<path d="M20 1 L16 6 M20 1 L24 6" stroke="#20305A" stroke-width="2"></path>
+<path d="M30 30 L40 12" stroke="#E2B95C" stroke-width="1.6" stroke-linecap="round"></path>
+</svg>
+</div>
+
+<!-- Les feux follets -->
+<sc-for list="{{follets}}" as="f" hint-placeholder-count="14">
+<span class="follet" style="{{f.style}}"></span>
+</sc-for>
+
+<!-- Le pied -->
+<div class="apparait" style="position: absolute; left: 60px; bottom: 30px; font-size: 13px; letter-spacing: 3px; color: #6E6684; animation-delay: 3s;"><b style="color: #A79FBD;">A</b> · <b style="color: #A79FBD;">ENTRÉE</b>  choisir</div>
+<div class="apparait" style="position: absolute; right: 60px; bottom: 30px; font-size: 13px; letter-spacing: 1px; color: #6E6684; animation-delay: 3s;">BlueMoon Interactive · 2027 · en développement, susceptible de changer</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { actif: 'continuer' };
+  }
+  renderVals() {
+    // Le ciel : des etoiles placees au hasard (toujours le meme hasard)
+    let graine = 11;
+    const hasard = () => { graine = (graine * 16807) % 2147483647; return (graine % 10000) / 10000; };
+    const etoiles = [];
+    for (let i = 0; i < 110; i++) {
+      const t = 1 + Math.round(hasard() * 2);
+      etoiles.push({ style: 'position: absolute; left: ' + Math.round(hasard() * 1440) + 'px; top: ' + Math.round(hasard() * 720) + 'px; width: ' + t + 'px; height: ' + t + 'px; border-radius: 50%; background: #CFC4FF; animation-duration: ' + (2 + hasard() * 4).toFixed(1) + 's; animation-delay: -' + (hasard() * 5).toFixed(1) + 's;' });
+    }
+    // Les feux follets : ils montent des collines
+    const couleurs = ['#8FE3D8', '#B08CFF', '#F3D48E'];
+    const follets = [];
+    for (let i = 0; i < 14; i++) {
+      const c = couleurs[i % 3];
+      follets.push({ style: 'position: absolute; left: ' + Math.round(80 + hasard() * 1280) + 'px; top: ' + Math.round(700 + hasard() * 130) + 'px; width: 5px; height: 5px; border-radius: 50%; background: ' + c + '; box-shadow: 0 0 12px 3px ' + c + '; animation-duration: ' + (7 + hasard() * 6).toFixed(1) + 's; animation-delay: -' + (hasard() * 8).toFixed(1) + 's;' });
+    }
+    // Le menu : "Continuer" rappelle ou en est la vision ; "Le Seuil" mene a l'arbre de competences
+    const ENTREES = [
+      { id: 'continuer', nom: 'CONTINUER', texte: 'Acte III · les Marais de Sombreval · 1 h 42' },
+      { id: 'nouvelle', nom: 'NOUVELLE VISION' },
+      { id: 'seuil', nom: 'LE SEUIL', href: 'Competences.dc.html' },
+      { id: 'options', nom: 'OPTIONS' },
+      { id: 'quitter', nom: 'QUITTER' },
+    ];
+    const menu = [];
+    ENTREES.forEach((e, i) => {
+      const retard = 'animation-delay: ' + (2.2 + i * 0.12).toFixed(2) + 's;';
+      menu.push({
+        nom: e.nom,
+        lien: !!e.href,
+        bouton: !e.href,
+        detail: false,
+        href: e.href || '',
+        classe: 'choix apparait' + (this.state.actif === e.id ? ' choix-actif' : ''),
+        pick: () => this.setState({ actif: e.id }),
+        style: retard + (this.state.actif === e.id ? ' color: #E2B95C;' : ''),
+      });
+      if (e.texte && this.state.actif === e.id) {
+        menu.push({ detail: true, lien: false, bouton: false, texte: e.texte, styleDetail: 'margin: -6px 0 10px; font-size: 14px; letter-spacing: 2px; color: #8E86A6; ' + retard });
+      }
+    });
+    return { etoiles, follets, menu };
+  }
+}
+</script>
+</body>
+</html>
