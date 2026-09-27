@@ -1,4 +1,5 @@
 #include "VespMenu.h"
+#include "VespTexte.h"
 #include "VespPlayerController.h"
 #include "VespProgression.h"
 #include "VespUnite.h"
@@ -23,7 +24,7 @@
 // La palette des maquettes
 namespace
 {
-	const FLinearColor FOND(0.027f, 0.02f, 0.05f, 0.94f);
+	const FLinearColor FOND(0.027f, 0.02f, 0.05f, 0.98f);
 	const FLinearColor OR(0.886f, 0.725f, 0.36f, 1.0f);
 	const FLinearColor TEXTE(0.94f, 0.91f, 0.97f, 1.0f);
 	const FLinearColor DOUX(0.56f, 0.53f, 0.65f, 1.0f);
@@ -132,6 +133,7 @@ public:
 	void Construct(const FArguments&)
 	{
 		Rond = FSlateRoundedBoxBrush(FLinearColor::White, 400.0f);
+		Rond.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 	}
 	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D(1440, 900); }
 	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Rect, FSlateWindowElementList& Elements,
@@ -200,7 +202,9 @@ void SVespConstellation::Construct(const FArguments& Args)
 {
 	Joueur = Args._Joueur;
 	Rond = FSlateRoundedBoxBrush(FLinearColor::White, 200.0f);
+	Rond.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 	Anneau = FSlateRoundedBoxBrush(FLinearColor(0, 0, 0, 0), 200.0f, FLinearColor::White, 2.0f);
+	Anneau.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 	FRandomStream H(11);
 	for (int32 i = 0; i < 110; i++)
 	{
@@ -360,7 +364,7 @@ int32 SVespConstellation::OnPaint(const FPaintArgs& Args, const FGeometry& Geo, 
 			}
 		}
 		// Son nom, dessous
-		const FString Nom = FString(E.Nom).ToUpper();
+		const FString Nom = VespMajuscules(FString(E.Nom));
 		const FSlateFontInfo F = Police("Bold", 10, 200);
 		const FVector2D TT(Mesure->Measure(Nom, F));
 		FSlateDrawElement::MakeText(Elements, Couche + 7, Geo.ToPaintGeometry(FVector2f(TT), FSlateLayoutTransform(FVector2f(P + FVector2D(-TT.X / 2, Taille + 10.0f)))),
@@ -373,10 +377,12 @@ int32 SVespConstellation::OnPaint(const FPaintArgs& Args, const FGeometry& Geo, 
 		const float Base = v == 0 ? -158.0f : (v == 1 ? -90.0f : -22.0f);
 		const float Courbe = v == 0 ? -12.0f : (v == 1 ? 0.0f : 12.0f);
 		const float A = FMath::DegreesToRadians(Base + Courbe);
-		const FVector2D P = CENTRE_SEUIL + FVector2D(FMath::Cos(A), FMath::Sin(A)) * (RAYONS[4] * 0.92f + 50.0f);
 		const FString Nom = VespSeuil::NomVoie(Voie);
 		const FSlateFontInfo F = Police("Bold", 12, 500);
 		const FVector2D TT(Mesure->Measure(Nom, F));
+		// assez loin pour que le texte (large sur les cotes) ne touche pas l'etoile
+		const float Ecart = 36.0f + FMath::Abs(FMath::Cos(A)) * TT.X * 0.5f + FMath::Abs(FMath::Sin(A)) * TT.Y * 0.5f;
+		const FVector2D P = CENTRE_SEUIL + FVector2D(FMath::Cos(A), FMath::Sin(A)) * (RAYONS[4] * 0.92f + Ecart);
 		FSlateDrawElement::MakeText(Elements, Couche + 7, Geo.ToPaintGeometry(FVector2f(TT), FSlateLayoutTransform(FVector2f(P - TT / 2))), Nom, F,
 		                            ESlateDrawEffect::None, VespSeuil::CouleurVoie(Voie));
 	}
@@ -389,6 +395,7 @@ void SVespMenu::Construct(const FArguments& Args)
 {
 	Joueur = Args._Joueur;
 	Rond = FSlateRoundedBoxBrush(FLinearColor::White, 64.0f);
+	Rond.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 	Blanc = FSlateRoundedBoxBrush(FLinearColor::White, 3.0f);
 	Tuiles = FSlateRoundedBoxBrush(FLinearColor(0.067f, 0.047f, 0.114f, 1.0f), 16.0f, FLinearColor(0.118f, 0.094f, 0.188f, 1.0f), 1.0f);
 	TuileChoisie = FSlateRoundedBoxBrush(FLinearColor(0.114f, 0.082f, 0.208f, 1.0f), 16.0f, OR, 1.5f);
@@ -419,7 +426,7 @@ void SVespMenu::Construct(const FArguments& Args)
 						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(28, 0, 0, 0)
 						[
 							SNew(STextBlock).Font(Police("Bold", 14)).ColorAndOpacity(OR)
-							.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("%d eclats"), Joueur->Eclats)) : FText::GetEmpty(); })
+							.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("%d éclats"), Joueur->Eclats)) : FText::GetEmpty(); })
 						]
 						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(28, 0, 0, 0)
 						[
@@ -434,13 +441,23 @@ void SVespMenu::Construct(const FArguments& Args)
 						]
 					]
 					// Les commandes
+					// (le sac : sous l'en-tete, la fiche d'objet et ses boutons occupent le bas ; le Seuil : en bas, le haut est a la constellation)
+					+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Top).Padding(FMargin(0, 88, 60, 0))
+					[
+						SNew(STextBlock).Font(Police("Regular", 12)).ColorAndOpacity(TRES_DOUX)
+						.Text_Lambda([this]() {
+							return Joueur.IsValid() && Joueur->OngletMenu == 0
+							           ? LOCTEXT("CommandesSac", "flèches : choisir     ENTRÉE / A : équiper     SUPPR / X : jeter     TAB / LB RB : onglet     I / B : fermer")
+							           : FText::GetEmpty();
+						})
+					]
 					+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom).Padding(FMargin(0, 0, 60, 30))
 					[
 						SNew(STextBlock).Font(Police("Regular", 12)).ColorAndOpacity(TRES_DOUX)
 						.Text_Lambda([this]() {
 							return Joueur.IsValid() && Joueur->OngletMenu == 1
-							           ? LOCTEXT("CommandesSeuil", "fleches : choisir     ENTREE / A : allumer l'etoile     TAB / LB RB : onglet     I / B : fermer")
-							           : LOCTEXT("CommandesSac", "fleches : choisir     ENTREE / A : equiper     SUPPR / X : jeter     TAB / LB RB : onglet     I / B : fermer");
+							           ? LOCTEXT("CommandesSeuil", "flèches : choisir     ENTRÉE / A : allumer l'étoile     TAB / LB RB : onglet     I / B : fermer")
+							           : FText::GetEmpty();
 						})
 					]
 				]
@@ -673,14 +690,14 @@ TSharedRef<SWidget> SVespMenu::Fiche()
 					const FVespObjet* O = ObjetChoisi();
 					if (!O || !Joueur.IsValid()) return FText::GetEmpty();
 					const FVespObjet* Porte = Joueur->Equipe(O->Emplacement);
-					if (!Porte) return Texte(TEXT("Rien n'est porte a cet emplacement."));
+					if (!Porte) return Texte(TEXT("Rien n'est porté à cet emplacement."));
 					TArray<FString> D;
 					auto Ecart = [&D](int32 A, int32 B, const TCHAR* Nom) { if (A != B) D.Add(FString::Printf(TEXT("%+d %s"), A - B, Nom)); };
 					Ecart(O->Attaque, Porte->Attaque, TEXT("attaque"));
-					Ecart(O->Defense, Porte->Defense, TEXT("defense"));
+					Ecart(O->Defense, Porte->Defense, TEXT("défense"));
 					Ecart(O->PvMax, Porte->PvMax, TEXT("pv"));
 					Ecart(O->Critique, Porte->Critique, TEXT("% critique"));
-					return Texte(TEXT("Par rapport a ") + Porte->Nom + TEXT(" :  ") + (D.Num() ? FString::Join(D, TEXT("   ")) : FString(TEXT("pareil"))));
+					return Texte(TEXT("Par rapport à ") + Porte->Nom + TEXT(" :  ") + (D.Num() ? FString::Join(D, TEXT("   ")) : FString(TEXT("pareil"))));
 				})
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 20, 0, 0)
@@ -688,7 +705,7 @@ TSharedRef<SWidget> SVespMenu::Fiche()
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 12, 0)
 				[
-					Bouton(LOCTEXT("Equiper", "Equiper"), true, [this]() { if (Joueur.IsValid() && EmplacementChoisi < 0) Joueur->EquiperDuSac(Joueur->SelectionSac); },
+					Bouton(LOCTEXT("Equiper", "Équiper"), true, [this]() { if (Joueur.IsValid() && EmplacementChoisi < 0) Joueur->EquiperDuSac(Joueur->SelectionSac); },
 					       TAttribute<bool>::CreateLambda([this]() { return EmplacementChoisi < 0 && ObjetChoisi() != nullptr; }))
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 12, 0)
@@ -699,7 +716,7 @@ TSharedRef<SWidget> SVespMenu::Fiche()
 				]
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
-					Bouton(LOCTEXT("Jeter", "Jeter (+eclats)"), false, [this]() { if (Joueur.IsValid() && EmplacementChoisi < 0) Joueur->JeterDuSac(Joueur->SelectionSac); },
+					Bouton(LOCTEXT("Jeter", "Jeter (+éclats)"), false, [this]() { if (Joueur.IsValid() && EmplacementChoisi < 0) Joueur->JeterDuSac(Joueur->SelectionSac); },
 					       TAttribute<bool>::CreateLambda([this]() { return EmplacementChoisi < 0 && ObjetChoisi() != nullptr; }))
 				]
 			]
@@ -718,7 +735,7 @@ TSharedRef<SWidget> SVespMenu::Inventaire()
 		O->AddSlot().HAlign(HAlign_Left).VAlign(VAlign_Top).Padding(FMargin(P.X - 60.0f, P.Y - 34.0f, 0, 0))[Emplacement(i)];
 	}
 	// Le nom, sous AYLIS
-	O->AddSlot().HAlign(HAlign_Left).VAlign(VAlign_Top).Padding(FMargin(290, 640, 0, 0))
+	O->AddSlot().HAlign(HAlign_Left).VAlign(VAlign_Top).Padding(FMargin(290, 566, 0, 0))
 	[
 		SNew(SBox).WidthOverride(180)
 		[
@@ -734,7 +751,7 @@ TSharedRef<SWidget> SVespMenu::Inventaire()
 						case EVespArme::Dagues: return LOCTEXT("VoieDagues", "voie des dagues");
 						case EVespArme::DeuxMains: return LOCTEXT("VoieDeuxMains", "voie de la grande lame");
 						case EVespArme::Baton: return LOCTEXT("VoieBaton", "voie des sorts");
-						default: return LOCTEXT("VoieEpee", "voie de l'epee");
+						default: return LOCTEXT("VoieEpee", "voie de l'épée");
 					}
 				})
 			]
@@ -755,7 +772,7 @@ TSharedRef<SWidget> SVespMenu::Inventaire()
 			[
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().FillWidth(1.0f)[Chiffre([this]() { return Joueur.IsValid() ? FString::FromInt(Joueur->Aylis->Stats.Attaque) : FString(); }, LOCTEXT("Attaque", "ATTAQUE"))]
-				+ SHorizontalBox::Slot().FillWidth(1.0f)[Chiffre([this]() { return Joueur.IsValid() ? FString::FromInt(Joueur->Aylis->Stats.Defense) : FString(); }, LOCTEXT("Defense", "DEFENSE"))]
+				+ SHorizontalBox::Slot().FillWidth(1.0f)[Chiffre([this]() { return Joueur.IsValid() ? FString::FromInt(Joueur->Aylis->Stats.Defense) : FString(); }, LOCTEXT("Defense", "DÉFENSE"))]
 				+ SHorizontalBox::Slot().FillWidth(1.0f)[Chiffre([this]() { return Joueur.IsValid() ? FString::Printf(TEXT("%d%%"), Joueur->Aylis->Stats.ChanceCritique) : FString(); }, LOCTEXT("Critique", "CRITIQUE"))]
 				+ SHorizontalBox::Slot().FillWidth(1.0f)[Chiffre([this]() { return Joueur.IsValid() ? FString::Printf(TEXT("+%d%%"), FMath::RoundToInt(Joueur->BonusVitesse * 100.0f)) : FString(); }, LOCTEXT("Vitesse", "VITESSE"))]
 			]
@@ -847,7 +864,7 @@ TSharedRef<SWidget> SVespMenu::LeSeuil()
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth()
 				[
-					Bouton(LOCTEXT("Allumer", "Allumer l'etoile  (1 point)"), true, [this, Etoile]() { if (Joueur.IsValid()) Joueur->DebloquerEtoile(Etoile()); },
+					Bouton(LOCTEXT("Allumer", "Allumer l'étoile  (1 point)"), true, [this, Etoile]() { if (Joueur.IsValid()) Joueur->DebloquerEtoile(Etoile()); },
 					       TAttribute<bool>::CreateLambda([this, Etoile]() { return Joueur.IsValid() && Joueur->EtoilePossible(Etoile()); }))
 				]
 				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(16, 0, 0, 0)
@@ -855,9 +872,9 @@ TSharedRef<SWidget> SVespMenu::LeSeuil()
 					SNew(STextBlock).Font(Police("Italic", 13)).ColorAndOpacity(DOUX)
 					.Text_Lambda([this, Etoile]() {
 						if (!Joueur.IsValid()) return FText::GetEmpty();
-						if (Joueur->EtoileAcquise(Etoile())) return LOCTEXT("Allumee", "deja allumee");
+						if (Joueur->EtoileAcquise(Etoile())) return LOCTEXT("Allumee", "déjà allumée");
 						if (Joueur->PointsDeCompetence <= 0) return LOCTEXT("PasDePoint", "un point par niveau gagne");
-						if (!Joueur->EtoilePossible(Etoile())) return LOCTEXT("Avant", "allume d'abord l'etoile d'avant");
+						if (!Joueur->EtoilePossible(Etoile())) return LOCTEXT("Avant", "allume d'abord l'étoile d'avant");
 						return FText::GetEmpty();
 					})
 				]
@@ -871,7 +888,7 @@ TSharedRef<SWidget> SVespMenu::LeSeuil()
 		+ SVerticalBox::Slot().AutoHeight()[SNew(STextBlock).Text(LOCTEXT("LeSeuil", "LE SEUIL")).Font(Police("Bold", 30, 600)).ColorAndOpacity(TEXTE)]
 		+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 0)
 		[
-			SNew(STextBlock).Text(LOCTEXT("SeuilAide", "Chaque niveau allume une etoile. Trois voies, trois pouvoirs."))
+			SNew(STextBlock).Text(LOCTEXT("SeuilAide", "Chaque niveau allume une étoile. Trois voies, trois pouvoirs."))
 			.Font(Police("Italic", 14)).ColorAndOpacity(DOUX)
 		]
 	];

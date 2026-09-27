@@ -211,6 +211,7 @@ private:
 
 	UPROPERTY() TObjectPtr<AVespMonde> Monde;
 	UPROPERTY() TObjectPtr<AVespCombat> Combat;
+	UPROPERTY() TObjectPtr<class AVespMeteo> Meteo;
 	UPROPERTY() TObjectPtr<class UNiagaraComponent> AuraRage;	// l'aura d'AYLIS quand la rage est pleine
 	bool bContours = true;										// les contours "toon" (F4)
 	bool bModePhoto = false;

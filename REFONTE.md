@@ -13,27 +13,34 @@ Compiler : Unreal fermé, puis
 - [x] Les règles de chaque acte en temps réel (poison, eaux toxiques, dalles piégées, blizzard, éruptions, échos du Voile)
 - [x] Suppression de la grille (VespGrille)
 - [x] Sons synthétisés (VespSons) + musique et tambours de combat par acte
-- [ ] Vérifié en jeu (mode photo) et réglé
+- [x] Vérifié en jeu (mode photo) et réglé (cercles runiques du pack retirés des parades, impacts et barrières : ils masquaient les zones rouges)
 
 ## 2. Progression RPG
-- [ ] XP et niveaux (pv, attaque, points de compétence)
-- [ ] Le Seuil : constellation Lame / Rempart / Prophétie, pouvoirs actifs (touches 1, 2, 3)
-- [ ] Loot : objets au sol avec rareté (commun, rare, épique, légendaire), coffres, butin des élites et des boss
+- [x] XP et niveaux (pv, attaque, points de compétence) — bandeau « NIVEAU »
+- [x] Le Seuil : 12 étoiles (Lame / Rempart / Prophétie), 3 pouvoirs (Tourbillon, Égide, Lame d'éther), 9 talents
+- [x] Loot : objets au sol (faisceau de la couleur de la rareté), coffres, élites, boss ; 6 emplacements, sac de 24
 
 ## 3. Personnage customisable
-- [ ] Armes (épée, hache, dague, épée à deux mains, bâton...) : modèle ET animations différentes
-- [ ] Boucliers (3 modèles, 4 couleurs)
-- [ ] Armures (teintes de la tenue, cape, stats)
+- [x] Armes : épée, hache, dagues (deux mains), grande épée / hache de guerre, bâton (sorts) : modèle, couleur, rythme et portée différents
+- [x] Boucliers (3 modèles, 4 couleurs selon la rareté)
+- [x] Armures (le corps teinte la tenue d'AYLIS) ; tête, amulette, anneau : stats et pouvoirs
+- [x] Armes tenues vérifiées (photos « armurerie » en mode photo : épée+bouclier, dagues, deux mains agrandies, bâton ; la tenue prend la couleur de l'armure)
 
 ## 4. Animations et sons
-- [ ] Sons générés (coups, pas, esquive, loot, niveau, interface, ambiances, météo)
-- [ ] Musique d'ambiance par acte
+- [x] Sons générés (VespSons) : coups, pas, esquive, parade, os, tirs, sorts, loot, niveau, interface, tonnerre
+- [x] Musique par acte + tambours de combat + ambiances (forêt, marais, vent, braises, Voile) + pluie
+- [x] Animations KayKit mélangées (VespAnim) : combos, lourde, esquives directionnelles, garde, coups reçus, mort, potion, ramasser
 
 ## 5. Le monde
-- [ ] Sol : vrai matériau (herbe, terre, gravier) avec variation, chemins de terre peints
-- [ ] Monde rempli (plus de zones vides)
-- [ ] Météo par acte (pluie, neige, cendres, brume, feuilles, éclairs)
+- [x] Sol vivant (VespSol) : herbe / terre battue / matière de l'acte, carte peinte d'après les chemins
+- [x] Sol : matériau corrigé (il ne compilait pas → matériau par défaut gris) ; couleurs réelles par acte, la texture ne donne que le grain
+- [x] Végétation : les SMF_* sont des types de feuillage, pas des modèles → remplacés par les SM_* (arbres, buissons, rochers, herbes enfin visibles) ; acte V : cyprès et arbres morts au lieu de cônes
+- [x] Monde rempli : anneaux des clairières et bas-côtés des sentiers
+- [x] Météo (VespMeteo) : feuilles, averses et éclairs, bruine, escarbilles, neige et blizzard, cendre et braises, poussières du Voile
+- [x] 7 actes vérifiés en photo ; feuillage Provençal teinté par acte, lave de l'acte VI moins criarde
 
 ## 6. Interface
-- [ ] HUD épuré (vie, rage, XP, pouvoirs)
-- [ ] Inventaire en anneau (maquette), Seuil en constellation (maquette), écran titre (maquette)
+- [x] HUD : vie, rage, XP, pouvoirs et recharges, barre du boss, clairière scellée, objet trouvé
+- [x] Menu d'AYLIS (VespMenu, touche I) : inventaire en anneau et Seuil en constellation (d'après les maquettes)
+- [x] Écran titre d'après la maquette (sceau qui se dessine puis tourne, menu centré, liserés dorés au survol)
+- [x] Accents dans les textes de l'interface (138 textes)

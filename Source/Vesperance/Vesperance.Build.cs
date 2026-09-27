@@ -7,6 +7,7 @@ public class Vesperance : ModuleRules
 	public Vesperance(ReadOnlyTargetRules Target) : base(Target)
 	{
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
+		bUseUnity = false;		// chaque fichier compile seul (leurs noms internes ne se melangent pas)
 
 		PublicDependencyModuleNames.AddRange(new string[] {
 			"Core",

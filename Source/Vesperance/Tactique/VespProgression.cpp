@@ -4,20 +4,20 @@
 
 static const FVespEtoile ETOILES[VespSeuil::Nombre] = {
 	// La Lame : frapper fort, frapper juste
-	{TEXT("fendant"), TEXT("Fendant"), TEXT("L'attaque lourde fend l'air : une vague de lumiere part devant AYLIS."), EVespVoie::Lame, 1, 0, 0.0f},
-	{TEXT("affutee"), TEXT("Lame affutee"), TEXT("+15% de chances de critique, et les critiques font encore plus mal."), EVespVoie::Lame, 2, 0, 0.0f},
+	{TEXT("fendant"), TEXT("Fendant"), TEXT("L'attaque lourde fend l'air : une vague de lumière part devant AYLIS."), EVespVoie::Lame, 1, 0, 0.0f},
+	{TEXT("affutee"), TEXT("Lame affûtée"), TEXT("+15% de chances de critique, et les critiques font encore plus mal."), EVespVoie::Lame, 2, 0, 0.0f},
 	{TEXT("tourbillon"), TEXT("Tourbillon"), TEXT("POUVOIR (1 / LB) : AYLIS tournoie, et tout ce qui l'entoure encaisse."), EVespVoie::Lame, 3, 1, 7.0f},
-	{TEXT("execution"), TEXT("Execution"), TEXT("+60% de degats contre les Haschen a moins d'un tiers de leurs pv."), EVespVoie::Lame, 4, 0, 0.0f},
+	{TEXT("execution"), TEXT("Exécution"), TEXT("+60% de dégâts contre les Haschen à moins d'un tiers de leurs pv."), EVespVoie::Lame, 4, 0, 0.0f},
 	// Le Rempart : tenir, et renvoyer
-	{TEXT("garde"), TEXT("Garde patiente"), TEXT("La parade parfaite est plus facile a reussir, et la garde retient plus."), EVespVoie::Rempart, 1, 0, 0.0f},
-	{TEXT("ecorce"), TEXT("Ecorce"), TEXT("+20 pv max et +2 defense."), EVespVoie::Rempart, 2, 0, 0.0f},
-	{TEXT("egide"), TEXT("Egide"), TEXT("POUVOIR (2 / RT) : 3 secondes d'un bouclier de lumiere (80% de degats en moins)."), EVespVoie::Rempart, 3, 2, 12.0f},
-	{TEXT("riposte"), TEXT("Riposte"), TEXT("Apres une parade parfaite, le coup suivant fait triple degats."), EVespVoie::Rempart, 4, 0, 0.0f},
+	{TEXT("garde"), TEXT("Garde patiente"), TEXT("La parade parfaite est plus facile à réussir, et la garde retient plus."), EVespVoie::Rempart, 1, 0, 0.0f},
+	{TEXT("ecorce"), TEXT("Écorce"), TEXT("+20 pv max et +2 défense."), EVespVoie::Rempart, 2, 0, 0.0f},
+	{TEXT("egide"), TEXT("Égide"), TEXT("POUVOIR (2 / RT) : 3 secondes d'un bouclier de lumière (80% de dégâts en moins)."), EVespVoie::Rempart, 3, 2, 12.0f},
+	{TEXT("riposte"), TEXT("Riposte"), TEXT("Après une parade parfaite, le coup suivant fait triple dégâts."), EVespVoie::Rempart, 4, 0, 0.0f},
 	// La Prophetie : voir avant les autres
-	{TEXT("eveil"), TEXT("Eveil"), TEXT("L'esquive laisse une onde qui blesse les Haschen autour, et revient plus vite."), EVespVoie::Prophetie, 1, 0, 0.0f},
-	{TEXT("ether"), TEXT("Lame d'ether"), TEXT("POUVOIR (3 / croix droite) : une lame spectrale traverse tout ce qu'elle croise."), EVespVoie::Prophetie, 2, 3, 4.0f},
-	{TEXT("presage"), TEXT("Presage"), TEXT("Une esquive au dernier moment ralentit le temps."), EVespVoie::Prophetie, 3, 0, 0.0f},
-	{TEXT("nova"), TEXT("Nova"), TEXT("L'attaque speciale devient une nova immense, qui soigne AYLIS."), EVespVoie::Prophetie, 4, 0, 0.0f},
+	{TEXT("eveil"), TEXT("Éveil"), TEXT("L'esquive laisse une onde qui blesse les Haschen autour, et revient plus vite."), EVespVoie::Prophetie, 1, 0, 0.0f},
+	{TEXT("ether"), TEXT("Lame d'éther"), TEXT("POUVOIR (3 / croix droite) : une lame spectrale traverse tout ce qu'elle croise."), EVespVoie::Prophetie, 2, 3, 4.0f},
+	{TEXT("presage"), TEXT("Présage"), TEXT("Une esquive au dernier moment ralentit le temps."), EVespVoie::Prophetie, 3, 0, 0.0f},
+	{TEXT("nova"), TEXT("Nova"), TEXT("L'attaque spéciale devient une nova immense, qui soigne AYLIS."), EVespVoie::Prophetie, 4, 0, 0.0f},
 };
 
 const FVespEtoile& VespSeuil::Etoile(int32 Index)
@@ -53,7 +53,7 @@ const TCHAR* VespSeuil::NomVoie(EVespVoie Voie)
 	{
 		case EVespVoie::Lame: return TEXT("LA LAME");
 		case EVespVoie::Rempart: return TEXT("LE REMPART");
-		default: return TEXT("LA PROPHETIE");
+		default: return TEXT("LA PROPHÉTIE");
 	}
 }
 
@@ -75,8 +75,8 @@ const TCHAR* VespButin::NomRarete(EVespRarete R)
 	switch (R)
 	{
 		case EVespRarete::Rare: return TEXT("RARE");
-		case EVespRarete::Epique: return TEXT("EPIQUE");
-		case EVespRarete::Legendaire: return TEXT("LEGENDAIRE");
+		case EVespRarete::Epique: return TEXT("ÉPIQUE");
+		case EVespRarete::Legendaire: return TEXT("LÉGENDAIRE");
 		default: return TEXT("COMMUN");
 	}
 }
@@ -85,7 +85,7 @@ const TCHAR* VespButin::NomEmplacement(EVespEmplacement E)
 {
 	switch (E)
 	{
-		case EVespEmplacement::Tete: return TEXT("TETE");
+		case EVespEmplacement::Tete: return TEXT("TÊTE");
 		case EVespEmplacement::Amulette: return TEXT("AMULETTE");
 		case EVespEmplacement::Arme: return TEXT("ARME");
 		case EVespEmplacement::Anneau: return TEXT("ANNEAU");
@@ -98,11 +98,11 @@ FString FVespObjet::Lignes() const
 {
 	TArray<FString> L;
 	if (Attaque) L.Add(FString::Printf(TEXT("+%d attaque"), Attaque));
-	if (Defense) L.Add(FString::Printf(TEXT("+%d defense"), Defense));
+	if (Defense) L.Add(FString::Printf(TEXT("+%d défense"), Defense));
 	if (PvMax) L.Add(FString::Printf(TEXT("+%d pv max"), PvMax));
 	if (Critique) L.Add(FString::Printf(TEXT("+%d%% de critique"), Critique));
 	if (Vitesse > 0.0f) L.Add(FString::Printf(TEXT("+%d%% de vitesse"), FMath::RoundToInt(Vitesse * 100.0f)));
-	if (VolDeVie) L.Add(FString::Printf(TEXT("+%d pv a chaque coup porte"), VolDeVie));
+	if (VolDeVie) L.Add(FString::Printf(TEXT("+%d pv à chaque coup porté"), VolDeVie));
 	if (Effet == VespEffetCoup::Brulure) L.Add(FString::Printf(TEXT("%d%% de chances de bruler"), FMath::RoundToInt(ChanceEffet * 100.0f)));
 	if (Effet == VespEffetCoup::Gel) L.Add(FString::Printf(TEXT("%d%% de chances de geler"), FMath::RoundToInt(ChanceEffet * 100.0f)));
 	if (Effet == VespEffetCoup::Poison) L.Add(FString::Printf(TEXT("%d%% de chances d'empoisonner"), FMath::RoundToInt(ChanceEffet * 100.0f)));
@@ -111,8 +111,8 @@ FString FVespObjet::Lignes() const
 		switch (TypeArme)
 		{
 			case EVespArme::DeuxMains: L.Add(TEXT("A deux mains : lent, large, lourd")); break;
-			case EVespArme::Dagues: L.Add(TEXT("Deux dagues : des coups tres rapides")); break;
-			case EVespArme::Baton: L.Add(TEXT("Baton : les coups partent en sorts, de loin")); break;
+			case EVespArme::Dagues: L.Add(TEXT("Deux dagues : des coups très rapides")); break;
+			case EVespArme::Baton: L.Add(TEXT("Bâton : les coups partent en sorts, de loin")); break;
 			default: break;
 		}
 	}
@@ -133,8 +133,8 @@ static FString CheminArme(const TCHAR* Dossier, const TCHAR* Nom)
 FVespObjet VespButin::EpeeDeDepart()
 {
 	FVespObjet O;
-	O.Nom = TEXT("Epee de la vision");
-	O.Recit = TEXT("Forgee dans la lumiere d'une prophetie qui n'a pas encore eu lieu.");
+	O.Nom = TEXT("Épée de la vision");
+	O.Recit = TEXT("Forgée dans la lumière d'une prophétie qui n'a pas encore eu lieu.");
 	O.Emplacement = EVespEmplacement::Arme;
 	O.Modele = CheminArme(TEXT("Sword"), TEXT("SK_Sword_1H_Newbie_02"));
 	O.Longueur = 0.5f;
@@ -147,7 +147,7 @@ FVespObjet VespButin::BouclierDeDepart()
 {
 	FVespObjet O;
 	O.Nom = TEXT("Petit bouclier");
-	O.Recit = TEXT("Il a deja arrete plus de fleches qu'on ne peut en compter.");
+	O.Recit = TEXT("Il a déjà arrêté plus de flèches qu'on ne peut en compter.");
 	O.Emplacement = EVespEmplacement::MainGauche;
 	O.Modele = CheminArme(TEXT("Shield"), TEXT("SK_Shield_Newbie_02"));
 	O.Icone = 3;
@@ -194,7 +194,7 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 			switch (T)
 			{
 				case 0:
-					Base = Au({TEXT("Epee"), TEXT("Lame")});
+					Base = Au({TEXT("Épée"), TEXT("Lame")});
 					O.Modele = CheminArme(TEXT("Sword"), (H.FRand() < 0.5f) ? TEXT("SK_Sword_1H_Newbie_01") : TEXT("SK_Sword_1H_Newbie_02"));
 					O.Longueur = 0.5f; O.TypeArme = EVespArme::Epee; O.Icone = 0;
 					break;
@@ -218,18 +218,18 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 					break;
 				}
 				case 3:
-					Base = TEXT("Grande epee");
+					Base = TEXT("Grande épée");
 					O.Modele = CheminArme(TEXT("Sword"), (H.FRand() < 0.5f) ? TEXT("SK_Sword_2H_Newbie_01") : TEXT("SK_Sword_2H_Newbie_02"));
-					O.Longueur = 0.66f; O.TypeArme = EVespArme::DeuxMains; O.Icone = 0; Force = 1.4f;
+					O.Longueur = 0.86f; O.TypeArme = EVespArme::DeuxMains; O.Icone = 0; Force = 1.4f;
 					break;
 				case 4:
 					Base = TEXT("Hache de guerre");
 					O.Modele = CheminArme(TEXT("Axe"), TEXT("SK_Axe_2HL_Newbie_01"));
-					O.Longueur = 0.7f; O.TypeArme = EVespArme::DeuxMains; O.Icone = 0; Force = 1.45f;
+					O.Longueur = 0.92f; O.TypeArme = EVespArme::DeuxMains; O.Icone = 0; Force = 1.45f;
 					break;
 				default:
 				{
-					Base = TEXT("Baton");
+					Base = TEXT("Bâton");
 					static const TCHAR* B1[4] = {TEXT("SK_Staff_Newbie_01"), TEXT("SK_Staff_Newbie_02"), TEXT("SK_Staff_Newbie_03"), TEXT("SK_Staff_Newbie_04")};
 					O.Modele = CheminArme(TEXT("Staff"), B1[H.RandRange(0, 3)]);
 					O.Longueur = 0.95f; O.TypeArme = EVespArme::Baton; O.Icone = 12; Force = 0.95f;
@@ -241,7 +241,7 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 		}
 		case EVespEmplacement::MainGauche:
 		{
-			Base = Au({TEXT("Bouclier"), TEXT("Ecu"), TEXT("Pavois")});
+			Base = Au({TEXT("Bouclier"), TEXT("Écu"), TEXT("Pavois")});
 			static const TCHAR* S1[3] = {TEXT("SK_Shield_Newbie_01"), TEXT("SK_Shield_Newbie_02"), TEXT("SK_Shield_Newbie_03")};
 			O.Modele = CheminArme(TEXT("Shield"), S1[H.RandRange(0, 2)]);
 			O.Defense = FMath::Max(1, FMath::RoundToInt((0.8f + Acte * 0.55f) * M));
@@ -301,17 +301,17 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 	O.Nom = Base + TEXT(" ") + Suffixe;
 	if (O.Rarete == EVespRarete::Legendaire)
 	{
-		static const TCHAR* LEGENDES[8] = {TEXT("Premiere Aube"), TEXT("Chant de la Matriarche"), TEXT("Couronne du Roi Noye"), TEXT("Coeur de pierre"),
-		                                   TEXT("Souffle d'Ashka"), TEXT("Forge de Vorgath"), TEXT("Oeil de l'Oracle"), TEXT("Derniere Vision")};
+		static const TCHAR* LEGENDES[8] = {TEXT("Première Aube"), TEXT("Chant de la Matriarche"), TEXT("Couronne du Roi Noyé"), TEXT("Cœur de pierre"),
+		                                   TEXT("Souffle d'Ashka"), TEXT("Forge de Vorgath"), TEXT("Œil de l'Oracle"), TEXT("Dernière Vision")};
 		O.Nom = FString(LEGENDES[H.RandRange(0, 7)]) + TEXT(", ") + Base.ToLower();
 		O.Critique += 5;
 		O.PvMax += 5 * Acte;
 	}
 	static const TCHAR* RECITS[] = {
-		TEXT("Trouve pres d'un feu encore tiede."), TEXT("Il a appartenu a quelqu'un qui n'est jamais rentre."),
-		TEXT("Les Haschen le gardaient comme un tresor."), TEXT("Une lueur faible bat au creux du metal."),
-		TEXT("Le Voile y a laisse une trace, fine comme un cheveu."), TEXT("On dirait qu'il attendait AYLIS."),
-		TEXT("Il sent la pluie et la cendre."), TEXT("Une rune a moitie effacee brille dessus.")};
+		TEXT("Trouvé près d'un feu encore tiède."), TEXT("Il a appartenu à quelqu'un qui n'est jamais rentré."),
+		TEXT("Les Haschen le gardaient comme un trésor."), TEXT("Une lueur faible bat au creux du métal."),
+		TEXT("Le Voile y a laissé une trace, fine comme un cheveu."), TEXT("On dirait qu'il attendait AYLIS."),
+		TEXT("Il sent la pluie et la cendre."), TEXT("Une rune à moitié effacée brille dessus.")};
 	O.Recit = RECITS[H.RandRange(0, UE_ARRAY_COUNT(RECITS) - 1)];
 	return O;
 }

@@ -105,6 +105,7 @@ private:
 	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> EnvChampignons;	// les champignons luminescents (la magie)
 	UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> EnvLueurs;		// ce qui brille : glace, lave, cristaux
 	UPROPERTY() TMap<TObjectPtr<UStaticMesh>, TObjectPtr<UHierarchicalInstancedStaticMeshComponent>> Catalogue;
+	UPROPERTY() TMap<TObjectPtr<UMaterialInterface>, TObjectPtr<UMaterialInstanceDynamic>> Feuillages;	// le feuillage teint pour l'acte
 
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurTerre;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurClairieres;

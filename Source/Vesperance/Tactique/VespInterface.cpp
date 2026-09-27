@@ -1,4 +1,5 @@
 #include "VespInterface.h"
+#include "VespTexte.h"
 #include "VespPlayerController.h"
 #include "VespUnite.h"
 #include "VespCombat.h"
@@ -71,7 +72,9 @@ public:
 	{
 		Joueur = Args._Joueur;
 		Rond = FSlateRoundedBoxBrush(FLinearColor::White, 200.0f);
+		Rond.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 		Anneau = FSlateRoundedBoxBrush(FLinearColor(0, 0, 0, 0), 200.0f, FLinearColor::White, 3.0f);
+		Anneau.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 	}
 
 	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D(1300.0f, 560.0f); }
@@ -166,6 +169,7 @@ void SVespInterface::Construct(const FArguments& Args)
 	Panneau = FSlateRoundedBoxBrush(FLinearColor(0.035f, 0.028f, 0.06f, 0.86f), 16.0f, FLinearColor(0.24f, 0.21f, 0.35f, 0.9f), 1.0f);
 	Blanc = FSlateRoundedBoxBrush(FLinearColor::White, 6.0f);
 	Rond = FSlateRoundedBoxBrush(FLinearColor::White, 64.0f);
+	Rond.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
 	Carte = FSlateRoundedBoxBrush(FLinearColor(0.05f, 0.04f, 0.085f, 0.95f), 14.0f, FLinearColor(0.27f, 0.24f, 0.4f, 1.0f), 1.0f);
 	CarteSurvol = FSlateRoundedBoxBrush(FLinearColor(0.09f, 0.075f, 0.15f, 0.97f), 14.0f, FLinearColor(0.55f, 0.47f, 0.8f, 1.0f), 1.5f);
 	CarteChoisie = FSlateRoundedBoxBrush(FLinearColor(0.2f, 0.14f, 0.05f, 0.97f), 14.0f, OR, 2.0f);
@@ -245,20 +249,27 @@ TSharedRef<SWidget> SVespInterface::BoutonMenu(const FText& Libelle, TFunction<v
 {
 	TSharedRef<TWeakPtr<SButton>> Lien = MakeShared<TWeakPtr<SButton>>();
 	auto Survole = [Lien]() { const TSharedPtr<SButton> B = Lien->Pin(); return B.IsValid() && B->IsHovered(); };
-	TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton).OnClicked_Lambda([Action]() { Action(); return FReply::Handled(); })
+	// (la maquette : au survol, deux traits dores s'allongent de part et d'autre, et les lettres s'espacent)
+	auto Trait = [this, Survole]() -> TSharedRef<SWidget> {
+		return SNew(SBox).WidthOverride_Lambda([Survole]() { return FOptionalSize(Survole() ? 44.0f : 0.0f); }).HeightOverride(1)
+		[
+			SNew(SBorder).BorderImage(&Blanc).BorderBackgroundColor(OR)
+		];
+	};
+	TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton)
+	.OnClicked_Lambda([this, Action]() { UVespSons::Jouer2D(Joueur.Get(), EVespSon::Clic); Action(); return FReply::Handled(); })
+	.OnHovered_Lambda([this]() { UVespSons::Jouer2D(Joueur.Get(), EVespSon::Survol); })
 	[
-		SNew(SHorizontalBox)
-		+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 12, 0)
+		SNew(SBox).HeightOverride(48)
 		[
-			SNew(SBox).WidthOverride(22).HeightOverride(3)
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 18, 0)[Trait()]
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 			[
-				SNew(SBorder).BorderImage(&Blanc).BorderBackgroundColor_Lambda([Survole]() { return FSlateColor(Survole() ? OR : FLinearColor(0, 0, 0, 0)); })
+				SNew(STextBlock).Text(Libelle).Font_Lambda([Survole]() { return Police("Regular", 17, Survole() ? 520 : 380); })
+				.ColorAndOpacity_Lambda([Survole]() { return FSlateColor(Survole() ? TEXTE : FLinearColor(0.56f, 0.53f, 0.65f)); })
 			]
-		]
-		+ SHorizontalBox::Slot().AutoWidth()
-		[
-			SNew(STextBlock).Text(Libelle).Font(Police("Bold", 20, 220))
-			.ColorAndOpacity_Lambda([Survole]() { return FSlateColor(Survole() ? OR_PALE : TEXTE); })
+			+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(18, 0, 0, 0)[Trait()]
 		]
 	];
 	*Lien = Bouton;
@@ -347,20 +358,126 @@ TSharedRef<SWidget> SVespInterface::EnTete(TAttribute<FText> Petit, TAttribute<F
 
 // ===================== L'ecran titre =====================
 
+// Le sceau de la prophetie (la maquette) : il se dessine trait apres trait, puis tourne lentement dans son astrolabe
+class SVespSceau : public SLeafWidget
+{
+public:
+	SLATE_BEGIN_ARGS(SVespSceau) {}
+	SLATE_END_ARGS()
+
+	void Construct(const FArguments&)
+	{
+		Depart = FPlatformTime::Seconds();
+		Rond = FSlateRoundedBoxBrush(FLinearColor::White, 400.0f);
+		Rond.OutlineSettings.RoundingType = ESlateBrushRoundingType::HalfHeightRadius;
+	}
+	virtual FVector2D ComputeDesiredSize(float) const override { return FVector2D(520, 400); }
+	virtual int32 OnPaint(const FPaintArgs& Args, const FGeometry& Geo, const FSlateRect& Rect, FSlateWindowElementList& Elements,
+	                      int32 Couche, const FWidgetStyle& Style, bool bParentActif) const override
+	{
+		const float T = (float)(FPlatformTime::Seconds() - Depart);
+		const FVector2f C(260.0f, 200.0f);
+		// La lueur, qui respire
+		const float Souffle = 0.5f + 0.5f * FMath::Sin(T * 0.9f);
+		for (int32 k = 0; k < 5; k++)
+		{
+			const float R = 90.0f + k * 40.0f;
+			FSlateDrawElement::MakeBox(Elements, Couche, Geo.ToPaintGeometry(FVector2f(2 * R, 2 * R), FSlateLayoutTransform(C - FVector2f(R, R))), &Rond,
+			                           ESlateDrawEffect::None, FLinearColor(0.48f, 0.36f, 0.84f, (0.06f + 0.03f * Souffle) * (1.0f - k / 5.0f)));
+		}
+		// L'astrolabe : deux orbites pointillees qui tournent en sens contraire
+		auto Orbite = [&](float R, float Rotation, int32 Segments, const FLinearColor& Couleur) {
+			for (int32 i = 0; i < Segments; i += 2)
+			{
+				const float A0 = Rotation + i * 2.0f * PI / Segments, A1 = Rotation + (i + 1) * 2.0f * PI / Segments;
+				FSlateDrawElement::MakeLines(Elements, Couche + 1, Geo.ToPaintGeometry(), {C + FVector2f(FMath::Cos(A0), FMath::Sin(A0)) * R, C + FVector2f(FMath::Cos(A1), FMath::Sin(A1)) * R},
+				                             ESlateDrawEffect::None, Couleur, true, 1.0f);
+			}
+		};
+		Orbite(190.0f, T * 2.0f * PI / 140.0f, 120, FLinearColor(0.69f, 0.55f, 1.0f, 0.18f));
+		Orbite(250.0f, -T * 2.0f * PI / 200.0f, 160, FLinearColor(0.69f, 0.55f, 1.0f, 0.09f));
+		// Le sceau : chaque trait se dessine a son tour ; au bout de 4 secondes, le cercle exterieur tourne
+		const float Rotation = T > 4.0f ? (T - 4.0f) * 2.0f * PI / 60.0f : 0.0f;
+		auto Point = [&](float X, float Y, bool bTourne) {
+			FVector2f P(X - 120.0f, Y - 120.0f);
+			if (bTourne)
+			{
+				P = FVector2f(P.X * FMath::Cos(Rotation) - P.Y * FMath::Sin(Rotation), P.X * FMath::Sin(Rotation) + P.Y * FMath::Cos(Rotation));
+			}
+			return C + P;
+		};
+		auto Trait = [&](const TArray<FVector2f>& Points, float Debut, float Duree, const FLinearColor& Couleur, float Ep) {
+			float Part = FMath::Clamp((T - Debut) / Duree, 0.0f, 1.0f);
+			Part = 1.0f - FMath::Pow(1.0f - Part, 3.0f);
+			if (Part <= 0.0f || Points.Num() < 2)
+			{
+				return;
+			}
+			float Total = 0.0f;
+			for (int32 i = 1; i < Points.Num(); i++) Total += FVector2f::Distance(Points[i - 1], Points[i]);
+			float Reste = Total * Part;
+			TArray<FVector2f> Visible = {Points[0]};
+			for (int32 i = 1; i < Points.Num() && Reste > 0.0f; i++)
+			{
+				const float L = FVector2f::Distance(Points[i - 1], Points[i]);
+				Visible.Add(L <= Reste ? Points[i] : FMath::Lerp(Points[i - 1], Points[i], Reste / L));
+				Reste -= L;
+			}
+			FSlateDrawElement::MakeLines(Elements, Couche + 2, Geo.ToPaintGeometry(), Visible, ESlateDrawEffect::None, Couleur, true, Ep);
+		};
+		auto Cercle = [&](float R, bool bTourne) {
+			TArray<FVector2f> P;
+			for (int32 i = 0; i <= 64; i++)
+			{
+				const float A = -PI / 2 + i * 2.0f * PI / 64.0f;
+				P.Add(Point(120.0f + FMath::Cos(A) * R, 120.0f + FMath::Sin(A) * R, bTourne));
+			}
+			return P;
+		};
+		const FLinearColor Violet(0.69f, 0.55f, 1.0f, 0.6f), Or(0.89f, 0.73f, 0.36f, 0.85f), Blanc(0.94f, 0.91f, 0.97f, 0.9f);
+		Trait(Cercle(112.0f, true), 0.0f, 3.2f, Violet, 1.3f);
+		Trait(Cercle(96.0f, true), 0.2f, 3.2f, FLinearColor(0.89f, 0.73f, 0.36f, 0.45f), 1.0f);
+		Trait({Point(120, 8, true), Point(120, 32, true)}, 0.4f, 1.0f, Or, 1.4f);
+		Trait({Point(120, 208, true), Point(120, 232, true)}, 0.5f, 1.0f, Or, 1.4f);
+		Trait({Point(8, 120, true), Point(32, 120, true)}, 0.6f, 1.0f, Or, 1.4f);
+		Trait({Point(208, 120, true), Point(232, 120, true)}, 0.7f, 1.0f, Or, 1.4f);
+		Trait({Point(120, 44, false), Point(152, 104, false), Point(196, 120, false), Point(152, 136, false), Point(120, 196, false), Point(88, 136, false),
+		       Point(44, 120, false), Point(88, 104, false), Point(120, 44, false)}, 0.4f, 3.2f, Or, 1.6f);
+		TArray<FVector2f> Oeil;
+		for (int32 i = 0; i <= 32; i++)
+		{
+			const float A = i * 2.0f * PI / 32.0f;
+			Oeil.Add(Point(120.0f - FMath::Cos(A) * 42.0f, 120.0f + FMath::Sin(A) * 30.0f * FMath::Abs(FMath::Sin(A)), false));
+		}
+		Trait(Oeil, 1.0f, 3.0f, Blanc, 1.4f);
+		if (T > 2.2f)
+		{
+			const float R = 9.0f * FMath::Clamp((T - 2.2f) / 0.6f, 0.0f, 1.0f);
+			FSlateDrawElement::MakeBox(Elements, Couche + 3, Geo.ToPaintGeometry(FVector2f(2 * R, 2 * R), FSlateLayoutTransform(C - FVector2f(R, R))), &Rond,
+			                           ESlateDrawEffect::None, FLinearColor(0.89f, 0.73f, 0.36f, 1.0f));
+		}
+		return Couche + 4;
+	}
+
+private:
+	double Depart = 0.0;
+	FSlateBrush Rond;
+};
+
 TSharedRef<SWidget> SVespInterface::CoucheTitre()
 {
 	auto Commandes = [this]() -> TSharedRef<SWidget> {
 		TSharedRef<SVerticalBox> Liste = SNew(SVerticalBox);
 		const TCHAR* Lignes[] = {
-			TEXT("SE DEPLACER"),
-			TEXT("ZQSD / WASD / fleches / stick gauche : marcher      souris / stick droit : viser"),
+			TEXT("SE DÉPLACER"),
+			TEXT("ZQSD / WASD / flèches / stick gauche : marcher      souris / stick droit : viser"),
 			TEXT("TAB / Select : la carte du monde      E / B : parler, ouvrir"),
 			TEXT("COMBATTRE (en temps reel)"),
 			TEXT("Clic gauche, J / X : attaquer (trois coups s'enchainent)"),
 			TEXT("Clic droit, K / Y : attaque lourde (brise les armures)"),
 			TEXT("ESPACE / A : esquiver (AYLIS traverse les coups)"),
 			TEXT("MAJ, F / gachette gauche (maintenue) : la garde. Au dernier moment : PARADE"),
-			TEXT("R / croix haut : potion      V / RB : attaque speciale (rage pleine)"),
+			TEXT("R / croix haut : potion      V / RB : attaque spéciale (rage pleine)"),
 			TEXT("Les taches rouges au sol annoncent un coup : sors-en, ou esquive au travers."),
 		};
 		for (const TCHAR* L : Lignes)
@@ -387,67 +504,66 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 		];
 	}
 	return SNew(SOverlay).Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::Titre)); })
-	// Un voile sombre a gauche, pour lire le titre sur la foret
-	+ SOverlay::Slot().HAlign(HAlign_Left)
+	// La nuit, par-dessus le monde qui tourne : un voile sombre, pour que le sceau et le titre brillent
+	+ SOverlay::Slot()
 	[
-		SNew(SBox).WidthOverride(760)
-		[
-			SNew(SBorder).BorderImage(&Voile).BorderBackgroundColor(FLinearColor(1, 1, 1, 0.55f))
-		]
+		SNew(SBorder).BorderImage(&Voile).BorderBackgroundColor(FLinearColor(1, 1, 1, 0.6f))
 	]
-	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Center).Padding(FMargin(90, 0, 0, 0))
+	// Au centre : le sceau, le titre, le menu (chaque ligne arrive a son tour)
+	+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Top).Padding(FMargin(0, 20, 0, 0))
 	[
 		SNew(SVerticalBox)
-		+ SVerticalBox::Slot().AutoHeight()
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNew(SVespSceau)]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, -10, 0, 0)
 		[
-			SNew(STextBlock).Text(LOCTEXT("Studio", "BLUEMOON INTERACTIVE PRESENTE")).Font(Police("Regular", 11, 500)).ColorAndOpacity(DOUX)
+			SNew(STextBlock).Text(LOCTEXT("Studio", "BLUEMOON INTERACTIVE PRÉSENTE")).Font(Police("Regular", 11, 700)).ColorAndOpacity(DOUX)
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 10, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 8, 0, 0)
 		[
-			SNew(STextBlock).Text(LOCTEXT("Titre", "VESPERANCE")).Font(Police("Bold", 78, 380))
-			.ColorAndOpacity_Lambda([]() { const float P = Pulsation(1.5f); return FSlateColor(FLinearColor(0.86f + 0.1f * P, 0.8f + 0.1f * P, 1.0f)); })
-			.ShadowOffset(FVector2D(0, 4)).ShadowColorAndOpacity(FLinearColor(0.45f, 0.25f, 0.9f, 0.8f))
+			SNew(STextBlock).Text(LOCTEXT("Titre", "VESPERANCE")).Font(Police("Light", 76, 560))
+			.ColorAndOpacity_Lambda([]() { const float P = Pulsation(1.2f); return FSlateColor(FLinearColor(0.9f + 0.1f * P, 0.87f + 0.08f * P, 0.97f)); })
+			.ShadowOffset(FVector2D(0, 3)).ShadowColorAndOpacity(FLinearColor(0.45f, 0.25f, 0.9f, 0.7f))
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(4, 6, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 30)
 		[
-			SNew(STextBlock).Text(LOCTEXT("SousTitre", "Une vision. Une route. Sept terres a traverser.")).Font(Police("Italic", 18)).ColorAndOpacity(BRUME)
+			SNew(STextBlock).Text(LOCTEXT("SousTitre", "Une vision. Une route. Sept terres a traverser.")).Font(Police("Italic", 18)).ColorAndOpacity(FLinearColor(0.65f, 0.62f, 0.74f))
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 54, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
-			BoutonMenu(LOCTEXT("Nouvelle", "NOUVELLE PARTIE"), [this]() { if (Joueur.IsValid()) Joueur->NouvellePartie(1); })
+			BoutonMenu(LOCTEXT("Nouvelle", "NOUVELLE VISION"), [this]() { if (Joueur.IsValid()) Joueur->NouvellePartie(1); })
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
 		[
-			BoutonMenu(LOCTEXT("ChoisirActe", "COMMENCER A UN AUTRE ACTE"), [this]() { bActes = !bActes; bCommandes = false; })
+			BoutonMenu(LOCTEXT("ChoisirActe", "COMMENCER À UN AUTRE ACTE"), [this]() { bActes = !bActes; bCommandes = false; })
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(34, 10, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 8, 0, 4)
 		[
 			SNew(SVerticalBox).Visibility_Lambda([this]() { return VisibleSi(bActes); })
-			+ SVerticalBox::Slot().AutoHeight()[Actes]
-			+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[Actes]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 8, 0, 0)
 			[
-				SNew(STextBlock).Text(LOCTEXT("ActeTest", "Pour tester : AYLIS recoit des forces a la hauteur de l'acte choisi."))
+				SNew(STextBlock).Text(LOCTEXT("ActeTest", "AYLIS recoit des forces a la hauteur de l'acte choisi."))
 				.Font(Police("Italic", 11)).ColorAndOpacity(DOUX)
 			]
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
 		[
 			BoutonMenu(LOCTEXT("VoirCommandes", "COMMANDES"), [this]() { bCommandes = !bCommandes; bActes = false; })
 		]
-		+ SVerticalBox::Slot().AutoHeight().Padding(0, 16, 0, 0)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
 		[
 			BoutonMenu(LOCTEXT("Quitter", "QUITTER"), [this]() { if (Joueur.IsValid()) Joueur->Quitter(); })
 		]
 	]
-	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(0, 0, 80, 0))[Commandes()]
-	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(FMargin(90, 0, 0, 40))
+	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(0, 0, 60, 0))[Commandes()]
+	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(FMargin(60, 0, 0, 30))
 	[
-		SNew(STextBlock).Text(LOCTEXT("Entree", "ENTREE  /  (A)  pour commencer")).Font(Police("Bold", 12, 300))
+		SNew(STextBlock).Text(LOCTEXT("Entree", "ENTRÉE  /  (A)  pour commencer")).Font(Police("Bold", 12, 300))
 		.ColorAndOpacity_Lambda([]() { return FSlateColor(FLinearColor(OR.R, OR.G, OR.B, 0.35f + 0.65f * Pulsation(2.5f))); })
 	]
 	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom).Padding(FMargin(0, 0, 40, 30))
 	[
-		SNew(STextBlock).Text(LOCTEXT("Mention", "BlueMoon Interactive  -  2027  -  en developpement, susceptible de changer"))
+		SNew(STextBlock).Text(LOCTEXT("Mention", "BlueMoon Interactive  -  2027  -  en développement, susceptible de changer"))
 		.Font(Police("Regular", 10)).ColorAndOpacity(FLinearColor(0.66f, 0.63f, 0.75f, 0.6f))
 	];
 }
@@ -509,7 +625,7 @@ TSharedRef<SWidget> SVespInterface::FicheAylis()
 					SNew(STextBlock).Font(Police("Italic", 10)).ColorAndOpacity(DOUX)
 					.Text_Lambda([this]() {
 						const AVespPlayerController* J = Joueur.Get();
-						return J && J->Aylis ? Texte(FString::Printf(TEXT("attaque %d  -  defense %d"), J->Aylis->Stats.Attaque, J->Aylis->Stats.Defense)) : FText::GetEmpty();
+						return J && J->Aylis ? Texte(FString::Printf(TEXT("attaque %d  -  défense %d"), J->Aylis->Stats.Attaque, J->Aylis->Stats.Defense)) : FText::GetEmpty();
 					})
 				]
 			]
@@ -558,7 +674,7 @@ TSharedRef<SWidget> SVespInterface::FicheAylis()
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
 				[
-					Pastille(TAttribute<FText>::CreateLambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ECLATS %d"), Joueur->Eclats)) : FText::GetEmpty(); }),
+					Pastille(TAttribute<FText>::CreateLambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ÉCLATS %d"), Joueur->Eclats)) : FText::GetEmpty(); }),
 					         OR, EVisibility::Visible)
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
@@ -573,7 +689,7 @@ TSharedRef<SWidget> SVespInterface::FicheAylis()
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
 				[
-					Pastille(LOCTEXT("Brulure", "BRULURE"), FLinearColor(1.0f, 0.6f, 0.25f),
+					Pastille(LOCTEXT("Brulure", "BRÛLURE"), FLinearColor(1.0f, 0.6f, 0.25f),
 					         TAttribute<EVisibility>::CreateLambda([this, EtatAylis]() { return VisibleSi(EtatAylis(1)); }))
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
@@ -654,7 +770,7 @@ TSharedRef<SWidget> SVespInterface::BarreDuBoss()
 		.ShadowOffset(FVector2D(0, 2)).ShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f))
 		.Text_Lambda([Boss]() {
 			const AVespUnite* B = Boss();
-			return B ? Texte(B->Stats.Nom.ToUpper() + (B->bPhaseDeux ? TEXT("  -  EN RAGE") : TEXT(""))) : FText::GetEmpty();
+			return B ? Texte(VespMajuscules(B->Stats.Nom) + (B->bPhaseDeux ? TEXT("  -  EN RAGE") : TEXT(""))) : FText::GetEmpty();
 		})
 	]
 	+ SVerticalBox::Slot().AutoHeight()
@@ -687,7 +803,7 @@ TSharedRef<SWidget> SVespInterface::BandeauClairiere()
 			if (!Joueur.IsValid() || !Joueur->Combat) return FText::GetEmpty();
 			const FVespGroupe* G = Joueur->Combat->GroupeFerme();
 			const int32 Restants = Joueur->Combat->HaschenEngages();
-			FString T = FString::Printf(TEXT("CLAIRIERE SCELLEE  -  %d HASCHEN"), Restants);
+			FString T = FString::Printf(TEXT("CLAIRIÈRE SCELLÉE  -  %d HASCHEN"), Restants);
 			if (G && G->VaguesRestantes > 0) T += FString::Printf(TEXT("  -  %d VAGUE%s A VENIR"), G->VaguesRestantes, G->VaguesRestantes > 1 ? TEXT("S") : TEXT(""));
 			return Texte(T);
 		})
@@ -712,7 +828,7 @@ TSharedRef<SWidget> SVespInterface::CoucheExploration()
 				}
 			}
 		}
-		return FString::Printf(TEXT("Clairieres visitees : %d / %d"), Nombre, Total);
+		return FString::Printf(TEXT("Clairières visitées : %d / %d"), Nombre, Total);
 	};
 	return SNew(SOverlay).Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::Exploration)); })
 	// En haut a gauche : ou l'on est
@@ -724,7 +840,7 @@ TSharedRef<SWidget> SVespInterface::CoucheExploration()
 			+ SVerticalBox::Slot().AutoHeight()
 			[
 				SNew(STextBlock).Font(Police("Bold", 10, 260)).ColorAndOpacity(OR)
-				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(TEXT("ACTE ") + AVespPlayerController::Romain(Joueur->Acte) + TEXT("  -  ") + Joueur->NomDeLActe().ToUpper()) : FText::GetEmpty(); })
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(TEXT("ACTE ") + AVespPlayerController::Romain(Joueur->Acte) + TEXT("  -  ") + VespMajuscules(Joueur->NomDeLActe())) : FText::GetEmpty(); })
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 4, 0, 4)
 			[
@@ -760,7 +876,7 @@ TSharedRef<SWidget> SVespInterface::CoucheExploration()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
 			SNew(STextBlock).Font(Police("Regular", 11)).ColorAndOpacity(FLinearColor(0.66f, 0.63f, 0.75f, 0.75f))
-			.Text(LOCTEXT("CommandesExplo", "clic gauche : attaquer     clic droit : lourde     ESPACE : esquiver     MAJ : garde     R : potion     V : special     TAB : carte"))
+			.Text(LOCTEXT("CommandesExplo", "clic gauche : attaquer     clic droit : lourde     ESPACE : esquiver     MAJ : garde     R : potion     V : spécial     TAB : carte"))
 		]
 	]
 	// En bas a droite : les trois pouvoirs du Seuil (et leur recharge)
@@ -819,7 +935,7 @@ TSharedRef<SWidget> SVespInterface::CoucheExploration()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
 			SNew(STextBlock).Font(Police("Regular", 13)).ColorAndOpacity(TEXTE)
-			.Text(LOCTEXT("GainsNiveau", "+5 pv max   +1 attaque   +1 point de competence"))
+			.Text(LOCTEXT("GainsNiveau", "+5 pv max   +1 attaque   +1 point de compétence"))
 		]
 		]
 	]
@@ -866,10 +982,10 @@ TSharedRef<SWidget> SVespInterface::CoucheRoute()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
 			EnTete(TAttribute<FText>::CreateLambda([this]() {
-				       return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ACTE %s  -  %s"), *AVespPlayerController::Romain(Joueur->Acte), *Joueur->NomDeLActe().ToUpper())) : FText::GetEmpty();
+				       return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ACTE %s  -  %s"), *AVespPlayerController::Romain(Joueur->Acte), *VespMajuscules(Joueur->NomDeLActe()))) : FText::GetEmpty();
 			       }),
 			       LOCTEXT("TitreCarte", "LA ROUTE DE LA VISION"),
-			       LOCTEXT("SousCarte", "Le sentier principal mene au boss, a l'est. Les embranchements cachent des tresors... et des elites."))
+			       LOCTEXT("SousCarte", "Le sentier principal mène au boss, à l'est. Les embranchements cachent des trésors... et des élites."))
 		]
 		+ SVerticalBox::Slot().AutoHeight().Padding(FMargin(60, 18, 60, 0))
 		[
@@ -923,7 +1039,7 @@ TSharedRef<SWidget> SVespInterface::CoucheRunes()
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
-			EnTete(LOCTEXT("TitreRunes1", "LA PROPHETIE T'OFFRE"), LOCTEXT("TitreRunes2", "UNE RUNE"),
+			EnTete(LOCTEXT("TitreRunes1", "LA PROPHÉTIE T'OFFRE"), LOCTEXT("TitreRunes2", "UNE RUNE"),
 			       LOCTEXT("AideRunes", "AYLIS la garde jusqu'a la fin de la route. Les runes dorees sont uniques."))
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 10, 0, 30)
@@ -934,7 +1050,7 @@ TSharedRef<SWidget> SVespInterface::CoucheRunes()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[Cartes]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 28, 0, 0)
 		[
-			SNew(STextBlock).Text(LOCTEXT("AideChoix", "Clique sur une carte, tape son numero, ou choisis avec les fleches / la manette et valide (ENTREE / A)")).Font(Police("Regular", 12)).ColorAndOpacity(DOUX)
+			SNew(STextBlock).Text(LOCTEXT("AideChoix", "Clique sur une carte, tape son numéro, ou choisis avec les flèches / la manette et valide (ENTRÉE / A)")).Font(Police("Regular", 12)).ColorAndOpacity(DOUX)
 		]
 	];
 }
@@ -954,7 +1070,7 @@ TSharedRef<SWidget> SVespInterface::CoucheMarchand()
 				TAttribute<FText>::CreateLambda([Offre]() { return Offre() ? Texte(Offre()->Aide) : FText::GetEmpty(); }),
 				TAttribute<FText>::CreateLambda([Offre]() {
 					if (!Offre()) return FText::GetEmpty();
-					return Offre()->bVendue ? LOCTEXT("Vendu", "VENDU") : Texte(FString::Printf(TEXT("%d eclats"), Offre()->Prix));
+					return Offre()->bVendue ? LOCTEXT("Vendu", "VENDU") : Texte(FString::Printf(TEXT("%d éclats"), Offre()->Prix));
 				}),
 				[Offre]() { return Offre() && Offre()->Genre == 1 ? VIOLET : BRUME; },
 				TAttribute<bool>::CreateLambda([this, Offre]() { return Offre() && !Offre()->bVendue && Joueur->Eclats >= Offre()->Prix; }),
@@ -977,7 +1093,7 @@ TSharedRef<SWidget> SVespInterface::CoucheMarchand()
 			SNew(SBorder).BorderImage(&Rond).BorderBackgroundColor(FLinearColor(OR.R, OR.G, OR.B, 0.18f)).Padding(FMargin(22, 6))
 			[
 				SNew(STextBlock).Font(Police("Bold", 16, 120)).ColorAndOpacity(OR)
-				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ECLATS : %d"), Joueur->Eclats)) : FText::GetEmpty(); })
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("ÉCLATS : %d"), Joueur->Eclats)) : FText::GetEmpty(); })
 			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[Cartes]
@@ -1068,8 +1184,8 @@ TSharedRef<SWidget> SVespInterface::CoucheDialogue()
 	auto CouleurOrateur = [Orateur]() {
 		const FString O = Orateur();
 		if (O == TEXT("AYLIS")) return BLEU_AYLIS;
-		if (O == TEXT("La prophetie") || O == TEXT("L'Oracle")) return VIOLET;
-		if (O == TEXT("La Matriarche") || O == TEXT("Le Roi Noye")) return FLinearColor(0.45f, 0.9f, 0.5f);
+		if (O == TEXT("La prophétie") || O == TEXT("L'Oracle")) return VIOLET;
+		if (O == TEXT("La Matriarche") || O == TEXT("Le Roi Noyé")) return FLinearColor(0.45f, 0.9f, 0.5f);
 		if (O == TEXT("Ashka")) return FLinearColor(1.0f, 0.45f, 0.65f);
 		return FLinearColor(1.0f, 0.45f, 0.3f);
 	};
@@ -1105,7 +1221,7 @@ TSharedRef<SWidget> SVespInterface::CoucheDialogue()
 							]
 							+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Right)
 							[
-								SNew(STextBlock).Text(LOCTEXT("Suite", "cliquer ou ENTREE")).Font(Police("Italic", 10)).ColorAndOpacity(FLinearColor(0.42f, 0.29f, 0.16f))
+								SNew(STextBlock).Text(LOCTEXT("Suite", "cliquer ou ENTRÉE")).Font(Police("Italic", 10)).ColorAndOpacity(FLinearColor(0.42f, 0.29f, 0.16f))
 							]
 						]
 					]
@@ -1117,7 +1233,7 @@ TSharedRef<SWidget> SVespInterface::CoucheDialogue()
 					.BorderBackgroundColor_Lambda([CouleurOrateur]() { return FSlateColor(CouleurOrateur() * FLinearColor(0.38f, 0.38f, 0.38f, 1.0f)); })
 					[
 						SNew(STextBlock).Font(Police("Bold", 18, 140)).ColorAndOpacity(FLinearColor(1.0f, 0.95f, 0.87f))
-						.Text_Lambda([Orateur]() { return Texte(Orateur().ToUpper()); })
+						.Text_Lambda([Orateur]() { return Texte(VespMajuscules(Orateur())); })
 					]
 				]
 			]
@@ -1199,7 +1315,7 @@ TSharedRef<SWidget> SVespInterface::CoucheFin()
 			[
 				SNew(STextBlock).Font(Police("Bold", 52, 160))
 				.ColorAndOpacity_Lambda([bVictoire]() { return FSlateColor(bVictoire() ? OR_PALE : FLinearColor(0.85f, 0.75f, 1.0f)); })
-				.Text_Lambda([bVictoire]() { return bVictoire() ? LOCTEXT("Victoire", "LE VOILE SE DECHIRE") : LOCTEXT("Defaite", "LA VISION SE BRISE..."); })
+				.Text_Lambda([bVictoire]() { return bVictoire() ? LOCTEXT("Victoire", "LE VOILE SE DÉCHIRE") : LOCTEXT("Defaite", "LA VISION SE BRISE..."); })
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 14, 0, 40)
 			[
@@ -1210,7 +1326,7 @@ TSharedRef<SWidget> SVespInterface::CoucheFin()
 						return LOCTEXT("VictoireSuite", "L'Oracle est tombe. Karn s'eveille, et la route s'ouvre sur un monde que personne n'avait jamais vu.");
 					}
 					const AVespPlayerController* J = Joueur.Get();
-					return J ? Texte(FString::Printf(TEXT("Acte %s, niveau %d, %d Haschen vaincus. Ce n'etait qu'un futur possible. La prophetie en montre d'autres."),
+					return J ? Texte(FString::Printf(TEXT("Acte %s, niveau %d, %d Haschen vaincus. Ce n'était qu'un futur possible. La prophétie en montre d'autres."),
 					                                 *AVespPlayerController::Romain(J->Acte), J->Niveau, J->HaschenVaincus))
 					         : FText::GetEmpty();
 				})

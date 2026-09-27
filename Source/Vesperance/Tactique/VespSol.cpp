@@ -7,6 +7,10 @@
 #include "VespMonde.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/Texture2D.h"
+#include "ImageUtils.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Paths.h"
+#include "Misc/CommandLine.h"
 #if WITH_EDITORONLY_DATA
 #include "Materials/Material.h"
 #include "Materials/MaterialExpressionTextureSampleParameter2D.h"
@@ -18,6 +22,7 @@
 #include "Materials/MaterialExpressionLinearInterpolate.h"
 #include "Materials/MaterialExpressionVectorParameter.h"
 #include "Materials/MaterialExpressionConstant.h"
+#include "Materials/MaterialExpressionDesaturation.h"
 #endif
 
 UMaterialInterface* AVespMonde::MateriauDuSol()
@@ -69,22 +74,33 @@ UMaterialInterface* AVespMonde::MateriauDuSol()
 		L->Alpha.Connect(SortieAlpha, Alpha);
 		return L;
 	};
-	// L'herbe, a deux echelles ; la terre ; la matiere de l'acte
+	// Chaque matiere : SA couleur (choisie pour l'acte), et le grain de la texture (sa lumiere seulement :
+	// les textures des packs n'ont pas toutes la meme couleur, certaines sont grises)
+	auto Grain = [&](UMaterialExpression* Tex) -> UMaterialExpression* {
+		UMaterialExpressionDesaturation* Gris = Ajouter(NewObject<UMaterialExpressionDesaturation>(M));
+		Gris->Input.Connect(0, Tex);
+		UMaterialExpressionLinearInterpolate* L = Ajouter(NewObject<UMaterialExpressionLinearInterpolate>(M));
+		L->ConstA = 0.55f;
+		L->ConstB = 1.45f;
+		L->Alpha.Connect(0, Gris);
+		return L;
+	};
+	// L'herbe, a deux echelles (pour casser la repetition) ; la terre ; la matiere de l'acte
 	UMaterialExpressionLinearInterpolate* HerbeDouble = Ajouter(NewObject<UMaterialExpressionLinearInterpolate>(M));
-	HerbeDouble->A.Connect(0, Texture(TEXT("Herbe"), Echelle(4.5f), false));
-	HerbeDouble->B.Connect(0, Texture(TEXT("HerbeLoin"), Echelle(19.0f), false));
+	HerbeDouble->A.Connect(0, Grain(Texture(TEXT("Herbe"), Echelle(4.5f), false)));
+	HerbeDouble->B.Connect(0, Grain(Texture(TEXT("HerbeLoin"), Echelle(19.0f), false)));
 	HerbeDouble->ConstAlpha = 0.45f;
 	UMaterialExpression* Herbe = Fois(HerbeDouble, Couleur(TEXT("TeinteHerbe")));
-	UMaterialExpression* Terre = Fois(Texture(TEXT("Terre"), Echelle(3.8f), false), Couleur(TEXT("TeinteTerre")));
-	UMaterialExpression* Autre = Fois(Texture(TEXT("Autre"), Echelle(5.0f), false), Couleur(TEXT("TeinteAutre")));
+	UMaterialExpression* Terre = Fois(Grain(Texture(TEXT("Terre"), Echelle(3.8f), false)), Couleur(TEXT("TeinteTerre")));
+	UMaterialExpression* Autre = Fois(Grain(Texture(TEXT("Autre"), Echelle(5.0f), false)), Couleur(TEXT("TeinteAutre")));
 	// La carte : (position - coin) / taille
 	UMaterialExpressionVectorParameter* Coin = Couleur(TEXT("Coin"));
 	UMaterialExpressionComponentMask* CoinXY = Ajouter(NewObject<UMaterialExpressionComponentMask>(M));
 	CoinXY->Input.Connect(0, Coin);
 	CoinXY->R = true; CoinXY->G = true; CoinXY->B = false; CoinXY->A = false;
 	UMaterialExpressionComponentMask* TailleXY = Ajouter(NewObject<UMaterialExpressionComponentMask>(M));
-	TailleXY->Input.Connect(0, Coin);
-	TailleXY->R = false; TailleXY->G = false; TailleXY->B = true; TailleXY->A = true;
+	TailleXY->Input.Connect(0, Couleur(TEXT("TailleCarte")));
+	TailleXY->R = true; TailleXY->G = true; TailleXY->B = false; TailleXY->A = false;
 	UMaterialExpressionSubtract* Decale = Ajouter(NewObject<UMaterialExpressionSubtract>(M));
 	Decale->A.Connect(0, XY);
 	Decale->B.Connect(0, CoinXY);
@@ -165,17 +181,30 @@ void AVespMonde::PeindreLeSol(const FBox2D& Limites)
 		FLinearColor TH, TT, TA;
 		float Plaques;
 	};
+	// (les textures StyleHex sont des masques en gris, faits pour etre teintes : on s'en sert pour la neige et la cendre ;
+	//  l'herbe et la terre en couleur viennent du Fantastic Village et du pack Provencal)
+	const TCHAR* TERRE_PR = TEXT("/Game/StylizedProvencal/Textures/T_Dirt_B.T_Dirt_B");
+	const TCHAR* HERBE_PR = TEXT("/Game/StylizedProvencal/Textures/T_Grass_B.T_Grass_B");
 	const FLinearColor B(1, 1, 1);
 	const FMatieres ACTES[7] = {
-		{HERBE_SH, TERRE_1, HERBE_FV, B * 0.85f, B, FLinearColor(0.9f, 1.0f, 0.8f), 0.35f},													// la foret
-		{HERBE_SH, TERRE_2, MOUSSE, FLinearColor(0.5f, 0.58f, 0.46f), FLinearColor(0.72f, 0.66f, 0.6f), FLinearColor(0.55f, 0.62f, 0.45f), 0.45f},	// le bois hante
-		{HERBE_FV, TERRE_2, MOUSSE, FLinearColor(0.42f, 0.52f, 0.38f), FLinearColor(0.45f, 0.4f, 0.32f), FLinearColor(0.6f, 0.82f, 0.5f), 0.6f},		// les marais
-		{HERBE_FV, GRAVIER_2, TERRE_1, FLinearColor(0.85f, 0.78f, 0.5f), FLinearColor(0.95f, 0.9f, 0.85f), FLinearColor(0.9f, 0.8f, 0.7f), 0.4f},	// la forteresse
-		{TERRE_1, GRAVIER, HERBE_SH, FLinearColor(1.9f, 2.0f, 2.3f), FLinearColor(0.75f, 0.78f, 0.88f), FLinearColor(0.6f, 0.72f, 0.78f), 0.3f},	// le col : la neige
-		{TERRE_2, GRAVIER, TERRE_1, FLinearColor(0.36f, 0.31f, 0.3f), FLinearColor(0.26f, 0.22f, 0.22f), FLinearColor(1.0f, 0.4f, 0.16f), 0.3f},	// la cendre et les braises
-		{HERBE_SH, GRAVIER_2, MOUSSE, FLinearColor(0.46f, 0.37f, 0.58f), FLinearColor(0.42f, 0.32f, 0.52f), FLinearColor(0.62f, 0.36f, 0.85f), 0.5f},	// Karn
+		// (les couleurs sont les VRAIES couleurs des matieres ; la texture n'apporte que le grain)
+		{HERBE_FV, GRAVIER_2, HERBE_PR, FLinearColor(0.11f, 0.22f, 0.05f), FLinearColor(0.26f, 0.17f, 0.09f), FLinearColor(0.2f, 0.3f, 0.06f), 0.35f},	// la foret : herbe, terre, prairie claire
+		{HERBE_FV, GRAVIER_2, MOUSSE, FLinearColor(0.09f, 0.13f, 0.06f), FLinearColor(0.17f, 0.13f, 0.1f), FLinearColor(0.12f, 0.17f, 0.05f), 0.45f},	// le bois hante : herbe fanee, mousse
+		{HERBE_FV, GRAVIER, MOUSSE, FLinearColor(0.07f, 0.13f, 0.08f), FLinearColor(0.11f, 0.09f, 0.06f), FLinearColor(0.07f, 0.2f, 0.09f), 0.6f},		// les marais : vase, mousse verte
+		{HERBE_FV, GRAVIER_2, TERRE_PR, FLinearColor(0.2f, 0.19f, 0.08f), FLinearColor(0.24f, 0.22f, 0.2f), FLinearColor(0.26f, 0.18f, 0.11f), 0.4f},	// la forteresse : herbe seche, dalles
+		{TERRE_1, GRAVIER, HERBE_FV, FLinearColor(0.7f, 0.76f, 0.88f), FLinearColor(0.42f, 0.44f, 0.5f), FLinearColor(0.5f, 0.58f, 0.66f), 0.3f},		// le col : neige, neige tassee, neige bleutee
+		{TERRE_2, GRAVIER, TERRE_PR, FLinearColor(0.09f, 0.08f, 0.08f), FLinearColor(0.05f, 0.045f, 0.045f), FLinearColor(0.9f, 0.22f, 0.04f), 0.3f},	// la cendre, et des braises
+		{HERBE_FV, GRAVIER_2, MOUSSE, FLinearColor(0.06f, 0.05f, 0.07f), FLinearColor(0.09f, 0.075f, 0.095f), FLinearColor(0.16f, 0.06f, 0.22f), 0.5f},		// Karn : le Voile
 	};
+	(void)B;
+	(void)HERBE_SH;
 	const FMatieres& A = ACTES[FMath::Clamp(Acte, 1, 7) - 1];
+	for (const TCHAR* Chemin : {A.Herbe, A.Terre, A.Autre})
+	{
+		const UTexture2D* X = T(Chemin);
+		UE_LOG(LogTemp, Display, TEXT("VESPERANCE sol : %s -> %s (sRGB %d, compression %d, %dx%d)"), Chemin, X ? TEXT("ok") : TEXT("ABSENTE"),
+		       X ? (int32)X->SRGB : -1, X ? (int32)X->CompressionSettings : -1, X ? X->GetSizeX() : 0, X ? X->GetSizeY() : 0);
+	}
 	SolVivant->SetTextureParameterValue(TEXT("Herbe"), T(A.Herbe));
 	SolVivant->SetTextureParameterValue(TEXT("HerbeLoin"), T(A.Herbe));
 	SolVivant->SetTextureParameterValue(TEXT("Terre"), T(A.Terre));
@@ -212,6 +241,13 @@ void AVespMonde::PeindreLeSol(const FBox2D& Limites)
 			Points[y * N + x] = FColor((uint8)(Terre * 255.0f), (uint8)(Autre * 255.0f), (uint8)(Lumiere * 255.0f), 255);
 		}
 	}
+	// (pour verifier : la carte est aussi enregistree en image, dans Saved)
+	if (FParse::Param(FCommandLine::Get(), TEXT("VespPhotos")))
+	{
+		TArray64<uint8> Png;
+		FImageUtils::PNGCompressImageArray(N, N, TArrayView64<const FColor>(Points.GetData(), Points.Num()), Png);
+		FFileHelper::SaveArrayToFile(Png, *(FPaths::ProjectSavedDir() / FString::Printf(TEXT("CarteDuSol_Acte%d.png"), Acte)));
+	}
 	CarteDuSol = UTexture2D::CreateTransient(N, N, PF_B8G8R8A8);
 	CarteDuSol->SRGB = true;
 	CarteDuSol->Filter = TF_Bilinear;
@@ -222,5 +258,6 @@ void AVespMonde::PeindreLeSol(const FBox2D& Limites)
 	CarteDuSol->GetPlatformData()->Mips[0].BulkData.Unlock();
 	CarteDuSol->UpdateResource();
 	SolVivant->SetTextureParameterValue(TEXT("Carte"), CarteDuSol);
-	SolVivant->SetVectorParameterValue(TEXT("Coin"), FLinearColor(Limites.Min.X, Limites.Min.Y, Taille.X, Taille.Y));
+	SolVivant->SetVectorParameterValue(TEXT("Coin"), FLinearColor(Limites.Min.X, Limites.Min.Y, 0.0f, 0.0f));
+	SolVivant->SetVectorParameterValue(TEXT("TailleCarte"), FLinearColor(Taille.X, Taille.Y, 1.0f, 1.0f));
 }

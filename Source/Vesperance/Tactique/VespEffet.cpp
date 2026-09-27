@@ -172,9 +172,9 @@ void AVespEffet::Jouer(UWorld* Monde, EVespEffet Type, FVector Position, FVector
 			}
 			break;
 		}
-		case EVespEffet::Soin: AjouterMagie(TEXT("NS_Free_Magic_Buff"), Position, FRotator::ZeroRotator, 0.8f, Retard); break;
-		case EVespEffet::Onde: AjouterMagie(TEXT("NS_Free_Magic_Circle2"), Position, FRotator::ZeroRotator, 0.4f, Retard); break;
-		case EVespEffet::Etincelles: AjouterMagie(TEXT("NS_Free_Magic_Circle1"), Position, FRotator::ZeroRotator, 0.7f, Retard); break;
+		case EVespEffet::Soin: AjouterMagie(TEXT("NS_Free_Magic_Buff"), Position, FRotator::ZeroRotator, 0.35f, Retard); break;
+		case EVespEffet::Onde: break;				// (seulement nos grains : les cercles runiques du pack couvraient tout l ecran)
+		case EVespEffet::Etincelles: break;			// (nos grains seulement : un cercle runique a chaque parade ou impact, c etait illisible)
 		default: break;
 	}
 

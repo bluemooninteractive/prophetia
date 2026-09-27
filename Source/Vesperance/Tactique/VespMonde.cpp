@@ -127,19 +127,19 @@ struct FVespPalette
 static FVespPalette PaletteDeLActe(int32 Acte)
 {
 	FVespPalette P;
-	const TArray<UStaticMesh*> Foret = Liste({Provencal(TEXT("SMF_Forest_Tree01")), Provencal(TEXT("SMF_Forest_Tree02")), Provencal(TEXT("SMF_Forest_Tree03")),
-	                                          Provencal(TEXT("SMF_Forest_Tree04")), Provencal(TEXT("SMF_Forest_Tree05")), Provencal(TEXT("SMF_Forest_Tree06"))});
-	const TArray<UStaticMesh*> Buissons = Liste({Provencal(TEXT("SMF_Forest_Bush_2")), Provencal(TEXT("SMF_Forest_Bush_3")), Provencal(TEXT("SMF_Forest_Bush_4")),
+	const TArray<UStaticMesh*> Foret = Liste({Provencal(TEXT("SM_Tree_01")), Provencal(TEXT("SM_Tree_02")), Provencal(TEXT("SM_Tree_02")),
+	                                          Provencal(TEXT("SM_Tree_03")), Provencal(TEXT("SM_Tree_03")), Provencal(TEXT("SM_Tree_03"))});
+	const TArray<UStaticMesh*> Buissons = Liste({Provencal(TEXT("SM_Bush_01")), Provencal(TEXT("SM_Bush_01")), Provencal(TEXT("SM_Bush_03")),
 	                                             Provencal(TEXT("SM_Bush_01")), Provencal(TEXT("SM_Bush_02")), Provencal(TEXT("SM_Bush_03")), Provencal(TEXT("SM_Bush_04"))});
-	const TArray<UStaticMesh*> RochersForet = Liste({Provencal(TEXT("SMF_Forest_Rock_1")), Provencal(TEXT("SMF_Forest_Rock_2")), Provencal(TEXT("SMF_Forest_Rock_3")),
-	                                                 Provencal(TEXT("SMF_Forest_Rock_4"))});
+	const TArray<UStaticMesh*> RochersForet = Liste({Provencal(TEXT("SM_Rock_Cliff_03")), Provencal(TEXT("SM_Rock_Large_01")), Provencal(TEXT("SM_Rock_Large_02")),
+	                                                 Provencal(TEXT("SM_Rock_Small_01"))});
 	const TArray<UStaticMesh*> PetitsRochers = Liste({Provencal(TEXT("SM_Rock_Small_01")), Provencal(TEXT("SM_Rock_Small_02")), Provencal(TEXT("SM_Rock_Small_03"))});
 	const TArray<UStaticMesh*> GrandsRochers = Liste({Provencal(TEXT("SM_Rock_Large_01")), Provencal(TEXT("SM_Rock_Large_02"))});
 	const TArray<UStaticMesh*> Falaises = Liste({Provencal(TEXT("SM_Rock_Cliff_01")), Provencal(TEXT("SM_Rock_Cliff_02")), Provencal(TEXT("SM_Rock_Cliff_03")),
 	                                             Provencal(TEXT("SM_Rock_Cliff_04"))});
-	const TArray<UStaticMesh*> Herbes = Liste({Provencal(TEXT("SMF_GrassField_01_a")), Provencal(TEXT("SMF_GrassField_01_b")), Provencal(TEXT("SMF_GrassField_02_a")),
-	                                           Provencal(TEXT("SMF_GrassField_02_b")), Provencal(TEXT("SMF_Grass_Small_01_a")), Provencal(TEXT("SMF_Grass_Small_01_b")),
-	                                           Provencal(TEXT("SMF_Grass_Small_02_a")), Provencal(TEXT("SMF_Grass_Small_02_b"))});
+	const TArray<UStaticMesh*> Herbes = Liste({Provencal(TEXT("SM_GrassField_01_a")), Provencal(TEXT("SM_GrassField_01_b")), Provencal(TEXT("SM_GrassField_02_a")),
+	                                           Provencal(TEXT("SM_GrassField_02_b")), Provencal(TEXT("SM_Grass_Small_01_a")), Provencal(TEXT("SM_Grass_Small_01_b")),
+	                                           Provencal(TEXT("SM_Grass_Small_02_a")), Provencal(TEXT("SM_Grass_Small_02_b"))});
 	const TArray<UStaticMesh*> Fleurs = Liste({Provencal(TEXT("SM_Flower_01_a")), Provencal(TEXT("SM_Flower_01_b")), Provencal(TEXT("SM_Flower_01_c")),
 	                                           Provencal(TEXT("SM_Flower_02_a")), Provencal(TEXT("SM_Flower_02_b")), Provencal(TEXT("SM_Flower_02_c")),
 	                                           Provencal(TEXT("SM_Flower_03_a")), Provencal(TEXT("SM_Flower_03_b"))});
@@ -230,7 +230,7 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.bSolPeint = true;
 			break;
 		case 3:		// les Marais : des cypres, des roseaux, des mares, des passerelles de planches
-			P.Arbres = Plus(Liste({Provencal(TEXT("SM_Tree_Cypress")), Provencal(TEXT("SM_Tree_Cypress"))}), Liste({Provencal(TEXT("SMF_Forest_Tree05")), Provencal(TEXT("SMF_Forest_Tree06"))}));
+			P.Arbres = Plus(Liste({Provencal(TEXT("SM_Tree_Cypress")), Provencal(TEXT("SM_Tree_Cypress"))}), Liste({Provencal(TEXT("SM_Tree_03")), Provencal(TEXT("SM_Tree_03"))}));
 			P.DensiteArbres = 0.7f;
 			P.Rochers = PetitsRochers;
 			P.Fleurs = Liste({Provencal(TEXT("SM_Flower_02_a")), Provencal(TEXT("SM_Flower_02_b")), Provencal(TEXT("SM_Flower_02_c"))});
@@ -264,7 +264,7 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.bSolPeint = true;
 			break;
 		case 5:		// le col gele : des falaises partout, quelques arbres, des rochers
-			P.Arbres = Liste({Provencal(TEXT("SMF_Forest_Tree02")), Provencal(TEXT("SMF_Forest_Tree04"))});
+			P.Arbres = Plus(Liste({Provencal(TEXT("SM_Tree_Cypress")), Provencal(TEXT("SM_Tree_Cypress")), Provencal(TEXT("SM_Tree_Cypress"))}), ArbreTordu);		// des cypres sombres et des arbres morts, sous la neige
 			P.DensiteArbres = 0.35f;
 			P.Rochers = Plus(Plus(RochersForet, GrandsRochers), Plus(Pierres, Bloc));
 			P.DensiteRochers = 1.6f;
@@ -389,6 +389,35 @@ UHierarchicalInstancedStaticMeshComponent* AVespMonde::Instances(UStaticMesh* M,
 	UHierarchicalInstancedStaticMeshComponent* C = NewObject<UHierarchicalInstancedStaticMeshComponent>(this);
 	C->SetupAttachment(Racine);
 	C->SetStaticMesh(M);
+	// Le feuillage du pack Provencal est vert citron, fait pour le plein soleil : on le teinte a la couleur de l'acte
+	// (plus sombre la nuit, roux dans le bois hante, bleu-vert sous la neige...), et on calme sa diffusion
+	if (M->GetPathName().StartsWith(TEXT("/Game/StylizedProvencal/")))
+	{
+		static const FLinearColor TEINTES[7] = {
+			FLinearColor(0.72f, 0.82f, 0.66f), FLinearColor(0.72f, 0.62f, 0.38f), FLinearColor(0.42f, 0.56f, 0.46f), FLinearColor(0.78f, 0.72f, 0.48f),
+			FLinearColor(0.34f, 0.5f, 0.52f), FLinearColor(0.42f, 0.32f, 0.24f), FLinearColor(0.46f, 0.36f, 0.58f)};
+		const FLinearColor Teinte = TEINTES[FMath::Clamp(Acte, 1, 7) - 1];
+		for (int32 i = 0; i < C->GetNumMaterials(); i++)
+		{
+			UMaterialInterface* Source = C->GetMaterial(i);
+			if (!Source || !Source->GetName().Contains(TEXT("Flora")))
+			{
+				continue;
+			}
+			TObjectPtr<UMaterialInstanceDynamic>* Deja = Feuillages.Find(Source);
+			UMaterialInstanceDynamic* Mid = Deja ? Deja->Get() : nullptr;
+			if (!Mid)
+			{
+				Mid = UMaterialInstanceDynamic::Create(Source, this);
+				FLinearColor Origine = FLinearColor::White;
+				Source->GetVectorParameterValue(FHashedMaterialParameterInfo(TEXT("Basecolor Tint")), Origine);
+				Mid->SetVectorParameterValue(TEXT("Basecolor Tint"), Origine * Teinte);
+				Mid->SetScalarParameterValue(TEXT("SSS Intensity"), 0.25f);
+				Feuillages.Add(Source, Mid);
+			}
+			C->SetMaterial(i, Mid);
+		}
+	}
 	C->SetMobility(EComponentMobility::Movable);
 	C->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	C->SetCastShadow(bOmbre);
@@ -484,6 +513,7 @@ void AVespMonde::Vider()
 		}
 	}
 	Catalogue.Reset();
+	Feuillages.Reset();		// (les teintes changent avec l'acte)
 	auto Detruire = [](auto& Tableau) {
 		for (auto& C : Tableau)
 		{
@@ -690,6 +720,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 	Hasard.Initialize(900 + Acte * 77);
 	const FVespStyleActe& S = StyleDeLActe(Acte);
 	const FVespPalette Pal = PaletteDeLActe(Acte);
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE arbres (acte %d) : %d modeles, le premier : %s"), Acte, Pal.Arbres.Num(), Pal.Arbres.Num() ? *GetNameSafe(Pal.Arbres[0]) : TEXT("aucun"));
 	auto Teindre = [](UMaterialInstanceDynamic* M, const FLinearColor& C) { if (M) { M->SetVectorParameterValue(TEXT("Color"), C); } };
 	Teindre(CouleurChampignons, S.Champignons);
 	Teindre(CouleurTaches, S.Taches);
@@ -727,7 +758,8 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 	auto DansUneArene = [&](const FVector& P) {
 		for (const FVespZone& Z : Zones)
 		{
-			if (FMath::Abs(P.X - Z.Centre.X) < 470.0f && FMath::Abs(P.Y - Z.Centre.Y) < 670.0f)
+			// Le coeur de la clairiere : la ou l'on se bat (on n'y pose rien qui gene ou cache)
+			if (FVector::Dist2D(P, Z.Centre) < Z.Rayon * 0.55f)
 			{
 				return true;
 			}
@@ -750,7 +782,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 	// ----- Le sol : la terre, les clairieres, les sentiers, des taches -----
 	const FVector2D Taille = Limites.GetSize();
 	const FVector2D Milieu = Limites.GetCenter();
-	if (Pal.Sol)
+	if (Pal.Sol && !bSolVivant)
 	{
 		// En dalles de 10 m : le materiau se repete au lieu de s'etirer sur tout le monde
 		for (float X = Limites.Min.X; X < Limites.Max.X; X += 1000.0f)
@@ -767,6 +799,10 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 	}
 	for (const FVespZone& Z : Zones)
 	{
+		if (bSolVivant)
+		{
+			break;		// (le sol vivant dessine deja les clairieres)
+		}
 		const float E = Z.Rayon * 2.1f / 100.0f;
 		EnvClairieres->AddInstance(FTransform(FRotator::ZeroRotator, Pose(Z.Centre, -3.2f), FVector(E, E, 0.01f)), true);
 	}
@@ -812,7 +848,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 			}
 		}
 	}
-	for (int32 i = 0; i < 450; i++)
+	for (int32 i = 0; i < (bSolVivant ? 0 : 450); i++)
 	{
 		const float E = F(1.5f, 5.0f);
 		EnvTaches->AddInstance(FTransform(FRotator(0, F(0.0f, 360.0f), 0), Pose(Point(), -3.4f), FVector(E, E * F(0.6f, 1.0f), 0.01f)), true);
@@ -872,7 +908,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 		}
 	}
 	// Les herbes et les fleurs : au bord et dans les clairieres (pas au milieu du sentier ni dans les arenes)
-	for (int32 i = 0; i < FMath::RoundToInt(9000 * Pal.DensiteHerbes); i++)
+	for (int32 i = 0; i < FMath::RoundToInt(16000 * Pal.DensiteHerbes); i++)
 	{
 		const FVector P = Point();
 		const float D = DistanceAuPraticable(P);
@@ -884,6 +920,60 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 		if (Pal.Fleurs.Num() > 0 && Hasard.FRand() < 0.18f * Pal.DensiteFleurs)
 		{
 			Poser(AuHasard(Pal.Fleurs), P + FVector(F(-60.0f, 60.0f), F(-60.0f, 60.0f), 0), F(30.0f, 60.0f), 90.0f, false, 7000.0f);
+		}
+	}
+	// Le bord de ce qui est praticable : l'anneau des clairieres (autour du coeur ou l'on se bat) et les bas-cotes
+	// des sentiers se remplissent de choses basses (buissons, pierres, souches, bouquets), pour que rien ne soit vide
+	for (const FVespZone& Z : Zones)
+	{
+		const int32 Nombre = 14 + FMath::RoundToInt(Z.Rayon / 55.0f);
+		for (int32 k = 0; k < Nombre; k++)
+		{
+			const float Angle = F(0.0f, 2.0f * PI);
+			const FVector P = Pose(Z.Centre + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0.0f) * Z.Rayon * F(0.66f, 0.97f));
+			if (DistanceAuxSentiers(P) < DemiLargeurSentier * 0.8f)
+			{
+				continue;		// on ne bouche pas l'entree des sentiers
+			}
+			const float Tirage = Hasard.FRand();
+			const float Bas = CoteCamera(P) ? 0.55f : 1.0f;
+			if (Tirage < 0.35f && Pal.Buissons.Num() > 0)
+			{
+				Poser(AuHasard(Pal.Buissons), P, F(50.0f, 110.0f) * Bas, 180.0f, true, 9000.0f);
+			}
+			else if (Tirage < 0.6f && Pal.Rochers.Num() > 0)
+			{
+				Poser(AuHasard(Pal.Rochers), P, F(25.0f, 70.0f) * Bas, 120.0f, true, 9000.0f, 10.0f);
+			}
+			else if (Tirage < 0.75f && Pal.Debris.Num() > 0)
+			{
+				Poser(AuHasard(Pal.Debris), P, F(50.0f, 120.0f) * Bas, 220.0f, true, 9000.0f, 5.0f);
+			}
+			else
+			{
+				for (int32 f = 0; f < 5; f++)
+				{
+					const FVector Q = P + FVector(F(-70.0f, 70.0f), F(-70.0f, 70.0f), 0.0f);
+					Poser(AuHasard(Pal.Fleurs.Num() > 0 && Hasard.FRand() < 0.5f ? Pal.Fleurs : Pal.Herbes), Q, F(25.0f, 55.0f), 90.0f, false, 7000.0f);
+				}
+			}
+		}
+	}
+	for (int32 i = 0; i < FMath::RoundToInt(5000 * Pal.DensiteHerbes); i++)
+	{
+		const FVector P = Point();
+		const float DS = DistanceAuxSentiers(P);
+		if (DS < DemiLargeurSentier * 0.7f || DS > DemiLargeurSentier * 1.15f || DansUneArene(P))
+		{
+			continue;
+		}
+		if (Hasard.FRand() < 0.2f && Pal.Rochers.Num() > 0)
+		{
+			Poser(AuHasard(Pal.Rochers), P, F(12.0f, 30.0f), 50.0f, false, 6000.0f, 15.0f);		// des cailloux
+		}
+		else
+		{
+			Poser(AuHasard(Pal.Herbes), P, F(25.0f, 55.0f), 120.0f, false, 7000.0f);
 		}
 	}
 	// Les champignons luminescents (la magie de la prophetie) : en cercles au pied des arbres
@@ -983,7 +1073,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 			break;
 		case 6:
 			EnvLueurs->SetStaticMesh(Cylindre);
-			CouleurLueurs->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.3f, 0.03f) * 3.0f);
+			CouleurLueurs->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.2f, 0.02f) * 1.3f);
 			for (int32 i = 0; i < 170; i++)
 			{
 				const FVector P = PointAuBord(250.0f, 2400.0f);

@@ -62,10 +62,10 @@ static const FVespModeleHaschen HASCHEN[7][5] = {
 		{TEXT("Haschen brute"), TEXT("guerrier"), 36, 12, 4, FLinearColor(0.5f, 0.15f, 0.15f), CHARGEUR, 0, 0, 0, 0, 4, 10, 205.0f},
 	},
 	{	// III. Les Marais de Sombreval
-		{TEXT("Noye"), TEXT("guerrier"), 36, 13, 3, FLinearColor(0.2f, 0.45f, 0.4f), MELEE, 0, 0, 0, 0, 4, 10, 180.0f},
+		{TEXT("Noyé"), TEXT("guerrier"), 36, 13, 3, FLinearColor(0.2f, 0.45f, 0.4f), MELEE, 0, 0, 0, 0, 4, 10, 180.0f},
 		{TEXT("Crapaud cracheur"), TEXT("sbire"), 26, 12, 1, FLinearColor(0.4f, 0.55f, 0.2f), LANCEUR, POISON, 0, 0, 0, 4, 10, 130.0f},
 		{TEXT("Sangsue des vases"), TEXT("sbire"), 28, 12, 2, FLinearColor(0.35f, 0.15f, 0.2f), MELEE, 0, VAMPIRE, 0, 2, 4, 10, 160.0f},
-		{TEXT("Pecheur d'ames"), TEXT("traqueur"), 28, 13, 2, FLinearColor(0.25f, 0.35f, 0.5f), LANCEUR, 0, ATTIRE, 0, 0, 5, 10, 175.0f},
+		{TEXT("Pêcheur d'âmes"), TEXT("traqueur"), 28, 13, 2, FLinearColor(0.25f, 0.35f, 0.5f), LANCEUR, 0, ATTIRE, 0, 0, 5, 10, 175.0f},
 		{TEXT("Sorciere des vases"), TEXT("chaman"), 28, 12, 1, FLinearColor(0.3f, 0.5f, 0.3f), LANCEUR, POISON, SOIGNEUR, 0, 0, 4, 10, 175.0f},
 	},
 	{	// IV. La forteresse d'Ashka
@@ -90,36 +90,36 @@ static const FVespModeleHaschen HASCHEN[7][5] = {
 		{TEXT("Colosse de braise"), TEXT("guerrier"), 65, 20, 5, FLinearColor(0.35f, 0.15f, 0.1f), MELEE, BRULURE, 0, 2, 0, 4, 5, 235.0f},
 	},
 	{	// VII. Karn, la cite voilee
-		{TEXT("Echo de la vision"), TEXT("Aylis"), 46, 20, 4, FLinearColor(0.3f, 0.25f, 0.45f), MELEE, 0, SAUTEUR, 0, 1, 4, 15, 175.0f},
+		{TEXT("Écho de la vision"), TEXT("Aylis"), 46, 20, 4, FLinearColor(0.3f, 0.25f, 0.45f), MELEE, 0, SAUTEUR, 0, 1, 4, 15, 175.0f},
 		{TEXT("Garde de Karn"), TEXT("guerrier"), 60, 20, 6, FLinearColor(0.55f, 0.4f, 0.7f), MELEE, 0, 0, 1, 0, 4, 10, 205.0f},
 		{TEXT("Lame du Voile"), TEXT("sbire"), 44, 22, 3, FLinearColor(0.6f, 0.3f, 0.9f), MELEE, 0, SAUTEUR, 0, 2, 4, 25, 165.0f},
 		{TEXT("Archer du Voile"), TEXT("traqueur"), 44, 20, 3, FLinearColor(0.5f, 0.35f, 0.8f), LANCEUR, GEL, 0, 0, 0, 5, 12, 175.0f},
-		{TEXT("Prophete Haschen"), TEXT("chaman"), 48, 19, 3, FLinearColor(0.8f, 0.6f, 1.0f), LANCEUR, POISON, SOIGNEUR | INVOCATEUR, 0, 0, 4, 10, 180.0f},
+		{TEXT("Prophète Haschen"), TEXT("chaman"), 48, 19, 3, FLinearColor(0.8f, 0.6f, 1.0f), LANCEUR, POISON, SOIGNEUR | INVOCATEUR, 0, 0, 4, 10, 180.0f},
 	},
 };
 
 static const FVespModeleHaschen ELITES[7][2] = {
-	{{TEXT("Haschen guerrier d'elite"), TEXT("guerrier"), 44, 11, 3, OR, MELEE, 0, 0, 0, 0, 4, 15, 210.0f},
+	{{TEXT("Haschen guerrier d'élite"), TEXT("guerrier"), 44, 11, 3, OR, MELEE, 0, 0, 0, 0, 4, 15, 210.0f},
 	 {TEXT("Haschen hurleur"), TEXT("sbire"), 46, 12, 2, OR, CHARGEUR, 0, INVOCATEUR, 0, 1, 4, 15, 205.0f}},
-	{{TEXT("Louvetier d'elite"), TEXT("sbire"), 50, 13, 3, OR, CHARGEUR, 0, INVOCATEUR, 0, 1, 4, 15, 210.0f},
+	{{TEXT("Louvetier d'élite"), TEXT("sbire"), 50, 13, 3, OR, CHARGEUR, 0, INVOCATEUR, 0, 1, 4, 15, 210.0f},
 	 {TEXT("Brute des tombes"), TEXT("guerrier"), 64, 14, 4, OR, MELEE, 0, VAMPIRE, 0, 0, 4, 15, 228.0f}},
-	{{TEXT("Noye colossal"), TEXT("guerrier"), 78, 16, 4, OR, MELEE, 0, VAMPIRE, 0, 0, 4, 15, 240.0f},
-	 {TEXT("Mere des crapauds"), TEXT("sbire"), 68, 15, 2, OR, LANCEUR, POISON, INVOCATEUR, 0, 0, 5, 15, 190.0f}},
+	{{TEXT("Noyé colossal"), TEXT("guerrier"), 78, 16, 4, OR, MELEE, 0, VAMPIRE, 0, 0, 4, 15, 240.0f},
+	 {TEXT("Mère des crapauds"), TEXT("sbire"), 68, 15, 2, OR, LANCEUR, POISON, INVOCATEUR, 0, 0, 5, 15, 190.0f}},
 	{{TEXT("Capitaine de la forteresse"), TEXT("guerrier"), 84, 17, 5, OR, MELEE, 0, INVOCATEUR, 2, 0, 4, 15, 215.0f},
 	 {TEXT("Golem ancien"), TEXT("guerrier"), 96, 17, 4, OR, MELEE, 0, 0, 3, 0, 4, 10, 240.0f}},
 	{{TEXT("Alpha blanc"), TEXT("sbire"), 90, 19, 3, OR, CHARGEUR, GEL, INVOCATEUR, 0, 2, 4, 15, 215.0f},
 	 {TEXT("Garde pourpre d'Ashka"), TEXT("guerrier"), 100, 19, 5, OR, MELEE, 0, 0, 2, 0, 4, 15, 215.0f}},
 	{{TEXT("Heraut des cendres"), TEXT("chaman"), 104, 21, 4, OR, LANCEUR, BRULURE, INVOCATEUR | SOIGNEUR, 0, 0, 5, 15, 210.0f},
 	 {TEXT("Colosse ardent"), TEXT("guerrier"), 125, 22, 6, OR, MELEE, BRULURE, 0, 3, 0, 4, 10, 250.0f}},
-	{{TEXT("Grand Echo"), TEXT("Aylis"), 120, 24, 5, OR, MELEE, 0, SAUTEUR | VAMPIRE, 0, 1, 4, 20, 200.0f},
+	{{TEXT("Grand Écho"), TEXT("Aylis"), 120, 24, 5, OR, MELEE, 0, SAUTEUR | VAMPIRE, 0, 1, 4, 20, 200.0f},
 	 {TEXT("Champion de Karn"), TEXT("guerrier"), 145, 24, 7, OR, MELEE, 0, 0, 3, 0, 4, 15, 245.0f}},
 };
 
 // Les boss : bien plus de pv qu'au tour par tour (le combat dure, et chaque motif se lit et s'evite)
 static const FVespModeleHaschen BOSS[7] = {
-	{TEXT("Skarn le Brise-Cranes"), TEXT("guerrier"), 240, 12, 3, FLinearColor(0.5f, 0.5f, 0.6f), CHARGEUR, 0, 0, 0, 0, 4, 10, 260.0f},
+	{TEXT("Skarn le Brise-Crânes"), TEXT("guerrier"), 240, 12, 3, FLinearColor(0.5f, 0.5f, 0.6f), CHARGEUR, 0, 0, 0, 0, 4, 10, 260.0f},
 	{TEXT("La Matriarche"), TEXT("chaman"), 290, 13, 3, FLinearColor(0.3f, 0.65f, 0.35f), LANCEUR, POISON, 0, 0, 0, 5, 10, 250.0f},
-	{TEXT("Le Roi Noye"), TEXT("guerrier"), 380, 16, 4, FLinearColor(0.2f, 0.5f, 0.45f), MELEE, POISON, VAMPIRE, 0, 0, 4, 10, 265.0f},
+	{TEXT("Le Roi Noyé"), TEXT("guerrier"), 380, 16, 4, FLinearColor(0.2f, 0.5f, 0.45f), MELEE, POISON, VAMPIRE, 0, 0, 4, 10, 265.0f},
 	{TEXT("Le Gardien de Pierre"), TEXT("guerrier"), 440, 18, 5, FLinearColor(0.55f, 0.55f, 0.55f), MELEE, 0, 0, 4, 0, 4, 5, 290.0f},
 	{TEXT("Ashka"), TEXT("traqueur"), 470, 19, 5, FLinearColor(0.6f, 0.15f, 0.35f), LANCEUR, GEL, 0, 0, 1, 6, 15, 240.0f},
 	{TEXT("Vorgath le Destructeur"), TEXT("guerrier"), 560, 21, 6, FLinearColor(0.3f, 0.1f, 0.05f), CHARGEUR, BRULURE, 0, 0, 0, 4, 10, 300.0f},
@@ -641,9 +641,9 @@ void AVespCombat::Blesser(AVespUnite* Cible, int32 Degats, bool bCritique, const
 			{
 				Cible->TempsBrise = 4.0f;
 				Cible->Etourdi = Cible->Stats.Boss > 0 ? 3.0f : 2.0f;
-				Cible->AfficherMessage(TEXT("ARMURE BRISEE"), FColor(255, 210, 120), 46.0f);
+				Cible->AfficherMessage(TEXT("ARMURE BRISÉE"), FColor(255, 210, 120), 46.0f);
 				AVespEffet::Jouer(GetWorld(), EVespEffet::Critique, Cible->GetActorLocation() + FVector(0, 0, Cible->Taille * 0.6f), FVector::UpVector, FLinearColor(0.8f, 0.8f, 0.9f), 0.05f);
-				if (SurMessage) SurMessage(Cible->Stats.Nom + TEXT(" : armure brisee ! Il est sonne."));
+				if (SurMessage) SurMessage(Cible->Stats.Nom + TEXT(" : armure brisée ! Il est sonné."));
 			}
 		}
 		else
@@ -1147,7 +1147,7 @@ void AVespCombat::ConstruireBarriere(const FVector& Centre, float Rayon)
 		L->SetCastShadows(false);
 		LumieresBarriere.Add(L);
 	}
-	AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Circle2"), FVector(Centre.X, Centre.Y, SolZ + 5.0f), FRotator::ZeroRotator, 3.0f);
+	// (plus de grand cercle runique au sol : il ressemblait a une zone de danger et cachait les vraies, les rouges)
 	TempsBarriere = 0.0f;
 }
 
@@ -1429,7 +1429,7 @@ void AVespCombat::ReglesDeLActe(FVespGroupe& G, float Secondes)
 			{
 				G.Chrono = 0.0f;
 				TempsBlizzard = 4.5f;
-				if (SurMessage) SurMessage(TEXT("Le blizzard se leve : tout le monde ralentit !"));
+				if (SurMessage) SurMessage(TEXT("Le blizzard se lève : tout le monde ralentit !"));
 			}
 			break;
 		case 6:		// le sol se fissure et entre en eruption
@@ -1458,7 +1458,7 @@ void AVespCombat::ReglesDeLActe(FVespGroupe& G, float Secondes)
 				A.Groupe = int32(&G - Groupes.GetData());
 				Appels.Add(A);
 				AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Circle1"), A.Position, FRotator::ZeroRotator, 1.0f);
-				if (SurMessage) SurMessage(TEXT("Le Voile se dechire : un echo en sort !"));
+				if (SurMessage) SurMessage(TEXT("Le Voile se déchire : un écho en sort !"));
 			}
 			break;
 		default: break;
@@ -1477,10 +1477,10 @@ void AVespCombat::Avancer(float Secondes)
 	if (Barriere.Num() > 0)
 	{
 		TempsBarriere += Secondes;
-		const float Hauteur = FMath::Min(1.0f, TempsBarriere / 0.6f) * 3.2f;
+		const float Hauteur = FMath::Min(1.0f, TempsBarriere / 0.6f) * 1.7f;
 		for (UStaticMeshComponent* C : Barriere)
 		{
-			C->SetWorldScale3D(FVector(0.06f, 0.06f, FMath::Max(0.01f, Hauteur)));
+			C->SetWorldScale3D(FVector(0.1f, 0.1f, FMath::Max(0.01f, Hauteur)));
 			C->SetWorldLocation(FVector(C->GetComponentLocation().X, C->GetComponentLocation().Y, SolZ + Hauteur * 50.0f));
 		}
 		MatBarriere->SetVectorParameterValue(TEXT("Color"), FLinearColor(0.55f, 0.35f, 1.0f) * (1.3f + 0.4f * FMath::Sin(Horloge * 3.0f)));

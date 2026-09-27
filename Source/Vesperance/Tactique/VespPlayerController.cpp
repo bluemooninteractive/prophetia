@@ -6,6 +6,7 @@
 #include "VespSons.h"
 #include "VespInterface.h"
 #include "VespButin.h"
+#include "VespMeteo.h"
 #include "Components/StaticMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Camera/CameraActor.h"
@@ -53,26 +54,26 @@ struct FVespInfoActe
 };
 
 static const FVespInfoActe ACTES[7] = {
-	{TEXT("Les Terres Brumeuses"), TEXT("La Foret des Brumes"), TEXT("Le cercle des anciens"),
-	 TEXT("Une foret calme... pour l'instant. Apprends a lire les Haschen : quand ils rougeoient, ils vont frapper. Esquive, ou pare au dernier moment."),
+	{TEXT("Les Terres Brumeuses"), TEXT("La Forêt des Brumes"), TEXT("Le cercle des anciens"),
+	 TEXT("Une forêt calme... pour l'instant. Apprends à lire les Haschen : quand ils rougeoient, ils vont frapper. Esquive, ou pare au dernier moment."),
 	 FLinearColor(0.05f, 0.12f, 0.16f), 0.006f, FLinearColor(0.55f, 0.65f, 1.0f), 3.0f, 0.35f},
-	{TEXT("Les Terres Hantees"), TEXT("Le Bois des Pendus"), TEXT("La clairiere de la Matriarche"),
+	{TEXT("Les Terres Hantees"), TEXT("Le Bois des Pendus"), TEXT("La clairière de la Matriarche"),
 	 TEXT("Le poison suinte du sol pendant les combats. Les loups chassent en meute et foncent en ligne droite."),
 	 FLinearColor(0.07f, 0.13f, 0.05f), 0.012f, FLinearColor(0.62f, 0.78f, 0.55f), 2.4f, 0.3f},
-	{TEXT("Les Marais Noyes"), TEXT("Les Marais de Sombreval"), TEXT("Le trone englouti"),
+	{TEXT("Les Marais Noyés"), TEXT("Les Marais de Sombreval"), TEXT("Le trône englouti"),
 	 TEXT("Les eaux toxiques montent pendant les combats : ne reste pas dedans. Les sangsues volent la vie."),
 	 FLinearColor(0.04f, 0.1f, 0.08f), 0.016f, FLinearColor(0.5f, 0.75f, 0.7f), 2.2f, 0.3f},
 	{TEXT("La Marche d'Ashka"), TEXT("La forteresse d'Ashka"), TEXT("Le grand portail"),
-	 TEXT("Les dalles piegees se levent sans cesse. Les armures ne cedent qu'aux coups lourds : une armure brisee laisse son porteur sonne."),
+	 TEXT("Les dalles piégées se lèvent sans cesse. Les armures ne cèdent qu'aux coups lourds : une armure brisée laisse son porteur sonné."),
 	 FLinearColor(0.1f, 0.07f, 0.05f), 0.008f, FLinearColor(0.9f, 0.7f, 0.5f), 2.6f, 0.35f},
-	{TEXT("Le Col d'Ashka"), TEXT("Le col gele"), TEXT("Le sommet du col"),
+	{TEXT("Le Col d'Ashka"), TEXT("Le col gelé"), TEXT("Le sommet du col"),
 	 TEXT("Le blizzard ralentit tout le monde. Le givre fige qui se laisse toucher deux fois."),
 	 FLinearColor(0.12f, 0.14f, 0.2f), 0.01f, FLinearColor(0.75f, 0.85f, 1.0f), 2.2f, 0.4f},
 	{TEXT("Les Terres de Cendre"), TEXT("La faille ardente"), TEXT("La forge de Vorgath"),
-	 TEXT("Le sol se fissure et entre en eruption pendant les combats : les cercles rouges brulent tout le monde, Haschen compris."),
+	 TEXT("Le sol se fissure et entre en éruption pendant les combats : les cercles rouges brûlent tout le monde, Haschen compris."),
 	 FLinearColor(0.18f, 0.06f, 0.03f), 0.01f, FLinearColor(1.0f, 0.55f, 0.35f), 2.4f, 0.3f},
-	{TEXT("Karn"), TEXT("La cite voilee"), TEXT("Le coeur du Voile"),
-	 TEXT("Le Voile se dechire et des echos d'AYLIS en sortent. Tout ce que tu as affronte revient."),
+	{TEXT("Karn"), TEXT("La cité voilée"), TEXT("Le cœur du Voile"),
+	 TEXT("Le Voile se déchire et des échos d'AYLIS en sortent. Tout ce que tu as affronté revient."),
 	 FLinearColor(0.08f, 0.04f, 0.14f), 0.012f, FLinearColor(0.7f, 0.5f, 1.0f), 2.6f, 0.35f},
 };
 
@@ -123,6 +124,8 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	HabillerAylis();
 	// Ce que le combat nous annonce
 	Combat->Preparer(Monde, Aylis);
+	Meteo = GetWorld()->SpawnActor<AVespMeteo>(FVector::ZeroVector, FRotator::ZeroRotator);
+	Meteo->Suivre(Aylis);
 	Combat->SurChute = [this](AVespUnite* H, int32 Categorie) { QuandHaschenTombe(H, Categorie); };
 	Combat->SurBlessure = [this](int32 D, bool bC, AVespUnite* S) { QuandAylisTouchee(D, bC, S); };
 	Combat->SurFermeture = [this](int32 Z) { QuandClairiereFermee(Z); };
@@ -152,7 +155,7 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 		{
 			RechargePresage = 5.0f;
 			Ralenti(0.35f, 1.1f);
-			Aylis->AfficherMessage(TEXT("PRESAGE"), FColor(200, 170, 255), 40.0f);
+			Aylis->AfficherMessage(TEXT("PRÉSAGE"), FColor(200, 170, 255), 40.0f);
 			UVespSons::Jouer2D(this, EVespSon::Rune, 0.6f, 1.3f);
 		}
 	};
@@ -161,6 +164,10 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	if (UVespSons* Sons = GetWorld()->GetSubsystem<UVespSons>())
 	{
 		Sons->AmbianceDeLActe(Acte);
+	}
+	if (Meteo)
+	{
+		Meteo->Configurer(Acte);
 	}
 	Phase = EVespPhase::Titre;
 	TempsPhase = 0.0f;
@@ -216,12 +223,12 @@ FString AVespPlayerController::NomSalle(EVespSalle S, int32 LActe)
 	switch (S)
 	{
 		case EVespSalle::Combat: return TEXT("Combat");
-		case EVespSalle::Elite: return TEXT("Elite");
+		case EVespSalle::Elite: return TEXT("Élite");
 		case EVespSalle::Repos: return TEXT("Feu de camp");
 		case EVespSalle::Marchand: return TEXT("Marchand");
 		case EVespSalle::Evenement: return TEXT("Inconnu");
 		case EVespSalle::Depart: return TEXT("Depart");
-		case EVespSalle::Tresor: return TEXT("Tresor");
+		case EVespSalle::Tresor: return TEXT("Trésor");
 		default: return AVespCombat::NomDuBoss(LActe);
 	}
 }
@@ -230,13 +237,13 @@ FString AVespPlayerController::AideSalle(EVespSalle S)
 {
 	switch (S)
 	{
-		case EVespSalle::Combat: return TEXT("Des Haschen, parfois en plusieurs vagues. Des eclats et une rune a la fin.");
-		case EVespSalle::Elite: return TEXT("Un Haschen d'elite et son escorte. Dur... mais beaucoup d'eclats.");
+		case EVespSalle::Combat: return TEXT("Des Haschen, parfois en plusieurs vagues. Des éclats et une rune à la fin.");
+		case EVespSalle::Elite: return TEXT("Un Haschen d'élite et son escorte. Dur... mais beaucoup d'éclats.");
 		case EVespSalle::Repos: return TEXT("Un feu de camp : +60% pv et une potion.");
-		case EVespSalle::Marchand: return TEXT("Un marchand ambulant. Des potions, des runes... contre des eclats.");
-		case EVespSalle::Evenement: return TEXT("La vision est trouble. Une rencontre, un tresor... ou un piege.");
-		case EVespSalle::Depart: return TEXT("Le debut de la route.");
-		case EVespSalle::Tresor: return TEXT("Un coffre, au bout du chemin : des eclats et une rune.");
+		case EVespSalle::Marchand: return TEXT("Un marchand ambulant. Des potions, des runes... contre des éclats.");
+		case EVespSalle::Evenement: return TEXT("La vision est trouble. Une rencontre, un trésor... ou un piège.");
+		case EVespSalle::Depart: return TEXT("Le début de la route.");
+		case EVespSalle::Tresor: return TEXT("Un coffre, au bout du chemin : des éclats et une rune.");
 		default: return TEXT("Le gardien de cette terre.");
 	}
 }
@@ -279,14 +286,14 @@ FString AVespPlayerController::Romain(int32 Nombre)
 
 // Les runes de prophetie : Vigueur, Tranchant et Pierre se cumulent ; Vent deux fois au plus ; les autres une seule fois
 static const TCHAR* NOMS_RUNES[] = {TEXT("Vigueur"), TEXT("Tranchant"), TEXT("Pierre"), TEXT("Vent"), TEXT("Flamme"), TEXT("Seve"),
-                                    TEXT("Fureur"), TEXT("Epines"), TEXT("Sangsue"), TEXT("Precision"), TEXT("Fortune"), TEXT("Rempart"),
+                                    TEXT("Fureur"), TEXT("Épines"), TEXT("Sangsue"), TEXT("Précision"), TEXT("Fortune"), TEXT("Rempart"),
                                     TEXT("Pied sur"), TEXT("Givre")};
-static const TCHAR* AIDES_RUNES[] = {TEXT("+8 pv max"), TEXT("+2 attaque"), TEXT("+1 defense"), TEXT("+12% de vitesse, et l'esquive porte plus loin"),
+static const TCHAR* AIDES_RUNES[] = {TEXT("+8 pv max"), TEXT("+2 attaque"), TEXT("+1 défense"), TEXT("+12% de vitesse, et l'esquive porte plus loin"),
                                      TEXT("Tes coups ont 1 chance sur 3 de bruler"), TEXT("+5 pv a chaque Haschen abattu"),
                                      TEXT("La rage monte 2 fois plus vite"), TEXT("Qui touche AYLIS au contact se blesse"),
                                      TEXT("+1 pv a chaque coup porte"), TEXT("+12% de chances de critique"),
-                                     TEXT("+50% d'eclats"), TEXT("La garde retient bien plus de degats"),
-                                     TEXT("Les pieges, les flaques et les eruptions n'atteignent plus AYLIS"),
+                                     TEXT("+50% d'éclats"), TEXT("La garde retient bien plus de dégâts"),
+                                     TEXT("Les pièges, les flaques et les éruptions n'atteignent plus AYLIS"),
                                      TEXT("Tes coups ont 1 chance sur 4 de geler")};
 static constexpr int32 NOMBRE_RUNES = 14;
 
@@ -317,45 +324,45 @@ struct FVespTexteEvenement
 };
 
 static const FVespTexteEvenement EVENEMENTS[] = {
-	{TEXT("L'autel oublie"),
-	 TEXT("Une pierre couverte de runes, a moitie avalee par la mousse. Une voix murmure : du sang contre une vision."),
+	{TEXT("L'autel oublié"),
+	 TEXT("Une pierre couverte de runes, a moitié avalee par la mousse. Une voix murmure : du sang contre une vision."),
 	 {TEXT("Offrir son sang"), TEXT("Passer son chemin")}, {TEXT("-8 pv, une rune au hasard"), TEXT("Rien ne se passe")}, 1, 7},
 	{TEXT("La source claire"),
 	 TEXT("Une eau si pure qu'elle brille dans la nuit. Les feux follets tournent autour sans oser la toucher."),
 	 {TEXT("Boire"), TEXT("Remplir une fiole")}, {TEXT("+35% pv"), TEXT("+1 potion")}, 1, 7},
 	{TEXT("Le Haschen blesse"),
 	 TEXT("Un eclaireur Haschen, adosse a un arbre. Il ne peut plus se battre. Il te regarde sans rien dire."),
-	 {TEXT("L'achever"), TEXT("L'epargner")}, {TEXT("+25 eclats"), TEXT("+6 pv max : la prophetie s'en souviendra")}, 1, 7},
+	 {TEXT("L'achever"), TEXT("L'epargner")}, {TEXT("+25 éclats"), TEXT("+6 pv max : la prophétie s'en souviendra")}, 1, 7},
 	{TEXT("Le coffre sous la mousse"),
-	 TEXT("Un coffre a moitie enterre. La serrure est rouillee... ou piegee ? Quelque chose bouge dans les fourres."),
-	 {TEXT("L'ouvrir"), TEXT("Le laisser")}, {TEXT("Une chance sur deux : 45 eclats... ou une embuscade"), TEXT("Rien ne se passe")}, 1, 7},
+	 TEXT("Un coffre a moitié enterré. La serrure est rouillée... ou piégée ? Quelque chose bouge dans les fourrés."),
+	 {TEXT("L'ouvrir"), TEXT("Le laisser")}, {TEXT("Une chance sur deux : 45 éclats... ou une embuscade"), TEXT("Rien ne se passe")}, 1, 7},
 	{TEXT("Le colporteur des brumes"),
 	 TEXT("Une silhouette encapuchonnee sort du brouillard. Elle tend une main pleine de runes et reclame tes potions."),
-	 {TEXT("Echanger 2 potions"), TEXT("Refuser")}, {TEXT("-2 potions, une rune au hasard"), TEXT("La silhouette disparait")}, 1, 7},
+	 {TEXT("Echanger 2 potions"), TEXT("Refuser")}, {TEXT("-2 potions, une rune au hasard"), TEXT("La silhouette disparaît")}, 1, 7},
 	{TEXT("Les pendus"),
 	 TEXT("Des cordes grincent au-dessus du sentier. L'un des pendus ouvre les yeux et murmure le nom d'AYLIS."),
-	 {TEXT("Ecouter"), TEXT("Couper la corde")}, {TEXT("-10 pv, +2 attaque"), TEXT("+30 eclats")}, 2, 3},
+	 {TEXT("Ecouter"), TEXT("Couper la corde")}, {TEXT("-10 pv, +2 attaque"), TEXT("+30 éclats")}, 2, 3},
 	{TEXT("Le feu des voyageurs"),
-	 TEXT("Un feu encore tiede, abandonne en hate. Des provisions, et des sacs a moitie ouverts."),
-	 {TEXT("Manger"), TEXT("Fouiller les sacs")}, {TEXT("+20% pv"), TEXT("+20 eclats")}, 1, 7},
+	 TEXT("Un feu encore tiede, abandonne en hate. Des provisions, et des sacs a moitié ouverts."),
+	 {TEXT("Manger"), TEXT("Fouiller les sacs")}, {TEXT("+20% pv"), TEXT("+20 éclats")}, 1, 7},
 	{TEXT("Le deserteur"),
 	 TEXT("Un jeune Haschen sans arme tremble derriere un rocher. Il a fui le camp d'Ashka."),
-	 {TEXT("L'aider"), TEXT("Le chasser")}, {TEXT("-1 potion, +35 eclats"), TEXT("Il s'enfuit dans la nuit")}, 4, 6},
+	 {TEXT("L'aider"), TEXT("Le chasser")}, {TEXT("-1 potion, +35 éclats"), TEXT("Il s'enfuit dans la nuit")}, 4, 6},
 	{TEXT("La cloche engloutie"),
-	 TEXT("Une cloche rouillee depasse de la vase. Si on la sonne, quelque chose repondra."),
-	 {TEXT("Sonner la cloche"), TEXT("La laisser dormir")}, {TEXT("Une embuscade d'elite (et sa recompense)"), TEXT("Rien ne se passe")}, 3, 3},
+	 TEXT("Une cloche rouillée dépasse de la vase. Si on la sonne, quelque chose répondra."),
+	 {TEXT("Sonner la cloche"), TEXT("La laisser dormir")}, {TEXT("Une embuscade d'élite (et sa récompense)"), TEXT("Rien ne se passe")}, 3, 3},
 	{TEXT("L'abri de pierre"),
-	 TEXT("Le blizzard se leve. Un abri de pierre, a peine assez grand, et des traces de pas qui continuent dans la neige."),
-	 {TEXT("S'abriter"), TEXT("Suivre les traces")}, {TEXT("+30% pv"), TEXT("-8 pv, +30 eclats")}, 5, 5},
+	 TEXT("Le blizzard se lève. Un abri de pierre, à peine assez grand, et des traces de pas qui continuent dans la neige."),
+	 {TEXT("S'abriter"), TEXT("Suivre les traces")}, {TEXT("+30% pv"), TEXT("-8 pv, +30 éclats")}, 5, 5},
 	{TEXT("L'autel de braise"),
-	 TEXT("Un autel de pierre noire, brulant. C'est ici que Vorgath trempe ses lames."),
-	 {TEXT("Tremper l'epee"), TEXT("Refroidir l'autel")}, {TEXT("-12 pv, +3 attaque"), TEXT("+1 defense")}, 6, 6},
+	 TEXT("Un autel de pierre noire, brûlant. C'est ici que Vorgath trempe ses lames."),
+	 {TEXT("Tremper l'épée"), TEXT("Refroidir l'autel")}, {TEXT("-12 pv, +3 attaque"), TEXT("+1 défense")}, 6, 6},
 	{TEXT("Le miroir du Voile"),
 	 TEXT("Une flaque d'argent reflete AYLIS... mais le reflet sourit, et tend la main."),
-	 {TEXT("Toucher le reflet"), TEXT("Briser le miroir")}, {TEXT("Une chance sur deux : une rune... ou des echos"), TEXT("+40 eclats")}, 7, 7},
+	 {TEXT("Toucher le reflet"), TEXT("Briser le miroir")}, {TEXT("Une chance sur deux : une rune... ou des échos"), TEXT("+40 éclats")}, 7, 7},
 	{TEXT("La statue d'Ashka"),
-	 TEXT("Une statue de la cheffe de guerre, couronnee d'epines. A ses pieds, des offrandes de ses guerriers."),
-	 {TEXT("Prendre les offrandes"), TEXT("Briser la statue")}, {TEXT("+35 eclats, -6 pv"), TEXT("+1 attaque")}, 4, 5},
+	 TEXT("Une statue de la cheffe de guerre, couronnée d'épines. À ses pieds, des offrandes de ses guerriers."),
+	 {TEXT("Prendre les offrandes"), TEXT("Briser la statue")}, {TEXT("+35 éclats, -6 pv"), TEXT("+1 attaque")}, 4, 5},
 };
 static constexpr int32 NOMBRE_EVENEMENTS = UE_ARRAY_COUNT(EVENEMENTS);
 
@@ -515,7 +522,7 @@ void AVespPlayerController::Declencher(int32 Zone)
 			Aylis->Jouer(EVespGeste::Interagir, 1.2f);
 			LacherButin(N.Centre + FVector(0, 0, 40), 1);
 			AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, N.Centre + FVector(0, 0, 80), FVector::UpVector, FLinearColor(1.0f, 0.85f, 0.4f));
-			MessageRoute = FString::Printf(TEXT("Le coffre s'ouvre : +%d eclats... et une rune."), Gain);
+			MessageRoute = FString::Printf(TEXT("Le coffre s'ouvre : +%d éclats... et une rune."), Gain);
 			ProposerRunes();
 			return;
 		}
@@ -599,7 +606,7 @@ void AVespPlayerController::OuvrirMarchand()
 			case 2: Ajouter(TEXT("Onguent"), TEXT("Rend 50% des pv"), 20, 2); break;
 			case 3: Ajouter(TEXT("Pierre a aiguiser"), TEXT("+1 attaque"), 28, 3); break;
 			case 4: Ajouter(TEXT("Amulette de sureau"), TEXT("+6 pv max"), 26, 4); break;
-			default: Ajouter(TEXT("Bouclier cloute"), TEXT("+1 defense"), 30, 5); break;
+			default: Ajouter(TEXT("Bouclier cloute"), TEXT("+1 défense"), 30, 5); break;
 		}
 	}
 	MarchandZone = ZoneActuelle;
@@ -708,25 +715,25 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 		{
 			const int32 Soin = Aylis->Stats.PvMax * 35 / 100;
 			Aylis->Soigner(Soin);
-			MessageRoute = FString::Printf(TEXT("L'eau est glacee et douce. +%d pv."), Soin);
+			MessageRoute = FString::Printf(TEXT("L'eau est glacée et douce. +%d pv."), Soin);
 			break;
 		}
-		case 3: Potions++; MessageRoute = TEXT("Une fiole de lumiere liquide : +1 potion."); break;
-		case 4: GagnerEclats(25, Ici); MessageRoute = TEXT("Il ne dit rien, jusqu'au bout. +25 eclats."); break;
+		case 3: Potions++; MessageRoute = TEXT("Une fiole de lumière liquide : +1 potion."); break;
+		case 4: GagnerEclats(25, Ici); MessageRoute = TEXT("Il ne dit rien, jusqu'au bout. +25 éclats."); break;
 		case 5:
 			Aylis->Stats.PvMax += 6;
 			Aylis->Soigner(6);
-			MessageRoute = TEXT("Le Haschen disparait dans la brume. +6 pv max : la prophetie s'en souviendra.");
+			MessageRoute = TEXT("Le Haschen disparaît dans la brume. +6 pv max : la prophétie s'en souviendra.");
 			break;
 		case 6:
 			if (FMath::RandBool())
 			{
 				GagnerEclats(45, Ici);
-				MessageRoute = TEXT("Le coffre cede : +45 eclats !");
+				MessageRoute = TEXT("Le coffre cède : +45 éclats !");
 				AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, Ici, FVector::UpVector, FLinearColor(1.0f, 0.8f, 0.35f));
 				break;
 			}
-			MessageRoute = TEXT("Une embuscade ! Les fourres s'ouvrent...");
+			MessageRoute = TEXT("Une embuscade ! Les fourrés s'ouvrent...");
 			Embuscade(false);
 			return;
 		case 8:
@@ -743,10 +750,10 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 		case 10:
 			PerdrePv(10);
 			Aylis->Stats.Attaque += 2;
-			MessageRoute = TEXT("Le murmure brule... mais l'epee semble plus lourde de colere. +2 attaque.");
+			MessageRoute = TEXT("Le murmure brûle... mais l'épée semble plus lourde de colère. +2 attaque.");
 			AVespEffet::Jouer(GetWorld(), EVespEffet::Mort, Ici, FVector::UpVector, FLinearColor(0.5f, 1.0f, 0.4f));
 			break;
-		case 11: GagnerEclats(30, Ici); MessageRoute = TEXT("Le corps tombe dans la mousse. Dans sa poche : +30 eclats."); break;
+		case 11: GagnerEclats(30, Ici); MessageRoute = TEXT("Le corps tombe dans la mousse. Dans sa poche : +30 éclats."); break;
 		case 12:
 		{
 			const int32 Soin = Aylis->Stats.PvMax / 5;
@@ -754,22 +761,22 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 			MessageRoute = FString::Printf(TEXT("Un vrai repas, enfin. +%d pv."), Soin);
 			break;
 		}
-		case 13: GagnerEclats(20, Ici); MessageRoute = TEXT("Au fond d'un sac : +20 eclats."); break;
+		case 13: GagnerEclats(20, Ici); MessageRoute = TEXT("Au fond d'un sac : +20 éclats."); break;
 		case 14:
 			if (Potions > 0)
 			{
 				Potions--;
 				GagnerEclats(35, Ici);
-				MessageRoute = TEXT("Il boit, et glisse 35 eclats dans ta main : \"Ashka a peur de la prophetie... elle a peur de toi.\"");
+				MessageRoute = TEXT("Il boit, et glisse 35 éclats dans ta main : \"Ashka a peur de la prophétie... elle a peur de toi.\"");
 			}
 			else
 			{
 				GagnerEclats(10, Ici);
-				MessageRoute = TEXT("Tu n'as rien a lui donner. Il file quand meme, en laissant tomber 10 eclats.");
+				MessageRoute = TEXT("Tu n'as rien à lui donner. Il file quand même, en laissant tomber 10 éclats.");
 			}
 			break;
 		case 16:
-			MessageRoute = TEXT("La cloche sonne sous la vase... et quelque chose repond.");
+			MessageRoute = TEXT("La cloche sonne sous la vase... et quelque chose répond.");
 			Embuscade(true);
 			return;
 		case 18:
@@ -782,7 +789,7 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 		case 19:
 			PerdrePv(8);
 			GagnerEclats(30, Ici);
-			MessageRoute = TEXT("Les traces menent a un campement gele. -8 pv, +30 eclats.");
+			MessageRoute = TEXT("Les traces mènent à un campement gelé. -8 pv, +30 éclats.");
 			break;
 		case 20:
 			PerdrePv(12);
@@ -790,7 +797,7 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 			MessageRoute = TEXT("La lame rougit, puis noircit. -12 pv, +3 attaque.");
 			AVespEffet::Jouer(GetWorld(), EVespEffet::Critique, Ici, FVector::UpVector, FLinearColor(1.0f, 0.45f, 0.1f));
 			break;
-		case 21: Aylis->Stats.Defense += 1; MessageRoute = TEXT("La pierre refroidit en sifflant. +1 defense."); break;
+		case 21: Aylis->Stats.Defense += 1; MessageRoute = TEXT("La pierre refroidit en sifflant. +1 défense."); break;
 		case 22:
 			if (FMath::RandBool())
 			{
@@ -800,9 +807,9 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 			MessageRoute = TEXT("Le reflet sort du miroir... et il n'est pas seul.");
 			Embuscade(false);
 			return;
-		case 23: GagnerEclats(40, Ici); MessageRoute = TEXT("Le miroir vole en eclats : +40 eclats."); break;
-		case 24: PerdrePv(6); GagnerEclats(35, Ici); MessageRoute = TEXT("Les epines de la statue griffent AYLIS. -6 pv, +35 eclats."); break;
-		case 25: Aylis->Stats.Attaque += 1; MessageRoute = TEXT("La couronne d'epines roule dans la poussiere. +1 attaque."); break;
+		case 23: GagnerEclats(40, Ici); MessageRoute = TEXT("Le miroir vole en éclats : +40 éclats."); break;
+		case 24: PerdrePv(6); GagnerEclats(35, Ici); MessageRoute = TEXT("Les épines de la statue griffent AYLIS. -6 pv, +35 éclats."); break;
+		case 25: Aylis->Stats.Attaque += 1; MessageRoute = TEXT("La couronne d'épines roule dans la poussière. +1 attaque."); break;
 		default: break;
 	}
 	RetourExploration();
@@ -920,8 +927,8 @@ void AVespPlayerController::QuandClairiereFermee(int32 Zone)
 		DialogueDuBoss();
 		return;
 	}
-	Ecrire(Noeuds.IsValidIndex(Zone) && Noeuds[Zone].Type == EVespSalle::Elite ? TEXT("Une elite garde cette clairiere. La barriere se ferme !")
-	                                                                            : TEXT("Les Haschen sortent de terre. La barriere se ferme !"), 3.0f);
+	Ecrire(Noeuds.IsValidIndex(Zone) && Noeuds[Zone].Type == EVespSalle::Elite ? TEXT("Une élite garde cette clairière. La barrière se ferme !")
+	                                                                            : TEXT("Les Haschen sortent de terre. La barrière se ferme !"), 3.0f);
 }
 
 void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
@@ -964,7 +971,7 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 	{
 		LacherButin(N.Centre, N.Type == EVespSalle::Elite ? 1 : 0);
 	}
-	MessageRoute = FString::Printf(TEXT("La clairiere est liberee ! +%d eclats, et AYLIS reprend son souffle : +%d pv."), bFortune ? Gain * 3 / 2 : Gain, Soin);
+	MessageRoute = FString::Printf(TEXT("La clairière est libérée ! +%d éclats, et AYLIS reprend son souffle : +%d pv."), bFortune ? Gain * 3 / 2 : Gain, Soin);
 	ProposerRunes();
 }
 
@@ -989,6 +996,10 @@ void AVespPlayerController::AmbianceDeLActe()
 	if (UVespSons* Sons = GetWorld()->GetSubsystem<UVespSons>())
 	{
 		Sons->AmbianceDeLActe(Acte);
+	}
+	if (Meteo)
+	{
+		Meteo->Configurer(Acte);
 	}
 	// Le butin oublie au sol reste dans l'acte d'avant
 	for (AVespButin* B : ButinsAuSol)
@@ -1076,9 +1087,9 @@ void AVespPlayerController::DialogueDuBoss()
 		case 1:
 			Orateurs = {TEXT("Skarn"), TEXT("AYLIS"), TEXT("Skarn")};
 			Repliques = {
-				TEXT("Encore une petite vision qui marche vers Karn ? Approche. Le sol se souviendra de toi, meme quand ton nom sera perdu."),
-				TEXT("Le sol, peut-etre. Toi, tu vas oublier."),
-				TEXT("Quand je leve ma masse, la terre se brise. Regarde bien ou tu poses les pieds, petite vision."),
+				TEXT("Encore une petite vision qui marche vers Karn ? Approche. Le sol se souviendra de toi, même quand ton nom sera perdu."),
+				TEXT("Le sol, peut-être. Toi, tu vas oublier."),
+				TEXT("Quand je lève ma masse, la terre se brise. Regarde bien où tu poses les pieds, petite vision."),
 			};
 			break;
 		case 2:
@@ -1086,45 +1097,45 @@ void AVespPlayerController::DialogueDuBoss()
 			Repliques = {
 				TEXT("Mes loups ont senti ta peur bien avant ton odeur. Ils ont faim, et moi, j'ai le temps."),
 				TEXT("Tes loups auront faim longtemps. Ce n'est pas pour eux que je marche."),
-				TEXT("Tous viennent pour moi, a la fin. Approche, que je te couvre de mon malefice."),
+				TEXT("Tous viennent pour moi, à la fin. Approche, que je te couvre de mon maléfice."),
 			};
 			break;
 		case 3:
-			Orateurs = {TEXT("Le Roi Noye"), TEXT("AYLIS"), TEXT("Le Roi Noye")};
+			Orateurs = {TEXT("Le Roi Noyé"), TEXT("AYLIS"), TEXT("Le Roi Noyé")};
 			Repliques = {
-				TEXT("Tout finit dans l'eau, petite vision. Les rois, les armees, les prophetes. Moi, j'ai simplement commence plus tot."),
+				TEXT("Tout finit dans l'eau, petite vision. Les rois, les armées, les prophètes. Moi, j'ai simplement commencé plus tôt."),
 				TEXT("Alors tu as eu le temps de t'y habituer. Moi, je ne fais que passer."),
-				TEXT("Personne ne passe. Les marais gardent tout ce qu'ils touchent. Regarde : la maree monte deja."),
+				TEXT("Personne ne passe. Les marais gardent tout ce qu'ils touchent. Regarde : la marée monte déjà."),
 			};
 			break;
 		case 4:
-			Orateurs = {TEXT("La prophetie"), TEXT("Le Gardien de Pierre"), TEXT("AYLIS")};
+			Orateurs = {TEXT("La prophétie"), TEXT("Le Gardien de Pierre"), TEXT("AYLIS")};
 			Repliques = {
-				TEXT("Le grand portail s'ouvre sur un geant de pierre. Des runes s'allument une a une sur son torse."),
-				TEXT("INTRUS. LA MARCHE D'ASHKA EST FERMEE. RETOURNE A LA POUSSIERE."),
-				TEXT("Tu as ete taille pour garder une porte. Moi, pour la traverser. Voyons qui a ete le mieux fait."),
+				TEXT("Le grand portail s'ouvre sur un géant de pierre. Des runes s'allument une à une sur son torse."),
+				TEXT("INTRUS. LA MARCHE D'ASHKA EST FERMÉE. RETOURNE À LA POUSSIÈRE."),
+				TEXT("Tu as été taillé pour garder une porte. Moi, pour la traverser. Voyons qui a été le mieux fait."),
 			};
 			break;
 		case 5:
 			Orateurs = {TEXT("Ashka"), TEXT("AYLIS"), TEXT("Ashka")};
 			Repliques = {
-				TEXT("Alors voila la vision qui fait trembler mes guerriers. Mes fleches ont deja vu pire."),
-				TEXT("Tes guerriers ont raison de trembler. Pas a cause de moi : a cause de ce qui vient apres toi."),
-				TEXT("La prophetie dit que tu tomberas sur ce col. Je suis la pour qu'elle ne mente pas."),
+				TEXT("Alors voilà la vision qui fait trembler mes guerriers. Mes flèches ont déjà vu pire."),
+				TEXT("Tes guerriers ont raison de trembler. Pas à cause de moi : à cause de ce qui vient après toi."),
+				TEXT("La prophétie dit que tu tomberas sur ce col. Je suis là pour qu'elle ne mente pas."),
 			};
 			break;
 		case 6:
 			Orateurs = {TEXT("Vorgath"), TEXT("AYLIS"), TEXT("Vorgath")};
 			Repliques = {
-				TEXT("Tout ce qui brule finit en cendre. Les forets, les villages, les prophetes. Et toi aussi."),
-				TEXT("Personne ne brulera ce soir. Sauf ta forge."),
+				TEXT("Tout ce qui brûle finit en cendre. Les forêts, les villages, les prophètes. Et toi aussi."),
+				TEXT("Personne ne brûlera ce soir. Sauf ta forge."),
 				TEXT("Approche. Je vais te faire une place dans ma collection de cendres."),
 			};
 			break;
 		default:
 			Orateurs = {TEXT("L'Oracle"), TEXT("AYLIS"), TEXT("L'Oracle")};
 			Repliques = {
-				TEXT("Mille fois, j'ai vu ta route finir ici, AYLIS. Dans chaque vision, tu tombes au coeur du Voile."),
+				TEXT("Mille fois, j'ai vu ta route finir ici, AYLIS. Dans chaque vision, tu tombes au cœur du Voile."),
 				TEXT("Alors regarde bien celle-ci. Elle est differente."),
 				TEXT("Il n'y a pas de visions differentes. Il n'y a que moi... et la fin de la route."),
 			};
@@ -2063,6 +2074,10 @@ void AVespPlayerController::Jouer(float Secondes)
 		Aylis->TenirGarde(false);
 	}
 	Combat->SetGarde(bGardeLevee, TempsGarde);
+	if (Meteo)
+	{
+		Meteo->Blizzard(Combat->BlizzardEnCours() > 0.0f);
+	}
 	Aylis->ReductionDegats = TempsEgide > 0.0f ? 0.2f : 1.0f;
 
 	AvancerGeste(Secondes);
@@ -2391,6 +2406,15 @@ void AVespPlayerController::Photographier(const FString& Nom, bool bAvecInterfac
 
 void AVespPlayerController::ModePhoto(float Secondes)
 {
+	// Les ecrans de choix et les dialogues se passent tout seuls (les photos veulent le jeu)
+	if (Phase == EVespPhase::ChoixRune)
+	{
+		ChoisirRune(0);
+	}
+	if (Phase == EVespPhase::Dialogue)
+	{
+		Phase = EVespPhase::Exploration;
+	}
 	// Le jeu continue pendant les photos (les Haschen bougent, les coups partent)
 	if (Phase == EVespPhase::Exploration)
 	{
@@ -2510,6 +2534,7 @@ void AVespPlayerController::ModePhoto(float Secondes)
 			Aylis->Teleporter(Noeuds[Zone].Centre + FVector(0, -300.0f, 0));
 			bCaleCamera = true;
 			Rage = 100;
+			Aylis->Stats.Attaque = 3;		// (les Haschen doivent tenir jusqu'a la photo)
 			PhotoEtape = 6;
 			PhotoAttente = 3.5f;
 			return;
@@ -2521,7 +2546,7 @@ void AVespPlayerController::ModePhoto(float Secondes)
 			{
 				Regard = (Cible->GetActorLocation() - Aylis->GetActorLocation()).GetSafeNormal2D();
 			}
-			AttaqueSpeciale();
+			Attaquer(true);		// l'attaque lourde : l'eclat de lumiere, sans tout balayer
 			PhotoEtape = 7;
 			PhotoAttente = MomentImpact + 0.05f;
 			return;
@@ -2550,10 +2575,87 @@ void AVespPlayerController::ModePhoto(float Secondes)
 			PhotoAttente = 4.0f;
 			return;
 		case 10:
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE photo : AYLIS %s (pv %d), camera %s, boss %s"), *Aylis->GetActorLocation().ToString(), Aylis->Stats.Pv,
+			       *CameraArene->GetActorLocation().ToString(), Combat->BossActif() ? *Combat->BossActif()->GetActorLocation().ToString() : TEXT("aucun"));
 			Photographier(Prefixe + TEXT("_4_Boss"), true);
-			PhotoEtape = 11;
+			PhotoEtape = PhotoActe == 1 ? 11 : 30;
 			PhotoAttente = 1.0f;
 			return;
+		case 11:	// (acte I) le menu d'AYLIS : un sac bien rempli, quelques etoiles allumees
+		{
+			for (int32 i = 0; i < 9; i++)
+			{
+				Sac.Add(VespButin::Tirer(1 + i / 2, i % 3, HasardButin));
+			}
+			PointsDeCompetence = 4;
+			DebloquerEtoile(VespSeuil::Index(TEXT("fendant")));
+			DebloquerEtoile(VespSeuil::Index(TEXT("garde")));
+			DebloquerEtoile(VespSeuil::Index(TEXT("ecorce")));
+			SelectionSac = 2;
+			SelectionEtoile = VespSeuil::Index(TEXT("egide"));
+			OuvrirMenu(0);
+			PhotoEtape = 12;
+			PhotoAttente = 1.5f;
+			return;
+		}
+		case 12:
+			Photographier(Prefixe + TEXT("_5_Inventaire"), true);
+			OngletMenu = 1;
+			PhotoEtape = 13;
+			PhotoAttente = 1.5f;
+			return;
+		case 13:
+			Photographier(Prefixe + TEXT("_6_Seuil"), true);
+			FermerMenu();
+			PhotoEtape = 14;
+			PhotoAttente = 1.0f;
+			return;
+		case 14:	// (acte I) l'armurerie : AYLIS de pres, avec chaque famille d'arme et une armure d'une autre couleur
+		case 16:
+		case 18:
+		case 20:
+		{
+			const int32 k = (PhotoEtape - 14) / 2;
+			const EVespArme Voulue[] = {EVespArme::Epee, EVespArme::Dagues, EVespArme::DeuxMains, EVespArme::Baton};
+			FVespObjet Arme = VespButin::Tirer(3, 2, EVespEmplacement::Arme, HasardButin);
+			for (int32 Essai = 0; Essai < 400 && Arme.TypeArme != Voulue[k]; Essai++)
+			{
+				Arme = VespButin::Tirer(3, 2, EVespEmplacement::Arme, HasardButin);
+			}
+			auto Mettre = [this](const FVespObjet& O) { Sac.Reset(); Sac.Add(O); EquiperDuSac(0); };
+			Mettre(Arme);
+			Mettre(VespButin::Tirer(3, k, EVespEmplacement::Corps, HasardButin));
+			if (k == 0)
+			{
+				Mettre(VespButin::Tirer(3, 2, EVespEmplacement::MainGauche, HasardButin));
+			}
+			Sac.Reset();
+			Combat->LeverLaBarriere();		// (la barriere du boss retiendrait AYLIS)
+			const FVector P = Noeuds[0].Centre;
+			Aylis->Teleporter(Monde->Contraindre(P, P));
+			Aylis->SetActorRotation(FRotator(0, -125.0f, 0));
+			const FVector Vise = Aylis->GetActorLocation() + FVector(0, 0, 80.0f);
+			const FVector Position = Vise + FVector(-440.0f, -280.0f, 180.0f);
+			bCameraPhoto = true;
+			CameraArene->SetActorLocation(Position);
+			CameraArene->SetActorRotation((Vise - Position).Rotation());
+			CameraArene->GetCameraComponent()->SetFieldOfView(40.0f);
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE photo : arme %s (type %d), armure %s"), *Arme.Nom, (int32)Arme.TypeArme, *Equipement[(int32)EVespEmplacement::Corps].Nom);
+			PhotoEtape++;
+			PhotoAttente = 2.0f;
+			return;
+		}
+		case 15:
+		case 17:
+		case 19:
+		case 21:
+		{
+			const TCHAR* Noms[] = {TEXT("Epee_Bouclier"), TEXT("Dagues"), TEXT("Deux_Mains"), TEXT("Baton")};
+			Photographier(Prefixe + FString::Printf(TEXT("_7_Arme_%s"), Noms[(PhotoEtape - 15) / 2]), false);
+			PhotoEtape = PhotoEtape == 21 ? 30 : PhotoEtape + 1;
+			PhotoAttente = 1.0f;
+			return;
+		}
 		default:	// l'acte suivant, ou la fin
 			PhotoActe++;
 			PhotoEtape = 0;
