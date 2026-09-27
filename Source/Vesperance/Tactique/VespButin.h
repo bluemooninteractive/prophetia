@@ -29,6 +29,7 @@ private:
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Socle;
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> Gemme;		// les bijoux et armures : une gemme de lumiere
 	UPROPERTY(VisibleAnywhere) TObjectPtr<USkeletalMeshComponent> Arme;	// les armes et boucliers : le vrai modele
+	UPROPERTY(VisibleAnywhere) TObjectPtr<UStaticMeshComponent> ArmeFixe;	// ou une arme d'un autre pack (modele statique)
 	UPROPERTY(VisibleAnywhere) TObjectPtr<UPointLightComponent> Lumiere;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> Couleur;
 	FVector Depart = FVector::ZeroVector;

@@ -150,6 +150,8 @@ public:
 	void Equiper(const FString& Arme, float Longueur, bool bMainGauche = false, const FString& Bouclier = FString(), EVespArme Type = EVespArme::Epee);
 	void EquiperSecondeArme(const FString& Arme, float Longueur);		// une dague dans l'autre main
 	void Desarmer();
+	// Une arme en modele statique (autre pack) : son axe long pointe comme les armes KayKit, sa prise sur la main
+	bool AttacherFixe(const FString& Chemin, bool bGauche, float LongueurVoulue, bool bBouclierFixe);
 	// La couleur d'une arme tenue (les variantes du pack : "Cl", "Bl", "Gn", "Rd")
 	void ColorerArme(const FString& Modele, const TCHAR* Suffixe);
 	EVespArme GetTypeArme() const { return TypeArme; }
@@ -215,6 +217,7 @@ private:
 
 	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> Pieces;		// les autres morceaux du modele (bras, jambes, tete...)
 	UPROPERTY() TArray<TObjectPtr<USkeletalMeshComponent>> Armes;
+	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> ArmesFixes;		// les armes des autres packs (des modeles statiques)
 	UPROPERTY() TArray<TObjectPtr<UAnimSequence>> Animations;				// toutes celles de son dossier
 	UPROPERTY() TArray<TObjectPtr<UMaterialInstanceDynamic>> Tenue;		// les materiaux teintables (AYLIS)
 	mutable TMap<FString, TObjectPtr<UAnimSequence>> AnimsTrouvees;

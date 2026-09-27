@@ -35,6 +35,8 @@ AVespButin::AVespButin()
 	Arme->SetupAttachment(Racine);
 	Arme->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	Arme->SetRelativeLocation(FVector(0, 0, 60));
+	ArmeFixe = Creer(TEXT("ArmeFixe"), nullptr);
+	ArmeFixe->SetRelativeLocation(FVector(0, 0, 60));
 	Lumiere = CreateDefaultSubobject<UPointLightComponent>(TEXT("Lumiere"));
 	Lumiere->SetupAttachment(Racine);
 	Lumiere->SetRelativeLocation(FVector(0, 0, 90));
@@ -70,6 +72,14 @@ void AVespButin::Preparer(const FVespObjet& LObjet)
 	else
 	{
 		Arme->SetVisibility(false);
+		UStaticMesh* S = Objet.Modele.IsEmpty() ? nullptr : LoadObject<UStaticMesh>(nullptr, *Objet.Modele, nullptr, LOAD_NoWarn | LOAD_Quiet);
+		if (S)
+		{
+			ArmeFixe->SetStaticMesh(S);
+			const float Mesure = S->GetBoundingBox().GetSize().GetMax();
+			ArmeFixe->SetRelativeScale3D(FVector(Mesure > 1.0f ? 95.0f / Mesure : 1.0f));
+			Gemme->SetVisibility(false);
+		}
 	}
 	Depart = GetActorLocation();
 	Vol = FVector(FMath::FRandRange(-160.0f, 160.0f), FMath::FRandRange(-160.0f, 160.0f), 0.0f);
@@ -87,6 +97,8 @@ void AVespButin::Tick(float Secondes)
 	Arme->SetRelativeLocation(FVector(0, 0, 60.0f + Saut + Flotte));
 	Gemme->SetRelativeLocation(FVector(0, 0, 70.0f + Saut + Flotte));
 	Arme->SetRelativeRotation(FRotator(20.0f, Age * 60.0f, 0.0f));
+	ArmeFixe->SetRelativeLocation(FVector(0, 0, 60.0f + Saut + Flotte));
+	ArmeFixe->SetRelativeRotation(FRotator(20.0f, Age * 60.0f, 0.0f));
 	Gemme->SetRelativeRotation(FRotator(0.0f, Age * 90.0f, 0.0f));
 	if (Couleur)
 	{

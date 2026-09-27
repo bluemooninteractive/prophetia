@@ -15,6 +15,7 @@
 #include "Widgets/Layout/SSpacer.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Fonts/FontMeasure.h"
 #include "Rendering/SlateRenderer.h"
@@ -669,8 +670,19 @@ TSharedRef<SWidget> SVespInterface::FicheAylis()
 				SNew(SHorizontalBox)
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
 				[
-					Pastille(TAttribute<FText>::CreateLambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("POTIONS %d"), Joueur->Potions)) : FText::GetEmpty(); }),
-					         FLinearColor(0.95f, 0.5f, 0.5f), EVisibility::Visible)
+					SNew(SBorder).BorderImage(&Rond).Padding(FMargin(4, 1, 10, 1)).BorderBackgroundColor(FLinearColor(0.95f, 0.5f, 0.5f, 0.2f))
+					[
+						SNew(SHorizontalBox)
+						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 4, 0)
+						[
+							SNew(SBox).WidthOverride(20).HeightOverride(20)[SNew(SImage).Image(VespIconePotion())]
+						]
+						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
+						[
+							SNew(STextBlock).Font(Police("Bold", 10, 80)).ColorAndOpacity(FLinearColor(0.95f, 0.5f, 0.5f))
+							.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("%d  POTIONS"), Joueur->Potions)) : FText::GetEmpty(); })
+						]
+					]
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
 				[
@@ -724,18 +736,16 @@ TSharedRef<SWidget> SVespInterface::CasePouvoir(int32 N)
 				SNew(SOverlay)
 				+ SOverlay::Slot()
 				[
-					SNew(SBorder).BorderImage(&Rond).Padding(2)
+					// L'icone du sort (Spell_Mix), cerclee de la couleur de sa voie ; eteinte tant que l'etoile n'est pas allumee
+					SNew(SBorder).BorderImage(&Blanc).Padding(2)
 					.BorderBackgroundColor_Lambda([Etoile, Appris]() {
 						const int32 E = Etoile();
 						return FSlateColor(Appris() && E >= 0 ? VespSeuil::CouleurVoie(VespSeuil::Etoile(E).Voie) : FLinearColor(0.25f, 0.22f, 0.35f, 0.6f));
 					})
 					[
-						SNew(SBorder).BorderImage(&Rond).BorderBackgroundColor(FLinearColor(0.05f, 0.04f, 0.09f, 0.95f)).HAlign(HAlign_Center).VAlign(VAlign_Center)
-						[
-							SNew(STextBlock).Font(Police("Bold", 20))
-							.ColorAndOpacity_Lambda([Appris]() { return FSlateColor(Appris() ? TEXTE : FLinearColor(0.35f, 0.32f, 0.45f)); })
-							.Text_Lambda([Etoile]() { const int32 E = Etoile(); return E >= 0 ? Texte(FString(VespSeuil::Etoile(E).Nom).Left(1)) : FText::GetEmpty(); })
-						]
+						SNew(SImage)
+						.Image_Lambda([Etoile]() { const int32 E = Etoile(); return E >= 0 ? VespIconeEtoile(E) : nullptr; })
+						.ColorAndOpacity_Lambda([Appris]() { return FSlateColor(Appris() ? FLinearColor::White : FLinearColor(0.3f, 0.28f, 0.38f, 0.75f)); })
 					]
 				]
 				// La recharge : un voile sombre qui descend

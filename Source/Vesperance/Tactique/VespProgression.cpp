@@ -130,6 +130,15 @@ static FString CheminArme(const TCHAR* Dossier, const TCHAR* Nom)
 	return FString::Printf(TEXT("/Game/StylizedCharacter/Meshes/Item/Weapons/%s/%s.%s"), Dossier, Nom, Nom);
 }
 
+// Un modele statique d'un autre pack (VespUnite l'oriente dans la main)
+static FString CheminPack(const TCHAR* Chemin)
+{
+	const FString C(Chemin);
+	int32 Barre = INDEX_NONE;
+	C.FindLastChar(TEXT('/'), Barre);
+	return FString::Printf(TEXT("/Game/%s.%s"), *C, *C.Mid(Barre + 1));
+}
+
 FVespObjet VespButin::EpeeDeDepart()
 {
 	FVespObjet O;
@@ -197,6 +206,13 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 					Base = Au({TEXT("Épée"), TEXT("Lame")});
 					O.Modele = CheminArme(TEXT("Sword"), (H.FRand() < 0.5f) ? TEXT("SK_Sword_1H_Newbie_01") : TEXT("SK_Sword_1H_Newbie_02"));
 					O.Longueur = 0.5f; O.TypeArme = EVespArme::Epee; O.Icone = 0;
+					if (O.Rarete >= EVespRarete::Rare && H.FRand() < 0.6f)		// les lames sombres (DarkFantasyPack)
+					{
+						static const TCHAR* LAMES[3] = {TEXT("DarkFantasyPack_01/Meshes/SM_Sword_01"), TEXT("DarkFantasyPack_01/Meshes/SM_Sword_02"), TEXT("DarkFantasyPack_01/Meshes/SM_Sword_03")};
+						O.Modele = CheminPack(LAMES[H.RandRange(0, 2)]);
+						O.Longueur = 0.56f;
+						Base = Au({TEXT("Lame noire"), TEXT("Épée ancienne"), TEXT("Lame")});
+					}
 					break;
 				case 1:
 				{
@@ -230,8 +246,15 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 				default:
 				{
 					Base = TEXT("Bâton");
-					static const TCHAR* B1[4] = {TEXT("SK_Staff_Newbie_01"), TEXT("SK_Staff_Newbie_02"), TEXT("SK_Staff_Newbie_03"), TEXT("SK_Staff_Newbie_04")};
-					O.Modele = CheminArme(TEXT("Staff"), B1[H.RandRange(0, 3)]);
+					// Les batons de mage (RPG_Magic_Staff_Pack) : les simples pour le commun, les ouvrages pour les raretes
+					static const TCHAR* SIMPLES[6] = {TEXT("Basic_Wooden_Staff"), TEXT("Twisted_Root_Staff"), TEXT("Iron_Reinforced_Staff"),
+					                                  TEXT("Reinforced_Battle_Staff"), TEXT("Goblin_Tinker_Staff"), TEXT("Thornbound_Root_Staff")};
+					static const TCHAR* OUVRAGES[16] = {TEXT("Battlemage_Alloy_Staff"), TEXT("Bone_Relic_Staff"), TEXT("Crystalline_Conduit_Staff"), TEXT("Forgotten_Relic_Staff"),
+					                                    TEXT("Gravehold"), TEXT("Hushfall"), TEXT("Lunar_Wizard_Staff"), TEXT("Nature_Channeling_Staff"),
+					                                    TEXT("Reinforced_Arcane_Spine_Staff"), TEXT("Small_Crystal_Tip_Staff"), TEXT("Stillwinter"), TEXT("Twisted_Ironwood_Staff"),
+					                                    TEXT("Undead_Husk_Staff"), TEXT("Winged_Golden_Staff"), TEXT("Wing_Spiral_Staff"), TEXT("Lunar_Wizard_Staff")};
+					const TCHAR* Baton = O.Rarete >= EVespRarete::Rare ? OUVRAGES[H.RandRange(0, 15)] : SIMPLES[H.RandRange(0, 5)];
+					O.Modele = CheminPack(*FString::Printf(TEXT("RPG_Magic_Staff_Pack/Meshes/SM_Staff_%s"), Baton));
 					O.Longueur = 0.95f; O.TypeArme = EVespArme::Baton; O.Icone = 12; Force = 0.95f;
 					break;
 				}
@@ -244,6 +267,10 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 			Base = Au({TEXT("Bouclier"), TEXT("Écu"), TEXT("Pavois")});
 			static const TCHAR* S1[3] = {TEXT("SK_Shield_Newbie_01"), TEXT("SK_Shield_Newbie_02"), TEXT("SK_Shield_Newbie_03")};
 			O.Modele = CheminArme(TEXT("Shield"), S1[H.RandRange(0, 2)]);
+			if (O.Rarete >= EVespRarete::Rare && H.FRand() < 0.6f)		// les boucliers sombres (DarkFantasyPack)
+			{
+				O.Modele = CheminPack(H.FRand() < 0.5f ? TEXT("DarkFantasyPack_01/Meshes/SM_Shield_01") : TEXT("DarkFantasyPack_01/Meshes/SM_Shield_02"));
+			}
 			O.Defense = FMath::Max(1, FMath::RoundToInt((0.8f + Acte * 0.55f) * M));
 			O.Icone = 3;
 			break;
@@ -261,7 +288,7 @@ FVespObjet VespButin::Tirer(int32 Acte, int32 Chance, EVespEmplacement E, FRando
 			break;
 		}
 		case EVespEmplacement::Tete:
-			Base = Au({TEXT("Capuche"), TEXT("Diademe"), TEXT("Heaume")});
+			Base = Au({TEXT("Capuche"), TEXT("Diadème"), TEXT("Heaume")});
 			O.PvMax = FMath::RoundToInt((3 + Acte * 2) * M);
 			O.Critique += FMath::RoundToInt(2 * M);
 			O.Icone = 8;

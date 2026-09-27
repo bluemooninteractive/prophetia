@@ -14,6 +14,7 @@
 #include "Widgets/Layout/SUniformGridPanel.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
+#include "Widgets/Images/SImage.h"
 #include "Framework/Application/SlateApplication.h"
 #include "Fonts/FontMeasure.h"
 #include "Rendering/SlateRenderer.h"
@@ -851,8 +852,19 @@ TSharedRef<SWidget> SVespMenu::LeSeuil()
 			]
 			+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 8)
 			[
-				SNew(STextBlock).Font(Police("Bold", 28)).ColorAndOpacity(TEXTE)
-				.Text_Lambda([Etoile]() { return Texte(VespSeuil::Etoile(Etoile()).Nom); })
+				SNew(SHorizontalBox)
+				+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 14, 0)
+				[
+					SNew(SBox).WidthOverride(64).HeightOverride(64)
+					[
+						SNew(SImage).Image_Lambda([Etoile]() { return VespIconeEtoile(Etoile()); })
+					]
+				]
+				+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+				[
+					SNew(STextBlock).Font(Police("Bold", 28)).ColorAndOpacity(TEXTE)
+					.Text_Lambda([Etoile]() { return Texte(VespSeuil::Etoile(Etoile()).Nom); })
+				]
 			]
 			+ SVerticalBox::Slot().AutoHeight()
 			[

@@ -6,6 +6,8 @@
 #include "Animation/AnimSequence.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Engine/StaticMesh.h"
 #include "Components/TextRenderComponent.h"
 #include "Components/PointLightComponent.h"
 #include "Engine/SkeletalMesh.h"
@@ -456,6 +458,14 @@ void AVespUnite::Desarmer()
 		}
 	}
 	Armes.Reset();
+	for (UStaticMeshComponent* A : ArmesFixes)
+	{
+		if (A)
+		{
+			A->DestroyComponent();
+		}
+	}
+	ArmesFixes.Reset();
 	bBouclier = false;
 	TypeArme = EVespArme::Poings;
 }
@@ -471,6 +481,10 @@ void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, 
 	auto Attacher = [this](const FString& Chemin, bool bGauche, float LongueurVoulue) {
 		USkeletalMesh* M = Chemin.IsEmpty() ? nullptr : LoadObject<USkeletalMesh>(nullptr, *Chemin, nullptr, LOAD_NoWarn | LOAD_Quiet);
 		const FName Os = OsDeLaMain(bGauche);
+		if (!M && !Chemin.IsEmpty() && !Os.IsNone())
+		{
+			return AttacherFixe(Chemin, bGauche, LongueurVoulue, LongueurVoulue < 0.5f * Taille && bGauche);
+		}
 		if (!M || Os.IsNone())
 		{
 			return false;
@@ -492,6 +506,44 @@ void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, 
 	Attacher(Arme, bMainGauche, Longueur * Taille);
 	bBouclier = Attacher(Bouclier, !bMainGauche, 0.38f * Taille);
 	MettreEnPlaceLocomotion();
+}
+
+bool AVespUnite::AttacherFixe(const FString& Chemin, bool bGauche, float LongueurVoulue, bool bBouclierFixe)
+{
+	UStaticMesh* M = LoadObject<UStaticMesh>(nullptr, *Chemin, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	const FName Os = OsDeLaMain(bGauche);
+	if (!M || Os.IsNone())
+	{
+		return false;
+	}
+	UStaticMeshComponent* A = NewObject<UStaticMeshComponent>(this);
+	A->SetStaticMesh(M);
+	A->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	A->SetupAttachment(Modele, Os);
+	A->RegisterComponent();
+	// Les armes KayKit pointent vers +Y depuis la main, et un bouclier montre sa face vers -X.
+	// Les autres packs font comme ils veulent : on cherche l'axe long (ou l'axe mince d'un bouclier) et le cote le plus loin de la prise.
+	const FBox B = M->GetBoundingBox();
+	const FVector T = B.GetSize();
+	int32 Axe = 0;
+	for (int32 i = 1; i < 3; i++)
+	{
+		if (bBouclierFixe ? T[i] < T[Axe] : T[i] > T[Axe])
+		{
+			Axe = i;
+		}
+	}
+	FVector Dir = FVector::ZeroVector;
+	Dir[Axe] = FMath::Abs(B.Max[Axe]) >= FMath::Abs(B.Min[Axe]) ? 1.0f : -1.0f;
+	const FQuat Q = FQuat::FindBetweenNormals(Dir, bBouclierFixe ? FVector(-1, 0, 0) : FVector(0, 1, 0));
+	A->SetRelativeRotation(Q);
+	const float Mesure = T.GetMax();
+	if (Mesure > 1.0f)
+	{
+		A->SetWorldScale3D(FVector(LongueurVoulue / Mesure));
+	}
+	ArmesFixes.Add(A);
+	return true;
 }
 
 void AVespUnite::ColorerArme(const FString& Chemin, const TCHAR* Suffixe)
@@ -525,6 +577,11 @@ void AVespUnite::EquiperSecondeArme(const FString& Arme, float Longueur)
 {
 	USkeletalMesh* M = LoadObject<USkeletalMesh>(nullptr, *Arme, nullptr, LOAD_NoWarn | LOAD_Quiet);
 	const FName Os = OsDeLaMain(true);
+	if (!M && !Os.IsNone())
+	{
+		AttacherFixe(Arme, true, Longueur * Taille, false);
+		return;
+	}
 	if (!M || Os.IsNone())
 	{
 		return;

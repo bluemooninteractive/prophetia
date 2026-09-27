@@ -7,6 +7,8 @@
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
 
 // Le dossier ou chaque personnage range son modele 3D
 static const FString DOSSIER = TEXT("/Game/Characters/");
@@ -923,7 +925,19 @@ void AVespCombat::AvancerDangers(float Secondes)
 						}
 					}
 				}
-				// Ce qu'on voit et entend : une onde, un eclat
+				// Ce qu'on voit et entend : une onde, un eclat ; et une gerbe de flammes (RPG-FlameAttackVFX) quand ca brule
+				if (Z.Effet == VespEffetCoup::Brulure && Z.Longueur <= 0.0f)
+				{
+					static TWeakObjectPtr<UNiagaraSystem> Flammes;
+					if (!Flammes.IsValid())
+					{
+						Flammes = LoadObject<UNiagaraSystem>(nullptr, TEXT("/Game/RPG-FlameAttackVFX/VFX/Niagara/N_FlameAttack.N_FlameAttack"), nullptr, LOAD_NoWarn | LOAD_Quiet);
+					}
+					if (Flammes.IsValid())
+					{
+						UNiagaraFunctionLibrary::SpawnSystemAtLocation(GetWorld(), Flammes.Get(), Z.Centre + FVector(0, 0, 5), FRotator::ZeroRotator, FVector(Z.Rayon / 200.0f));
+					}
+				}
 				if (Z.Longueur <= 0.0f && (!Source || !Z.bParable))
 				{
 					AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Z.Centre + FVector(0, 0, 10), FVector::UpVector, Z.Couleur);

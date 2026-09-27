@@ -2435,12 +2435,16 @@ void AVespPlayerController::ModePhoto(float Secondes)
 		return;
 	}
 #endif
-	if (FAssetCompilingManager::Get().GetNumRemainingAssets() > 0)
+	// (on attend les modeles qui se preparent, mais pas plus de 90 secondes d'affilee : un pack lourd peut bloquer longtemps)
+	static float AttenteAssets = 0.0f;
+	if (FAssetCompilingManager::Get().GetNumRemainingAssets() > 0 && AttenteAssets < 90.0f)
 	{
 		UE_LOG(LogTemp, Display, TEXT("VESPERANCE photo : des assets se preparent encore (%d)"), FAssetCompilingManager::Get().GetNumRemainingAssets());
+		AttenteAssets += 1.0f;
 		PhotoAttente = 1.0f;
 		return;
 	}
+	AttenteAssets = 0.0f;
 	UE_LOG(LogTemp, Display, TEXT("VESPERANCE photo : acte %d, etape %d (Haschen engages : %d, combat : %d)"), PhotoActe, PhotoEtape,
 	       Combat->HaschenEngages(), Combat->EnCombat() ? 1 : 0);
 	const FString Prefixe = FString::Printf(TEXT("Acte%d_%s"), PhotoActe, *Romain(FMath::Max(1, PhotoActe)));

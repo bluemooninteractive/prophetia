@@ -9,6 +9,7 @@
 #include "Animation/AnimSequence.h"
 #include "Engine/SkeletalMesh.h"
 #include "Materials/MaterialInstanceDynamic.h"
+#include "Misc/Paths.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Engine/StaticMesh.h"
 #include "Particles/ParticleSystem.h"
@@ -74,6 +75,13 @@ static UStaticMesh* ForetStylisee(const TCHAR* Dossier, const TCHAR* Nom)
 	return AVespMonde::Modele(FString::Printf(TEXT("/Game/StyleHex_Studio/Free_Packs/FREE_Stylized_Forest_Sample/Meshes/%s/%s.%s"), Dossier, Nom, Nom));
 }
 
+// Un modele de n'importe quel pack, par son chemin sous /Game ("Fantasy_Forest/Statick_Meshes/SM_rock_01")
+static UStaticMesh* Pack(const TCHAR* Chemin)
+{
+	const FString C(Chemin);
+	return AVespMonde::Modele(FString::Printf(TEXT("/Game/%s.%s"), *C, *FPaths::GetCleanFilename(C)));
+}
+
 // Un materiau de sol du Pack_Bonus (herbe, pierre, dallage, plancher)
 static UMaterialInterface* MateriauDeSol(const TCHAR* Nom)
 {
@@ -110,6 +118,8 @@ struct FVespPalette
 	TArray<UStaticMesh*> Batiments;		// au loin : maisons, tours, remparts, moulins
 	TArray<UStaticMesh*> Corruption;	// le Voile : tentacules, cocons, yeux (actes VI et VII)
 	TArray<UStaticMesh*> Tombes;
+	TArray<UStaticMesh*> Details;		// a leur vraie taille, au bord du sentier : cranes, bougies, colonnes, arches, champignons geants...
+	float DensiteDetails = 0.0f;
 	FVector2D HauteurArbres = FVector2D(520.0f, 820.0f);
 	float DensiteArbres = 1.0f, DensiteBuissons = 1.0f, DensiteHerbes = 1.0f, DensiteFleurs = 1.0f;
 	float DensiteRochers = 1.0f, DensiteFalaises = 0.3f, DensiteDebris = 0.3f, DensiteBatiments = 0.0f, DensiteCorruption = 0.0f;
@@ -189,6 +199,34 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 	const TArray<UStaticMesh*> Bloc = Liste({ForetStylisee(TEXT("Stones"), TEXT("SM_Stone_Boulder_1"))});
 	const TArray<UStaticMesh*> BuissonsStylises = Liste({ForetStylisee(TEXT("Foliage"), TEXT("SM_Fol_Bush_1")), ForetStylisee(TEXT("Foliage"), TEXT("SM_Fol_Bush_2"))});
 
+	// La foret fantastique (Fantasy_Forest) : 35 grands arbres, de l'herbe, des rochers
+	const TArray<UStaticMesh*> ArbresFantastiques = Liste({
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_Wood_1")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_Wood_2")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_Wood_3")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_Wood_4")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_Wood_5")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_Wood_6")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_7")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_8")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_9")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_10")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_11")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_12")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_13")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_14")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_15")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_16")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_17")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_18")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_19")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_20")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_21")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_22")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_23")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_24")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_25")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_26")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_27")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_28")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_29")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_30")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_31")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_32")),
+	                                                 Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_33")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_34")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_Wood_35"))});
+	const TArray<UStaticMesh*> HerbesFantastiques = Liste({Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_HighGrass")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/Sm_LowGrass"))});
+	const TArray<UStaticMesh*> RochersFantastiques = Liste({Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_rock_01")), Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_rock_02")),
+	                                                        Pack(TEXT("Fantasy_Forest/Statick_Meshes/SM_rock_03"))});
+	// Le decor stylise (Stylized_EnvirPack) : champignons geants, fleurs, herbe, arbres immenses
+	const TArray<UStaticMesh*> Champignons = Liste({Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/mshroom_little/SM_mush_room_red")), Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/mshroom_little/SM_mush_room_yellow"))});
+	const TArray<UStaticMesh*> FleursStylisees = Liste({Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/grass/SM_flower_1")), Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/grass/SM_flower_3")), Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/grass/SM_flower_4")),
+	                                                    Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/grass/SM_flower_5"))});
+	const TArray<UStaticMesh*> HerbeStylisee = Liste({Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/grass/SM_grass_base"))});
+	const TArray<UStaticMesh*> ArbresImmenses = Liste({Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/trees/SM_hug_tree")), Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/trees/SM_tree_twice_trunke")),
+	                                                   Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/trees/SM_medheight_tree")), Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/trees/SM_flowertreeremake"))});
+	// Le cimetiere (DungeonAndCemetery) : tombes, croix, cercueils, ossements, bougies ; colonnes et arches en ruine
+	auto Crypte = [](const TCHAR* Nom) { return Pack(*FString::Printf(TEXT("DungeonAndCemetery/Mesh/%s"), Nom)); };
+	const TArray<UStaticMesh*> Tombes = Liste({Crypte(TEXT("SM_Tombstone")), Crypte(TEXT("SM_Tombstone")), Crypte(TEXT("SM_Tombstone")), Crypte(TEXT("SM_Cross")), Crypte(TEXT("SM_Cross"))});
+	const TArray<UStaticMesh*> Ossuaire = Liste({Crypte(TEXT("SM_Skull")), Crypte(TEXT("SM_Bones")), Crypte(TEXT("SM_Bones")), Crypte(TEXT("SM_Candle")),
+	                                              Crypte(TEXT("SM_Candlestick")), Crypte(TEXT("SM_Vase")), Crypte(TEXT("SM_Coffin")), Crypte(TEXT("SM_Cauldron"))});
+	const TArray<UStaticMesh*> Colonnades = Liste({Crypte(TEXT("SM_Column")), Crypte(TEXT("SM_Column")), Crypte(TEXT("SM_Arc"))});
+
 	P.Buissons = Plus(Buissons, BuissonsStylises);
 	P.Herbes = Plus(Herbes, Touffes);
 	// Les sols (Pack_Bonus) : dalles d'herbe, de pierre, de carrelage ; passerelles de planches dans les marais
@@ -201,14 +239,17 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 	switch (Acte)
 	{
 		case 1:		// la Foret des Brumes : une vraie foret, des fleurs, un moulin au loin
-			P.Arbres = Plus(Plus(Foret, Liste({ArbreVillage, ArbreVillage})), Plus(Plus(Bouleaux, Bouleaux), Feuillus));
-			P.Rochers = Plus(RochersForet, Pierres);
+			P.Arbres = Plus(Plus(Plus(Foret, Liste({ArbreVillage, ArbreVillage})), Plus(Plus(Bouleaux, Bouleaux), Feuillus)), ArbresFantastiques);
+			P.Rochers = Plus(Plus(RochersForet, Pierres), RochersFantastiques);
 			P.Falaises = Plus(GrandsRochers, Bloc);
-			P.Fleurs = Plus(Fleurs, Plus(Bouquets, Bouquets));
+			P.Fleurs = Plus(Plus(Fleurs, Plus(Bouquets, Bouquets)), FleursStylisees);
+			P.Herbes = Plus(Plus(P.Herbes, HerbesFantastiques), HerbeStylisee);
+			P.Details = Plus(Champignons, Liste({Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/house/SM_rockground")), Pack(TEXT("Stylized_EnvirPack/Fantasy_Stylized_Environment_Pack/mesh/house/SM_rocky_step"))}));
+			P.DensiteDetails = 0.5f;
 			P.Debris = Plus(Bois, Ferme);
 			P.DensiteDebris = 0.5f;
-			P.Batiments = Liste({Provencal(TEXT("SM_WindMill_SM_WindMill")), Provencal(TEXT("SM_House_Barn"))});
-			P.DensiteBatiments = 0.15f;
+			P.Batiments = Plus(Liste({Provencal(TEXT("SM_WindMill_SM_WindMill")), Provencal(TEXT("SM_House_Barn"))}), ArbresImmenses);	// et des arbres immenses, au loin
+			P.DensiteBatiments = 0.3f;
 			P.Maisons = 5;				// un hameau, au bord de la foret
 			P.Mares = 10;
 			P.bSolPeint = true;
@@ -216,7 +257,7 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.HauteurLumiere = 330.0f;
 			break;
 		case 2:		// le Bois des Pendus : la meme foret, plus sombre ; des gibets, des charrettes abandonnees, des tombes
-			P.Arbres = Plus(Plus(Foret, Bouleaux), Feuillus);		// des bouleaux pales dans le bois hante
+			P.Arbres = Plus(Plus(Plus(Foret, Bouleaux), Feuillus), Plus(ArbresFantastiques, ArbresFantastiques));		// des bouleaux pales et de grands arbres noueux
 			P.Rochers = Plus(RochersForet, Pierres);
 			P.Falaises = Plus(GrandsRochers, Bloc);
 			P.Fleurs = Liste({Provencal(TEXT("SM_Flower_03_a")), Provencal(TEXT("SM_Flower_03_b"))});
@@ -226,7 +267,9 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.Lumiere = Provencal(TEXT("SM_Shrine_Candle"));		// des bougies, rien de plus
 			P.HauteurLumiere = 115.0f;
 			P.CouleurLumiere = FLinearColor(1.0f, 0.75f, 0.45f);
-			P.Tombes = Liste({Provencal(TEXT("SM_RockBrick_Small_01")), Provencal(TEXT("SM_RockBrick_Small_02")), Provencal(TEXT("SM_RockBrick_Small_03"))});
+			P.Tombes = Tombes.Num() > 0 ? Tombes : Liste({Provencal(TEXT("SM_RockBrick_Small_01")), Provencal(TEXT("SM_RockBrick_Small_02"))});
+			P.Details = Plus(Ossuaire, Liste({Crypte(TEXT("SM_Arc"))}));
+			P.DensiteDetails = 0.9f;
 			P.bSolPeint = true;
 			break;
 		case 3:		// les Marais : des cypres, des roseaux, des mares, des passerelles de planches
@@ -236,6 +279,9 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.Fleurs = Liste({Provencal(TEXT("SM_Flower_02_a")), Provencal(TEXT("SM_Flower_02_b")), Provencal(TEXT("SM_Flower_02_c"))});
 			P.DensiteFleurs = 0.5f;
 			P.DensiteHerbes = 1.6f;
+			P.Herbes = Plus(P.Herbes, HerbesFantastiques);
+			P.Details = Champignons;		// des champignons geants, dans l'humidite
+			P.DensiteDetails = 0.35f;
 			P.Debris = Plus(Bois, Liste({Provencal(TEXT("SM_Barrel")), Village(TEXT("props/vehicles"), TEXT("SM_PROP_rowboat")),
 			                             Village(TEXT("props/container"), TEXT("SM_PROP_bucket_02")), Village(TEXT("props/natural"), TEXT("SM_PROP_treetrunk_02"))}));
 			P.DensiteDebris = 0.5f;
@@ -255,6 +301,8 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.DensiteFleurs = 0.3f;
 			P.DensiteHerbes = 0.6f;
 			P.Debris = Plus(Plus(Objets, Garnison), Plus(Ruines, Liste({Provencal(TEXT("SM_Wooden_Pillar")), Provencal(TEXT("SM_Fence_01"))})));
+			P.Details = Plus(Colonnades, Liste({Crypte(TEXT("SM_Cauldron")), Crypte(TEXT("SM_Vase"))}));
+			P.DensiteDetails = 0.4f;
 			P.DensiteDebris = 1.0f;
 			P.Lumiere = Village(TEXT("props/light"), TEXT("SM_PROP_brazier_01"));
 			P.HauteurLumiere = 140.0f;
@@ -307,6 +355,8 @@ static FVespPalette PaletteDeLActe(int32 Acte)
 			P.Debris = Plus(Ruines, Ruelles);
 			P.DensiteDebris = 0.7f;
 			P.Maisons = 18;				// la cite voilee
+			P.Details = Plus(Plus(Colonnades, Colonnades), Plus(Ossuaire, Tombes));
+			P.DensiteDetails = 0.8f;
 			P.Lumiere = Village(TEXT("props/light"), TEXT("SM_PROP_streetlamp_v02_01"));
 			P.HauteurLumiere = 330.0f;
 			P.CouleurLumiere = FLinearColor(0.7f, 0.45f, 1.0f);		// la lumiere du Voile
@@ -391,7 +441,10 @@ UHierarchicalInstancedStaticMeshComponent* AVespMonde::Instances(UStaticMesh* M,
 	C->SetStaticMesh(M);
 	// Le feuillage du pack Provencal est vert citron, fait pour le plein soleil : on le teinte a la couleur de l'acte
 	// (plus sombre la nuit, roux dans le bois hante, bleu-vert sous la neige...), et on calme sa diffusion
-	if (M->GetPathName().StartsWith(TEXT("/Game/StylizedProvencal/")))
+	// (tous les packs de vegetation : Provencal, Fantasy_Forest, StyleHex, Stylized_EnvirPack ; chacun nomme sa couleur a sa facon)
+	const FString CheminDuModele = M->GetPathName();
+	if (CheminDuModele.StartsWith(TEXT("/Game/StylizedProvencal/")) || CheminDuModele.StartsWith(TEXT("/Game/Fantasy_Forest/")) ||
+	    CheminDuModele.StartsWith(TEXT("/Game/StyleHex_Studio/")) || CheminDuModele.StartsWith(TEXT("/Game/Stylized_EnvirPack/")))
 	{
 		static const FLinearColor TEINTES[7] = {
 			FLinearColor(0.72f, 0.82f, 0.66f), FLinearColor(0.72f, 0.62f, 0.38f), FLinearColor(0.42f, 0.56f, 0.46f), FLinearColor(0.78f, 0.72f, 0.48f),
@@ -400,7 +453,13 @@ UHierarchicalInstancedStaticMeshComponent* AVespMonde::Instances(UStaticMesh* M,
 		for (int32 i = 0; i < C->GetNumMaterials(); i++)
 		{
 			UMaterialInterface* Source = C->GetMaterial(i);
-			if (!Source || !Source->GetName().Contains(TEXT("Flora")))
+			static const TCHAR* FEUILLAGES[] = {TEXT("Flora"), TEXT("Foliage"), TEXT("Leaves"), TEXT("leaves"), TEXT("Fol_"), TEXT("Grass"), TEXT("grass"), TEXT("flower")};
+			bool bFeuillage = false;
+			for (const TCHAR* F : FEUILLAGES)
+			{
+				bFeuillage |= Source && Source->GetName().Contains(F, ESearchCase::CaseSensitive);
+			}
+			if (!bFeuillage)
 			{
 				continue;
 			}
@@ -409,9 +468,16 @@ UHierarchicalInstancedStaticMeshComponent* AVespMonde::Instances(UStaticMesh* M,
 			if (!Mid)
 			{
 				Mid = UMaterialInstanceDynamic::Create(Source, this);
-				FLinearColor Origine = FLinearColor::White;
-				Source->GetVectorParameterValue(FHashedMaterialParameterInfo(TEXT("Basecolor Tint")), Origine);
-				Mid->SetVectorParameterValue(TEXT("Basecolor Tint"), Origine * Teinte);
+				static const TCHAR* COULEURS[] = {TEXT("Basecolor Tint"), TEXT("Tint Color"), TEXT("Color Base"), TEXT("Color Top"), TEXT("Top Color"),
+				                                  TEXT("Bottom Color"), TEXT("Subsurface Color")};
+				for (const TCHAR* Nom : COULEURS)
+				{
+					FLinearColor Origine;
+					if (Source->GetVectorParameterValue(FHashedMaterialParameterInfo(Nom), Origine))
+					{
+						Mid->SetVectorParameterValue(Nom, Origine * Teinte);
+					}
+				}
 				Mid->SetScalarParameterValue(TEXT("SSS Intensity"), 0.25f);
 				Feuillages.Add(Source, Mid);
 			}
@@ -996,6 +1062,23 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 		const FVector P = PointAuBord(40.0f, 700.0f);
 		Poser(AuHasard(Pal.Debris), P, F(60.0f, 180.0f), 320.0f, true, 11000.0f, 6.0f);
 	}
+	// Les details, a leur vraie taille (un crane reste un crane, une colonne une colonne) : pres du sentier, rarement dessus
+	for (int32 i = 0; i < FMath::RoundToInt(420 * Pal.DensiteDetails) && Pal.Details.Num() > 0; i++)
+	{
+		UStaticMesh* M = AuHasard(Pal.Details);
+		if (!M)
+		{
+			continue;
+		}
+		const float Vraie = M->GetBoundingBox().GetSize().Z;
+		const bool bGrand = Vraie > 150.0f;			// colonnes, arches, champignons geants : un peu plus loin, jamais devant la camera
+		const FVector P = PointAuBord(bGrand ? 160.0f : 30.0f, bGrand ? 1100.0f : 500.0f);
+		if (bGrand && CoteCamera(P))
+		{
+			continue;
+		}
+		Poser(M, P, Vraie * F(0.9f, 1.25f), 100000.0f, true, bGrand ? 16000.0f : 7000.0f, bGrand ? 3.0f : 10.0f);
+	}
 	// Les tombes du Bois des Pendus, par petits groupes
 	for (int32 g = 0; g < (Pal.Tombes.Num() > 0 ? 35 : 0); g++)
 	{
@@ -1054,6 +1137,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 	}
 
 	// ----- Ce qui brille : les pics de glace, les coulees de lave, les cristaux du Voile -----
+	EnvLueurs->SetMaterial(0, CouleurLueurs);		// (l'acte VI y met du magma : on remet la lueur)
 	switch (S.Special)
 	{
 		case 5:
@@ -1073,6 +1157,10 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 			break;
 		case 6:
 			EnvLueurs->SetStaticMesh(Cylindre);
+			if (UMaterialInterface* Magma = LoadObject<UMaterialInterface>(nullptr, TEXT("/Game/Magma_Material/Material/MI_Magma_01_Inst.MI_Magma_01_Inst"), nullptr, LOAD_NoWarn | LOAD_Quiet))
+			{
+				EnvLueurs->SetMaterial(0, Magma);		// de la vraie lave (Magma_Material), plus des disques jaunes
+			}
 			CouleurLueurs->SetVectorParameterValue(TEXT("Color"), FLinearColor(1.0f, 0.2f, 0.02f) * 1.3f);
 			for (int32 i = 0; i < 170; i++)
 			{
