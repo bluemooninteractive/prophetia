@@ -1,6 +1,8 @@
 #include "VespUnite.h"
-#include "VespGrille.h"
+#include "VespAnim.h"
+#include "VespMonde.h"
 #include "VespEffet.h"
+#include "VespSons.h"
 #include "Animation/AnimSequence.h"
 #include "AssetRegistry/AssetRegistryModule.h"
 #include "Components/SkeletalMeshComponent.h"
@@ -57,36 +59,33 @@ void AVespUnite::BeginPlay()
 	Super::BeginPlay();
 }
 
-void AVespUnite::Preparer(AVespGrille* LaGrille, FIntPoint NouvelleCase, const FVespStats& LesStats, const FString& Dossier,
-                          FLinearColor Teinte, bool bEstAylis)
+void AVespUnite::Preparer(AVespMonde* LeMonde, const FVespStats& LesStats, const FString& Dossier, FLinearColor Teinte, bool bEstAylis)
 {
-	Grille = LaGrille;
-	Case = NouvelleCase;
+	Monde = LeMonde;
 	Stats = LesStats;
 	bAylis = bEstAylis;
-	SetActorLocation(Grille->CentreDeCase(Case));
-	Grille->Occuper(this);
 
 	UMaterialInterface* Base = LoadObject<UMaterialInterface>(nullptr, TEXT("/Engine/BasicShapes/BasicShapeMaterial.BasicShapeMaterial"));
 	UMaterialInstanceDynamic* Materiau = UMaterialInstanceDynamic::Create(Base, this);
 	Materiau->SetVectorParameterValue(TEXT("Color"), Teinte);
 	Corps->SetMaterial(0, Materiau);
 	Tete->SetMaterial(0, Materiau);
-	Texte->SetTextRenderColor(bAylis ? FColor(120, 180, 255) : FColor(255, 110, 90));
 	// AYLIS porte la lumiere violette de la prophetie ; les Haschen, une faible lueur rouge (leurs yeux)
-	Lueur->SetLightColor(bAylis ? FLinearColor(0.55f, 0.45f, 1.0f) : FLinearColor(1.0f, 0.25f, 0.15f));
-	IntensiteLueur = bAylis ? 1400.0f : 160.0f;
+	CouleurLueur = bAylis ? FLinearColor(0.55f, 0.45f, 1.0f) : FLinearColor(1.0f, 0.25f, 0.15f);
+	IntensiteLueur = bAylis ? 1400.0f : (Stats.Boss > 0 ? 900.0f : 160.0f);
+	Lueur->SetLightColor(CouleurLueur);
 	Lueur->SetIntensity(IntensiteLueur);
-	Lueur->SetAttenuationRadius(bAylis ? 520.0f : 220.0f);
+	Lueur->SetAttenuationRadius(bAylis ? 560.0f : (Stats.Boss > 0 ? 600.0f : 240.0f));
+	// Les grands (elites, boss) ne flechissent pas a chaque coup
+	SeuilEquilibre = bAylis ? 0.0f : (Stats.Boss > 0 ? Stats.PvMax * 0.12f : (Taille >= 205.0f ? Stats.PvMax * 0.3f : 0.0f));
 
 	Habiller(Dossier);
-	MettreAJourTexte();
+	Texte->SetText(FText::GetEmpty());
 }
 
 // ===================== Le modele 3D et ses animations =====================
-// On cherche dans le dossier : le premier modele "squelettique" (un personnage avec des os), et les animations
-// dont le nom finit par Idle, Walking_A... (les noms des animations KayKit). S'il y en a plusieurs, on prend
-// le nom le plus court : "Idle" plutot que "Jump_Idle" ou "Sit_Chair_Idle".
+// On cherche dans le dossier : le premier modele "squelettique" (un personnage avec des os), et toutes les
+// animations (les noms KayKit : Idle, Walking_A, 1H_Melee_Attack_Chop...).
 
 void AVespUnite::Habiller(const FString& Dossier)
 {
@@ -94,21 +93,33 @@ void AVespUnite::Habiller(const FString& Dossier)
 	TArray<FAssetData> Assets;
 	Registre.ScanPathsSynchronous({Dossier}, false);
 	Registre.GetAssetsByPath(FName(*Dossier), Assets, true);
-	UE_LOG(LogTemp, Display, TEXT("VESPERANCE : %s -> %d assets"), *Dossier, Assets.Num());
 
 	// Unreal importe les personnages KayKit en plusieurs morceaux (le corps, la tete, les bras, les jambes),
-	// qui partagent le meme squelette. Le corps "mene" : les autres morceaux suivent sa pose et ses animations.
+	// qui partagent le meme squelette. Le corps "mene" : les autres morceaux suivent sa pose.
 	TArray<USkeletalMesh*> Morceaux;
 	USkeletalMesh* Maillage = nullptr;
 	for (const FAssetData& A : Assets)
 	{
 		if (A.IsInstanceOf(USkeletalMesh::StaticClass()))
 		{
+			const FString Nom = A.AssetName.ToString();
+			// (les accessoires du pack : arbaletes, couteaux, cape... ne font pas partie du corps)
+			if (Nom.Contains(TEXT("Crossbow")) || Nom.Contains(TEXT("Knife")) || Nom.Contains(TEXT("Throwable")) || Nom.EndsWith(TEXT("_Cape")))
+			{
+				continue;
+			}
 			USkeletalMesh* M = Cast<USkeletalMesh>(A.GetAsset());
 			Morceaux.Add(M);
-			if (!Maillage || A.AssetName.ToString().Contains(TEXT("Body")))
+			if (!Maillage || Nom.Contains(TEXT("Body")))
 			{
 				Maillage = M;
+			}
+		}
+		else if (A.IsInstanceOf(UAnimSequence::StaticClass()))
+		{
+			if (UAnimSequence* S = Cast<UAnimSequence>(A.GetAsset()))
+			{
+				Animations.Add(S);
 			}
 		}
 	}
@@ -116,34 +127,6 @@ void AVespUnite::Habiller(const FString& Dossier)
 	{
 		return;		// pas encore de modele importe : la silhouette de secours reste
 	}
-
-	auto Chercher = [&Assets](std::initializer_list<const TCHAR*> Noms) -> UAnimSequence* {
-		for (const TCHAR* Nom : Noms)
-		{
-			UAnimSequence* Meilleure = nullptr;
-			int32 LongueurMin = MAX_int32;
-			for (const FAssetData& A : Assets)
-			{
-				const FString NomAsset = A.AssetName.ToString();
-				if (A.IsInstanceOf(UAnimSequence::StaticClass()) && NomAsset.EndsWith(Nom, ESearchCase::IgnoreCase) && NomAsset.Len() < LongueurMin)
-				{
-					LongueurMin = NomAsset.Len();
-					Meilleure = Cast<UAnimSequence>(A.GetAsset());
-				}
-			}
-			if (Meilleure)
-			{
-				return Meilleure;
-			}
-		}
-		return nullptr;
-	};
-	AnimRepos = Chercher({TEXT("Idle_Combat"), TEXT("2H_Melee_Idle"), TEXT("Idle")});
-	AnimMarche = Chercher({TEXT("Walking_A"), TEXT("Walking_B"), TEXT("Running_A")});
-	AnimAttaque = Chercher({TEXT("1H_Melee_Attack_Chop"), TEXT("1H_Melee_Attack_Slice_Diagonal"), TEXT("Unarmed_Melee_Attack_Punch_A")});
-	AnimTouche = Chercher({TEXT("Hit_A"), TEXT("Hit_B")});
-	AnimChute = Chercher({TEXT("Death_A"), TEXT("Death_B")});
-
 	Modele->SetSkeletalMesh(Maillage);
 	FBox Boite = Maillage->GetBounds().GetBox();
 	for (USkeletalMesh* M : Morceaux)
@@ -171,19 +154,189 @@ void AVespUnite::Habiller(const FString& Dossier)
 		Modele->SetRelativeScale3D(FVector(EchelleModele));
 	}
 	Modele->SetRelativeRotation(FRotator(0, CorrectionRotation, 0));
+	// Les animations : notre "animateur" les melange en douceur
+	Modele->SetAnimInstanceClass(UVespAnimInstance::StaticClass());
+	bAnime = Animateur() != nullptr && Animations.Num() > 0;
+	MettreEnPlaceLocomotion();
 	if (bAylis)
 	{
-		TeindreEnBleu();
+		TeindreTenue(FLinearColor(0.25f, 0.39f, 0.88f));		// le bleu nuit d'AYLIS
 	}
-	Jouer(AnimRepos, true);
 }
 
-// Une copie de la texture ou le vert devient bleu nuit (la peau, le cuir et le metal ne changent pas)
-static UTexture2D* TextureEnBleu(UTexture2D* Source, UObject* Proprietaire)
+UVespAnimInstance* AVespUnite::Animateur() const
+{
+	return Cast<UVespAnimInstance>(Modele->GetAnimInstance());
+}
+
+// Une animation par la fin de son nom (le nom le plus court gagne : "Idle" plutot que "Jump_Idle")
+const UAnimSequence* AVespUnite::Anim(std::initializer_list<const TCHAR*> Noms) const
+{
+	for (const TCHAR* Nom : Noms)
+	{
+		if (const TObjectPtr<UAnimSequence>* Deja = AnimsTrouvees.Find(Nom))
+		{
+			if (*Deja)
+			{
+				return *Deja;
+			}
+			continue;
+		}
+		UAnimSequence* Meilleure = nullptr;
+		int32 LongueurMin = MAX_int32;
+		for (UAnimSequence* S : Animations)
+		{
+			const FString NomAsset = S->GetName();
+			if (NomAsset.EndsWith(Nom, ESearchCase::IgnoreCase) && NomAsset.Len() < LongueurMin)
+			{
+				LongueurMin = NomAsset.Len();
+				Meilleure = S;
+			}
+		}
+		AnimsTrouvees.Add(Nom, Meilleure);
+		if (Meilleure)
+		{
+			return Meilleure;
+		}
+	}
+	return nullptr;
+}
+
+void AVespUnite::MettreEnPlaceLocomotion()
+{
+	UVespAnimInstance* A = Animateur();
+	if (!A)
+	{
+		return;
+	}
+	const UAnimSequence* Repos = TypeArme == EVespArme::DeuxMains ? Anim({TEXT("2H_Melee_Idle"), TEXT("Idle_Combat"), TEXT("Idle")})
+	                                                              : Anim({TEXT("Idle_Combat"), TEXT("Idle")});
+	if (bAylis && TypeArme != EVespArme::DeuxMains)
+	{
+		Repos = Anim({TEXT("Idle")});
+	}
+	A->Locomotion(Repos, Anim({TEXT("Walking_A"), TEXT("Walking_B"), TEXT("Walking_C")}), Anim({TEXT("Running_A"), TEXT("Running_B")}),
+	              Vitesse * 0.62f, Vitesse * 1.35f);
+}
+
+const UAnimSequence* AVespUnite::AnimDuGeste(EVespGeste Geste) const
+{
+	const EVespArme T = TypeArme;
+	switch (Geste)
+	{
+		case EVespGeste::Attaque1:
+			if (T == EVespArme::Dagues) return Anim({TEXT("Dualwield_Melee_Attack_Slice"), TEXT("1H_Melee_Attack_Slice_Diagonal")});
+			if (T == EVespArme::DeuxMains) return Anim({TEXT("2H_Melee_Attack_Slice"), TEXT("1H_Melee_Attack_Slice_Diagonal")});
+			if (T == EVespArme::Baton) return Anim({TEXT("Spellcast_Shoot"), TEXT("1H_Melee_Attack_Stab")});
+			if (T == EVespArme::Arc) return Anim({TEXT("2H_Ranged_Shoot"), TEXT("1H_Ranged_Shoot"), TEXT("Throw")});
+			if (T == EVespArme::Poings) return Anim({TEXT("Unarmed_Melee_Attack_Punch_A"), TEXT("1H_Melee_Attack_Chop")});
+			return Anim({TEXT("1H_Melee_Attack_Slice_Diagonal"), TEXT("1H_Melee_Attack_Chop"), TEXT("Unarmed_Melee_Attack_Punch_A")});
+		case EVespGeste::Attaque2:
+			if (T == EVespArme::Dagues) return Anim({TEXT("Dualwield_Melee_Attack_Stab"), TEXT("1H_Melee_Attack_Stab")});
+			if (T == EVespArme::DeuxMains) return Anim({TEXT("2H_Melee_Attack_Stab"), TEXT("2H_Melee_Attack_Slice")});
+			if (T == EVespArme::Baton || T == EVespArme::Arc) return AnimDuGeste(EVespGeste::Attaque1);
+			if (T == EVespArme::Poings) return Anim({TEXT("Unarmed_Melee_Attack_Punch_B"), TEXT("Unarmed_Melee_Attack_Punch_A")});
+			return Anim({TEXT("1H_Melee_Attack_Slice_Horizontal"), TEXT("1H_Melee_Attack_Stab"), TEXT("1H_Melee_Attack_Chop")});
+		case EVespGeste::Attaque3:
+			if (T == EVespArme::Dagues) return Anim({TEXT("Dualwield_Melee_Attack_Chop"), TEXT("1H_Melee_Attack_Chop")});
+			if (T == EVespArme::DeuxMains) return Anim({TEXT("2H_Melee_Attack_Chop"), TEXT("2H_Melee_Attack_Slice")});
+			if (T == EVespArme::Baton) return Anim({TEXT("Spellcast_Long"), TEXT("Spellcast_Shoot")});
+			if (T == EVespArme::Arc) return AnimDuGeste(EVespGeste::Attaque1);
+			if (T == EVespArme::Poings) return Anim({TEXT("Unarmed_Melee_Attack_Kick"), TEXT("Unarmed_Melee_Attack_Punch_A")});
+			return Anim({TEXT("1H_Melee_Attack_Chop"), TEXT("1H_Melee_Attack_Stab")});
+		case EVespGeste::Lourde:
+			if (T == EVespArme::Baton) return Anim({TEXT("Spellcast_Long"), TEXT("Spellcast_Shoot")});
+			if (T == EVespArme::Arc) return AnimDuGeste(EVespGeste::Attaque1);
+			return Anim({TEXT("2H_Melee_Attack_Chop"), TEXT("1H_Melee_Attack_Chop"), TEXT("Unarmed_Melee_Attack_Kick")});
+		case EVespGeste::Tourbillon: return Anim({TEXT("2H_Melee_Attack_Spin"), TEXT("2H_Melee_Attack_Spinning"), TEXT("1H_Melee_Attack_Slice_Horizontal")});
+		case EVespGeste::Tir: return Anim({TEXT("2H_Ranged_Shoot"), TEXT("1H_Ranged_Shoot"), TEXT("Spellcast_Shoot"), TEXT("Throw")});
+		case EVespGeste::Sort: return Anim({TEXT("Spellcast_Shoot"), TEXT("Spellcast_Long"), TEXT("Throw")});
+		case EVespGeste::Invocation: return Anim({TEXT("Spellcast_Raise"), TEXT("Spellcast_Long"), TEXT("Cheer")});
+		case EVespGeste::Lancer: return Anim({TEXT("Throw"), TEXT("Spellcast_Shoot")});
+		case EVespGeste::EsquiveAvant: return Anim({TEXT("Dodge_Forward"), TEXT("Dodge_Left")});
+		case EVespGeste::EsquiveArriere: return Anim({TEXT("Dodge_Backward"), TEXT("Dodge_Forward")});
+		case EVespGeste::EsquiveGauche: return Anim({TEXT("Dodge_Left"), TEXT("Dodge_Forward")});
+		case EVespGeste::EsquiveDroite: return Anim({TEXT("Dodge_Right"), TEXT("Dodge_Forward")});
+		case EVespGeste::GardeLevee: return Anim({TEXT("Block"), TEXT("Blocking")});
+		case EVespGeste::GardeTouchee: return Anim({TEXT("Block_Hit"), TEXT("Hit_A")});
+		case EVespGeste::Riposte: return Anim({TEXT("Block_Attack"), TEXT("1H_Melee_Attack_Stab")});
+		case EVespGeste::Touche: return FMath::RandBool() ? Anim({TEXT("Hit_A"), TEXT("Hit_B")}) : Anim({TEXT("Hit_B"), TEXT("Hit_A")});
+		case EVespGeste::Mort: return FMath::RandBool() ? Anim({TEXT("Death_A"), TEXT("Death_B")}) : Anim({TEXT("Death_B"), TEXT("Death_A")});
+		case EVespGeste::Potion: return Anim({TEXT("Use_Item"), TEXT("Interact")});
+		case EVespGeste::Ramasser: return Anim({TEXT("PickUp"), TEXT("Interact")});
+		case EVespGeste::Interagir: return Anim({TEXT("Interact"), TEXT("PickUp")});
+		case EVespGeste::Victoire: return Anim({TEXT("Cheer"), TEXT("Spellcast_Raise")});
+		case EVespGeste::Resurrection: return Anim({TEXT("Skeletons_Resurrect"), TEXT("Lie_StandUp"), TEXT("Sit_Floor_StandUp")});
+		case EVespGeste::Saut: return Anim({TEXT("Jump_Full_Short"), TEXT("Jump_Full_Long")});
+		default: return nullptr;
+	}
+}
+
+float AVespUnite::Jouer(EVespGeste Geste, float VitesseGeste, bool bHautDuCorps, bool bTenir)
+{
+	UVespAnimInstance* A = Animateur();
+	const UAnimSequence* S = AnimDuGeste(Geste);
+	if (!A || !S)
+	{
+		return 0.35f / FMath::Max(0.1f, VitesseGeste);
+	}
+	const bool bEsquive = Geste >= EVespGeste::EsquiveAvant && Geste <= EVespGeste::EsquiveDroite;
+	return A->JouerAction(S, VitesseGeste, bHautDuCorps, bTenir, bEsquive ? 0.05f : 0.08f, Geste == EVespGeste::Mort ? 0.3f : 0.16f);
+}
+
+float AVespUnite::DureeGeste(EVespGeste Geste) const
+{
+	const UAnimSequence* S = AnimDuGeste(Geste);
+	return S ? FMath::Max(0.05f, S->GetPlayLength()) : 0.35f;
+}
+
+void AVespUnite::AccelererGeste(float VitesseGeste)
+{
+	if (UVespAnimInstance* A = Animateur())
+	{
+		A->SetVitesseAction(VitesseGeste);
+	}
+}
+
+void AVespUnite::ArreterGeste()
+{
+	if (UVespAnimInstance* A = Animateur())
+	{
+		A->ArreterAction(0.1f);
+	}
+}
+
+bool AVespUnite::GesteEnCours() const
+{
+	const UVespAnimInstance* A = Animateur();
+	return A && A->ActionEnCours();
+}
+
+float AVespUnite::ProgressionGeste() const
+{
+	const UVespAnimInstance* A = Animateur();
+	return A ? A->ProgressionAction() : 1.0f;
+}
+
+void AVespUnite::TenirGarde(bool bLevee)
+{
+	if (UVespAnimInstance* A = Animateur())
+	{
+		A->SetPosture(bLevee ? Anim({TEXT("Blocking"), TEXT("Block")}) : nullptr);
+	}
+}
+
+// ===================== La teinte de la tenue =====================
+// Une copie de la texture ou le vert (la couleur d'origine de la cape KayKit) prend la couleur voulue ;
+// la peau, le cuir et le metal ne changent pas. Une copie par texture et par couleur.
+
+static UTexture2D* TextureTeinte(UTexture2D* Source, const FLinearColor& Couleur)
 {
 #if WITH_EDITORONLY_DATA
-	static TMap<UTexture2D*, UTexture2D*> DejaFaites;		// une seule copie par texture
-	if (UTexture2D** Faite = DejaFaites.Find(Source))
+	static TMap<FString, UTexture2D*> DejaFaites;
+	const FString Cle = FString::Printf(TEXT("%s_%d_%d_%d"), *Source->GetPathName(), FMath::RoundToInt(Couleur.R * 255), FMath::RoundToInt(Couleur.G * 255),
+	                                    FMath::RoundToInt(Couleur.B * 255));
+	if (UTexture2D** Faite = DejaFaites.Find(Cle))
 	{
 		return *Faite;
 	}
@@ -194,7 +347,6 @@ static UTexture2D* TextureEnBleu(UTexture2D* Source, UObject* Proprietaire)
 	}
 	const int32 Largeur = Source->Source.GetSizeX();
 	const int32 Hauteur = Source->Source.GetSizeY();
-	const FLinearColor Bleu(0.25f, 0.39f, 0.88f);
 	for (int64 i = 0; i + 3 < Pixels.Num(); i += 4)
 	{
 		const float B = Pixels[i] / 255.0f, G = Pixels[i + 1] / 255.0f, R = Pixels[i + 2] / 255.0f;
@@ -206,9 +358,9 @@ static UTexture2D* TextureEnBleu(UTexture2D* Source, UObject* Proprietaire)
 		}
 		const float Lumiere = 0.3f * R + 0.59f * G + 0.11f * B;
 		const float Force = 0.5f + Lumiere * 2.0f;
-		Pixels[i] = (uint8)FMath::Clamp(FMath::Lerp(B, Bleu.B * Force, Vert) * 255.0f, 0.0f, 255.0f);
-		Pixels[i + 1] = (uint8)FMath::Clamp(FMath::Lerp(G, Bleu.G * Force, Vert) * 255.0f, 0.0f, 255.0f);
-		Pixels[i + 2] = (uint8)FMath::Clamp(FMath::Lerp(R, Bleu.R * Force, Vert) * 255.0f, 0.0f, 255.0f);
+		Pixels[i] = (uint8)FMath::Clamp(FMath::Lerp(B, Couleur.B * Force, Vert) * 255.0f, 0.0f, 255.0f);
+		Pixels[i + 1] = (uint8)FMath::Clamp(FMath::Lerp(G, Couleur.G * Force, Vert) * 255.0f, 0.0f, 255.0f);
+		Pixels[i + 2] = (uint8)FMath::Clamp(FMath::Lerp(R, Couleur.R * Force, Vert) * 255.0f, 0.0f, 255.0f);
 	}
 	UTexture2D* Copie = UTexture2D::CreateTransient(Largeur, Hauteur, PF_B8G8R8A8);
 	Copie->SRGB = Source->SRGB;
@@ -218,25 +370,31 @@ static UTexture2D* TextureEnBleu(UTexture2D* Source, UObject* Proprietaire)
 	Copie->GetPlatformData()->Mips[0].BulkData.Unlock();
 	Copie->UpdateResource();
 	Copie->AddToRoot();			// la garder en memoire tant que le jeu tourne
-	DejaFaites.Add(Source, Copie);
+	DejaFaites.Add(Cle, Copie);
 	return Copie;
 #else
 	return nullptr;
 #endif
 }
 
-void AVespUnite::TeindreEnBleu()
+void AVespUnite::TeindreTenue(const FLinearColor& Couleur, float Force)
 {
 	TArray<USkeletalMeshComponent*> Morceaux = {Modele};
 	for (USkeletalMeshComponent* P : Pieces)
 	{
 		Morceaux.Add(P);
 	}
+	const FLinearColor Voulue = FMath::Lerp(FLinearColor(0.25f, 0.39f, 0.88f), Couleur, FMath::Clamp(Force, 0.0f, 1.0f));
 	for (USkeletalMeshComponent* Morceau : Morceaux)
 	{
 		for (int32 i = 0; i < Morceau->GetNumMaterials(); i++)
 		{
+			// Le materiau d'origine (pas une copie deja teinte)
 			UMaterialInstance* Materiau = Cast<UMaterialInstance>(Morceau->GetMaterial(i));
+			if (UMaterialInstanceDynamic* Dyn = Cast<UMaterialInstanceDynamic>(Materiau))
+			{
+				Materiau = Cast<UMaterialInstance>(Dyn->Parent);
+			}
 			if (!Materiau)
 			{
 				continue;
@@ -245,251 +403,19 @@ void AVespUnite::TeindreEnBleu()
 			for (const FTextureParameterValue& P : Materiau->TextureParameterValues)
 			{
 				UTexture2D* Texture = Cast<UTexture2D>(P.ParameterValue);
-				UTexture2D* EnBleu = Texture ? TextureEnBleu(Texture, this) : nullptr;
-				if (EnBleu)
+				UTexture2D* Teinte = Texture ? TextureTeinte(Texture, Voulue) : nullptr;
+				if (Teinte)
 				{
 					if (!Nouveau)
 					{
 						Nouveau = Morceau->CreateDynamicMaterialInstance(i, Materiau);
+						Tenue.Add(Nouveau);
 					}
-					Nouveau->SetTextureParameterValueByInfo(P.ParameterInfo, EnBleu);
+					Nouveau->SetTextureParameterValueByInfo(P.ParameterInfo, Teinte);
 				}
 			}
 		}
 	}
-}
-
-void AVespUnite::Jouer(UAnimSequence* Animation, bool bEnBoucle)
-{
-	if (Animation && Modele->GetSkeletalMeshAsset())
-	{
-		Modele->PlayAnimation(Animation, bEnBoucle);
-	}
-}
-
-void AVespUnite::Regarder(const FVector& Point)
-{
-	FVector Vers = Point - GetActorLocation();
-	Vers.Z = 0;
-	if (!Vers.IsNearlyZero())
-	{
-		SetActorRotation(Vers.Rotation());
-	}
-}
-
-// ===================== La marche =====================
-
-void AVespUnite::Suivre(const TArray<FIntPoint>& Chemin)
-{
-	if (Chemin.IsEmpty())
-	{
-		return;
-	}
-	CheminRestant = Chemin;
-	Grille->Liberer(this);
-	Grille->Glisser(Case, CheminRestant);		// sur la glace, on glisse plus loin que prevu
-	Case = CheminRestant.Last();		// la case d'arrivee est reservee tout de suite
-	Grille->Occuper(this);
-	Jouer(AnimMarche, true);
-}
-
-void AVespUnite::Tick(float Secondes)
-{
-	Super::Tick(Secondes);
-
-	// Le texte au-dessus de la tete regarde toujours la camera
-	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
-	{
-		Texte->SetWorldRotation((Camera->GetCameraLocation() - Texte->GetComponentLocation()).Rotation());
-	}
-	TempsVie += Secondes;
-	if (TempsTexte > 0.0f)
-	{
-		TempsTexte -= Secondes;
-		// le chiffre monte en s'eloignant
-		Texte->SetRelativeLocation(FVector(0, 0, 240.0f + (1.0f - FMath::Max(0.0f, TempsTexte) / DureeTexte) * 80.0f));
-		if (TempsTexte <= 0.0f)
-		{
-			MettreAJourTexte();
-		}
-	}
-	if (TempsEclat > 0.0f)
-	{
-		TempsEclat -= Secondes;
-		Lueur->SetIntensity(TempsEclat > 0.0f ? IntensiteLueur + 6000.0f : IntensiteLueur);
-		Lueur->SetLightColor(TempsEclat > 0.0f ? FLinearColor(1.0f, 0.85f, 0.6f)
-		                                       : (bAylis ? FLinearColor(0.55f, 0.45f, 1.0f) : FLinearColor(1.0f, 0.25f, 0.15f)));
-	}
-	if (TempsAction > 0.0f)
-	{
-		TempsAction -= Secondes;
-		if (TempsAction <= 0.0f && EstDebout())
-		{
-			Jouer(AnimRepos, true);
-		}
-	}
-
-	if (!Grille)
-	{
-		return;
-	}
-	// Le corps : il respire, s'ecrase sous un coup, rebondit a chaque pas
-	float Ecrase = 0.0f;
-	if (TempsEcrase > 0.0f)
-	{
-		TempsEcrase -= Secondes;
-		Ecrase = FMath::Sin(FMath::Clamp(1.0f - TempsEcrase / 0.25f, 0.0f, 1.0f) * PI) * 0.2f;
-	}
-	const float Souffle = EstDebout() ? FMath::Sin(TempsVie * 2.2f) * 0.015f : 0.0f;
-	const float Haut = 1.0f - Ecrase + Souffle;
-	const float Large = 1.0f + Ecrase * 0.8f - Souffle * 0.5f;
-	if (Modele->GetSkeletalMeshAsset())
-	{
-		Modele->SetRelativeScale3D(FVector(Large, Large, Haut) * EchelleModele);
-	}
-	else
-	{
-		Corps->SetRelativeScale3D(FVector(0.45f * Large, 0.45f * Large, Haut));
-	}
-
-	if (bLibre)
-	{
-		return;			// en exploration, c'est DeplacerLibrement qui le fait bouger
-	}
-	if (CheminRestant.IsEmpty())
-	{
-		// A sa place : l'elan vers la cible (un aller-retour) et le recul d'un coup
-		float Elan = 0.0f;
-		if (TempsElan > 0.0f)
-		{
-			TempsElan -= Secondes;
-			Elan = FMath::Sin(FMath::Clamp(1.0f - TempsElan / 0.35f, 0.0f, 1.0f) * PI) * 45.0f;
-		}
-		Recul = FMath::VInterpTo(Recul, FVector::ZeroVector, Secondes, 8.0f);
-		Modele->SetRelativeLocation(FVector::ZeroVector);
-		if (EstDebout() || !Recul.IsNearlyZero())
-		{
-			SetActorLocation(Grille->CentreDeCase(Case) + DirectionElan * Elan + Recul);
-		}
-		return;
-	}
-	// On avance vers la prochaine case du chemin ; une fois arrive, on passe a la suivante
-	const FVector Cible = Grille->CentreDeCase(CheminRestant[0]);
-	const FVector Ici = GetActorLocation();
-	const FVector Vers = Cible - Ici;
-	const float Pas = Vitesse * Secondes;
-	DistanceMarche += Pas;
-	Modele->SetRelativeLocation(FVector(0, 0, FMath::Abs(FMath::Sin(DistanceMarche / Grille->TailleCase * PI)) * 12.0f));	// un petit bond par case
-	if (Vers.Size() <= Pas)
-	{
-		SetActorLocation(Cible);
-		CheminRestant.RemoveAt(0);
-		AVespEffet::Jouer(GetWorld(), EVespEffet::Poussiere, Cible, FVector::UpVector,
-		                  bAylis ? FLinearColor(0.45f, 0.45f, 0.7f) : FLinearColor(0.5f, 0.35f, 0.3f));
-		if (CheminRestant.IsEmpty())
-		{
-			DistanceMarche = 0.0f;
-			Modele->SetRelativeLocation(FVector::ZeroVector);
-			Jouer(AnimRepos, true);
-			// Une faille du Voile : elle emporte qui s'y arrete vers une autre faille
-			FIntPoint Sortie;
-			if (Grille->TerrainSur(Case) == '@' && Grille->AutreFaille(Case, Sortie))
-			{
-				Bondir(Sortie);
-			}
-		}
-	}
-	else
-	{
-		SetActorLocation(Ici + Vers.GetSafeNormal() * Pas);
-		Regarder(Cible);
-	}
-}
-
-// ===================== Le combat (les memes regles que le prototype) =====================
-
-int32 AVespUnite::Frapper(AVespUnite* Cible, int32 Puissance, bool* bCritiqueSortie)
-{
-	Regarder(Cible->GetActorLocation());
-	Jouer(AnimAttaque, false);
-	TempsAction = 0.9f;
-	FVector Vers = Cible->GetActorLocation() - GetActorLocation();
-	Vers.Z = 0.0f;
-	const float Distance = Vers.Size();
-	Vers = Vers.GetSafeNormal();
-	const FLinearColor Teinte = bAylis ? FLinearColor(0.55f, 0.7f, 1.0f)
-	                                   : (Stats.Effet == VespEffetCoup::Poison ? FLinearColor(0.55f, 1.0f, 0.35f)
-	                                   : (Stats.Effet == VespEffetCoup::Gel ? FLinearColor(0.5f, 0.8f, 1.0f) : FLinearColor(1.0f, 0.4f, 0.2f)));
-	Cible->DirectionCoup = Vers;
-	Cible->CouleurCoup = Teinte;
-	if (Distance <= Grille->TailleCase * 1.5f)
-	{
-		// Au contact : il se fend vers sa cible, et sa lame dessine un arc
-		DirectionElan = Vers;
-		TempsElan = 0.35f;
-		AVespEffet::Jouer(GetWorld(), EVespEffet::Trainee, GetActorLocation() + FVector(0, 0, Taille * 0.6f), Vers, Teinte, 0.12f);
-		Cible->RetardImpact = 0.16f;
-	}
-	else
-	{
-		// De loin : une fleche (ou un sort) vole jusqu'a la cible
-		AVespEffet::Jouer(GetWorld(), EVespEffet::Projectile, GetActorLocation() + FVector(0, 0, Taille * 0.65f) + Vers * 40.0f, Vers, Teinte, 0.15f,
-		                  Cible->GetActorLocation() + FVector(0, 0, Cible->Taille * 0.55f));
-		Cible->RetardImpact = 0.45f;
-	}
-	if (Puissance <= 0)
-	{
-		return 0;		// un coup rate : l'elan, sans rien toucher
-	}
-	// attaque x puissance - defense, un peu de hasard, et parfois un critique (x2), comme dans le prototype
-	int32 Degats = Stats.Attaque * Puissance / 100 - Cible->Stats.Defense + FMath::RandRange(-1, 1);
-	const bool bCritique = FMath::RandRange(1, 100) <= Stats.ChanceCritique;
-	if (bCritique)
-	{
-		Degats *= 2;
-	}
-	if (bCritiqueSortie)
-	{
-		*bCritiqueSortie = bCritique;
-	}
-	// L'armure : un coup ordinaire glisse dessus ; un coup lourd fissure une plaque
-	bool bFissure = false;
-	if (Cible->Stats.Armure > 0)
-	{
-		if (Puissance >= 180)
-		{
-			Cible->Stats.Armure--;
-			bFissure = true;
-		}
-		else
-		{
-			Degats = FMath::Max(1, Degats / 4);
-		}
-	}
-	if (Cible->TempsBrise > 0)
-	{
-		Degats = Degats * 3 / 2;		// sans armure, sonne : il encaisse davantage
-	}
-	Degats = FMath::Max(1, FMath::RoundToInt(FMath::Max(1, Degats) * Cible->ReductionDegats));
-	Cible->Encaisser(Degats, bCritique);
-	if (bFissure && Cible->EstDebout())
-	{
-		if (Cible->Stats.Armure == 0)
-		{
-			Cible->TempsBrise = 2;
-			Cible->AfficherMessage(TEXT("ARMURE BRISEE"), FColor(255, 210, 120));
-			AVespEffet::Jouer(GetWorld(), EVespEffet::Critique, Cible->GetActorLocation() + FVector(0, 0, Cible->Taille * 0.6f), FVector::UpVector, FLinearColor(0.8f, 0.8f, 0.9f), 0.2f);
-		}
-		else
-		{
-			Cible->AfficherMessage(TEXT("fissure"), FColor(220, 220, 235));
-		}
-	}
-	if ((Stats.Capacites & VespCapacite::Vampire) && EstDebout())
-	{
-		Soigner(FMath::Max(1, Degats / 2));
-	}
-	return Degats;
 }
 
 // ===================== Les armes =====================
@@ -520,8 +446,24 @@ FName AVespUnite::OsDeLaMain(bool bGauche) const
 	return Main;
 }
 
-void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, const FString& Bouclier)
+void AVespUnite::Desarmer()
 {
+	for (USkeletalMeshComponent* A : Armes)
+	{
+		if (A)
+		{
+			A->DestroyComponent();
+		}
+	}
+	Armes.Reset();
+	bBouclier = false;
+	TypeArme = EVespArme::Poings;
+}
+
+void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, const FString& Bouclier, EVespArme Type)
+{
+	Desarmer();
+	TypeArme = Type;
 	if (!Modele->GetSkeletalMeshAsset())
 	{
 		return;		// la silhouette de secours n'a pas de mains
@@ -531,7 +473,7 @@ void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, 
 		const FName Os = OsDeLaMain(bGauche);
 		if (!M || Os.IsNone())
 		{
-			return;
+			return false;
 		}
 		USkeletalMeshComponent* A = NewObject<USkeletalMeshComponent>(this);
 		A->SetSkeletalMesh(M);
@@ -545,104 +487,358 @@ void AVespUnite::Equiper(const FString& Arme, float Longueur, bool bMainGauche, 
 			A->SetWorldScale3D(FVector(LongueurVoulue / Mesure));
 		}
 		Armes.Add(A);
+		return true;
 	};
-	Attacher(Arme, bMainGauche, Longueur * this->Taille);
-	Attacher(Bouclier, !bMainGauche, 0.38f * this->Taille);
+	Attacher(Arme, bMainGauche, Longueur * Taille);
+	bBouclier = Attacher(Bouclier, !bMainGauche, 0.38f * Taille);
+	MettreEnPlaceLocomotion();
 }
 
-// ===================== L'exploration =====================
-
-void AVespUnite::PasserEnModeLibre(bool bLeModeLibre)
+void AVespUnite::ColorerArme(const FString& Chemin, const TCHAR* Suffixe)
 {
-	bLibre = bLeModeLibre;
-	CheminRestant.Reset();
-	Recul = FVector::ZeroVector;
-	TempsElan = 0.0f;
-	bMarcheLibre = false;
-	Modele->SetRelativeLocation(FVector::ZeroVector);
-	Modele->SetPlayRate(1.0f);
-	if (bLibre && Grille)
+	static const TCHAR* Familles[6][2] = {{TEXT("Sword"), TEXT("MI_Sword_Newbie_")}, {TEXT("Axe"), TEXT("MI_Axe_Newbie_")}, {TEXT("Dagger"), TEXT("MI_Dagger_1H_Newbie_")},
+	                                      {TEXT("Shield"), TEXT("MI_Shield_Newbie_")}, {TEXT("Staff"), TEXT("MI_Staff_2HL_Newbie_")}, {TEXT("Bow"), TEXT("MI_Bow_Newbie_")}};
+	for (USkeletalMeshComponent* A : Armes)
 	{
-		Grille->Liberer(this);
-	}
-	Jouer(AnimRepos, true);
-}
-
-void AVespUnite::DeplacerLibrement(const FVector& Deplacement, float Allure, float Secondes)
-{
-	const float Pas = Deplacement.Size2D();
-	if (Pas < 0.2f)
-	{
-		if (bMarcheLibre)
+		if (!A || !A->GetSkeletalMeshAsset() || A->GetSkeletalMeshAsset()->GetPathName() != Chemin)
 		{
-			bMarcheLibre = false;
-			Modele->SetRelativeLocation(FVector::ZeroVector);
-			Modele->SetPlayRate(1.0f);
-			Jouer(AnimRepos, true);
+			continue;
 		}
+		const FString Nom = A->GetSkeletalMeshAsset()->GetName();
+		for (const auto& F : Familles)
+		{
+			if (Nom.Contains(F[0]))
+			{
+				const FString Mi = FString(F[1]) + Suffixe;
+				if (UMaterialInterface* M = LoadObject<UMaterialInterface>(nullptr, *FString::Printf(TEXT("/Game/StylizedCharacter/Materials/Instances/Item/Weapon/%s.%s"), *Mi, *Mi),
+				                                                          nullptr, LOAD_NoWarn | LOAD_Quiet))
+				{
+					A->SetMaterial(0, M);
+				}
+				break;
+			}
+		}
+	}
+}
+
+void AVespUnite::EquiperSecondeArme(const FString& Arme, float Longueur)
+{
+	USkeletalMesh* M = LoadObject<USkeletalMesh>(nullptr, *Arme, nullptr, LOAD_NoWarn | LOAD_Quiet);
+	const FName Os = OsDeLaMain(true);
+	if (!M || Os.IsNone())
+	{
 		return;
 	}
-	SetActorLocation(GetActorLocation() + FVector(Deplacement.X, Deplacement.Y, 0));
-	// Il se tourne (en douceur) vers ou il va
-	const FRotator Vise(0, Deplacement.Rotation().Yaw, 0);
-	SetActorRotation(FMath::RInterpTo(GetActorRotation(), Vise, Secondes, 14.0f));
-	if (!bMarcheLibre)
+	USkeletalMeshComponent* A = NewObject<USkeletalMeshComponent>(this);
+	A->SetSkeletalMesh(M);
+	A->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	A->SetupAttachment(Modele, Os);
+	A->RegisterComponent();
+	const float Mesure = M->GetBounds().GetBox().GetSize().GetMax();
+	if (Mesure > 1.0f)
 	{
-		bMarcheLibre = true;
-		Jouer(AnimMarche, true);
+		A->SetWorldScale3D(FVector(Longueur * Taille / Mesure));
 	}
-	Modele->SetPlayRate(FMath::Clamp(Allure, 0.6f, 1.8f));
-	// Un petit bond a chaque pas, et un peu de poussiere
-	DistanceMarche += Pas;
-	Modele->SetRelativeLocation(FVector(0, 0, FMath::Abs(FMath::Sin(DistanceMarche / 110.0f * PI)) * 9.0f));
-	DistancePoussiere += Pas;
-	if (DistancePoussiere > 190.0f)
+	Armes.Add(A);
+}
+
+// ===================== Le mouvement =====================
+
+float AVespUnite::Ralentissement() const
+{
+	if (Fige > 0.0f || Etourdi > 0.0f)
+	{
+		return 0.0f;
+	}
+	return Gel > 0.0f ? 0.5f : 1.0f;
+}
+
+void AVespUnite::Geler(float Duree)
+{
+	if (Gel > 0.0f)
+	{
+		Fige = FMath::Max(Fige, 0.9f);			// deja gele : il est pris dans la glace un instant
+		AfficherMessage(TEXT("FIGE"), FColor(150, 210, 255));
+	}
+	Gel = FMath::Max(Gel, Duree);
+}
+
+FVector AVespUnite::Deplacer(const FVector& VitesseVoulue, float Secondes, bool bTourner)
+{
+	if (!EstDebout() || EstEnLAir())
+	{
+		return FVector::ZeroVector;
+	}
+	const FVector Pas = FVector(VitesseVoulue.X, VitesseVoulue.Y, 0.0f) * Secondes * Ralentissement();
+	const FVector Ici = GetActorLocation();
+	const FVector Vers = Monde ? Monde->Contraindre(Ici, Ici + Pas) : Ici + Pas;
+	SetActorLocation(Vers);
+	if (bTourner && Pas.SizeSquared2D() > 0.01f && Ralentissement() > 0.0f)
+	{
+		Tourner(Pas, Secondes);
+	}
+	const FVector Fait = Vers - Ici;
+	// Un peu de poussiere sous les pas
+	DistancePoussiere += Fait.Size2D();
+	if (DistancePoussiere > (bAylis ? 210.0f : 260.0f))
 	{
 		DistancePoussiere = 0.0f;
 		AVespEffet::Jouer(GetWorld(), EVespEffet::Poussiere, GetActorLocation(), FVector::UpVector,
 		                  bAylis ? FLinearColor(0.45f, 0.45f, 0.7f) : FLinearColor(0.5f, 0.35f, 0.3f));
+		if (bAylis)
+		{
+			UVespSons::Jouer(this, EVespSon::Pas, GetActorLocation(), 0.35f);
+		}
+	}
+	return Fait;
+}
+
+void AVespUnite::Tourner(const FVector& Direction, float Secondes, float Vivacite)
+{
+	if (Direction.SizeSquared2D() < 0.0001f)
+	{
+		return;
+	}
+	const FRotator Vise(0, Direction.Rotation().Yaw, 0);
+	SetActorRotation(FMath::RInterpTo(GetActorRotation(), Vise, Secondes, Vivacite));
+}
+
+void AVespUnite::TournerDUnCoup(const FVector& Direction)
+{
+	if (Direction.SizeSquared2D() > 0.0001f)
+	{
+		SetActorRotation(FRotator(0, Direction.Rotation().Yaw, 0));
 	}
 }
 
-void AVespUnite::Bondir(FIntPoint Arrivee)
+void AVespUnite::Teleporter(const FVector& Position)
 {
-	AVespEffet::Jouer(GetWorld(), EVespEffet::Mort, GetActorLocation(), FVector::UpVector, FLinearColor(0.7f, 0.4f, 1.0f));
-	Grille->Liberer(this);
-	Case = Arrivee;
-	CheminRestant.Reset();
-	Recul = FVector::ZeroVector;
-	SetActorLocation(Grille->CentreDeCase(Case));
-	Grille->Occuper(this);
-	AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, FLinearColor(0.7f, 0.4f, 1.0f));
-	Jouer(AnimRepos, true);
+	SetActorLocation(Position);
+	DernierePosition = Position;
+	Poussee = FVector::ZeroVector;
+	TempsSaut = DureeSaut = 0.0f;
 }
 
-void AVespUnite::Replacer(FIntPoint NouvelleCase)
+void AVespUnite::Bondir(const FVector& Arrivee, float Duree, float Hauteur)
 {
-	bLibre = false;
-	Modele->SetPlayRate(1.0f);
-	Modele->SetRelativeLocation(FVector::ZeroVector);
-	Grille->Liberer(this);
-	Case = NouvelleCase;
-	CheminRestant.Reset();
-	Recul = FVector::ZeroVector;
-	TempsElan = 0.0f;
-	SetActorLocation(Grille->CentreDeCase(Case));
-	SetActorRotation(FRotator::ZeroRotator);
-	Grille->Occuper(this);
-	Poison = 0;
-	Brulure = 0;
-	Gel = 0;
-	Jouer(AnimRepos, true);
+	DepartSaut = GetActorLocation();
+	ArriveeSaut = FVector(Arrivee.X, Arrivee.Y, DepartSaut.Z);
+	DureeSaut = FMath::Max(0.1f, Duree);
+	TempsSaut = 0.0f;
+	HauteurSaut = Hauteur;
+	Jouer(EVespGeste::Saut, 1.0f);
 }
 
-void AVespUnite::AfficherMessage(const FString& Message, FColor Couleur)
+// ===================== A chaque image =====================
+
+void AVespUnite::Tick(float Secondes)
 {
-	Texte->SetText(FText::FromString(Message));
-	Texte->SetTextRenderColor(Couleur);
-	Texte->SetWorldSize(38.0f);
-	TempsTexte = 1.0f;
-	DureeTexte = 1.0f;
+	Super::Tick(Secondes);
+	TempsVie += Secondes;
+
+	// Le texte au-dessus de la tete regarde toujours la camera, et monte en s'effacant
+	if (APlayerCameraManager* Camera = UGameplayStatics::GetPlayerCameraManager(this, 0))
+	{
+		Texte->SetWorldRotation((Camera->GetCameraLocation() - Texte->GetComponentLocation()).Rotation());
+	}
+	if (TempsTexte > 0.0f)
+	{
+		TempsTexte -= Secondes;
+		Texte->SetRelativeLocation(FVector(0, 0, Taille + 70.0f + (1.0f - FMath::Max(0.0f, TempsTexte) / DureeTexte) * 90.0f));
+		if (TempsTexte <= 0.0f)
+		{
+			Texte->SetText(FText::GetEmpty());
+		}
+	}
+	DegatsRecus = FMath::Max(0.0f, DegatsRecus - Secondes * FMath::Max(8.0f, Stats.PvMax * 0.6f));
+
+	// La lueur : l'eclat d'un coup, l'annonce d'une attaque (elle pulse), ou sa couleur normale
+	if (Lueur->IsVisible())
+	{
+		if (TempsEclat > 0.0f)
+		{
+			TempsEclat -= Secondes;
+			Lueur->SetIntensity(IntensiteLueur + 7000.0f);
+			Lueur->SetLightColor(CouleurEclat);
+		}
+		else if (TempsAnnonce > 0.0f)
+		{
+			TempsAnnonce -= Secondes;
+			Lueur->SetIntensity(IntensiteLueur + 2500.0f + FMath::Sin(TempsVie * 30.0f) * 1500.0f);
+			Lueur->SetLightColor(CouleurAnnonce);
+		}
+		else
+		{
+			Lueur->SetIntensity(IntensiteLueur);
+			Lueur->SetLightColor(CouleurLueur);
+		}
+	}
+
+	// La vitesse reelle (ce qu'on l'a fait marcher depuis la derniere image, sans les poussees ni les sauts) :
+	// la marche et la course suivent ce qu'il fait vraiment
+	if (Secondes > 0.0f)
+	{
+		VitesseActuelle = FVector::Dist2D(GetActorLocation(), DernierePosition) / Secondes;
+		if (VitesseActuelle > 2000.0f)
+		{
+			VitesseActuelle = 0.0f;		// un bond (une faille, un placement) : ce n'est pas une course
+		}
+	}
+	if (UVespAnimInstance* A = Animateur())
+	{
+		A->SetVitesse(EstDebout() && !EstEnLAir() ? VitesseActuelle : 0.0f);
+	}
+	struct FALaFin
+	{
+		AVespUnite* U;
+		~FALaFin() { U->DernierePosition = U->GetActorLocation(); }
+	} ALaFin{this};
+
+	if (!EstDebout())
+	{
+		TempsMort += Secondes;
+		// Apres un moment, le corps s'enfonce dans le sol et disparait
+		if (TempsMort > 5.0f && !bAylis)
+		{
+			AddActorWorldOffset(FVector(0, 0, -40.0f * Secondes));
+		}
+		Poussee = FMath::VInterpTo(Poussee, FVector::ZeroVector, Secondes, 6.0f);
+		if (Monde && !Poussee.IsNearlyZero())
+		{
+			SetActorLocation(Monde->Contraindre(GetActorLocation(), GetActorLocation() + Poussee * Secondes));
+		}
+		return;
+	}
+
+	// Les etats
+	Poison = FMath::Max(0.0f, Poison - Secondes);
+	Brulure = FMath::Max(0.0f, Brulure - Secondes);
+	Gel = FMath::Max(0.0f, Gel - Secondes);
+	Fige = FMath::Max(0.0f, Fige - Secondes);
+	Etourdi = FMath::Max(0.0f, Etourdi - Secondes);
+	Invulnerable = FMath::Max(0.0f, Invulnerable - Secondes);
+	TempsBrise = FMath::Max(0.0f, TempsBrise - Secondes);
+	Modele->GlobalAnimRateScale = Fige > 0.0f ? 0.0f : (Gel > 0.0f ? 0.65f : 1.0f);
+	TicEtats += Secondes;
+	if (TicEtats >= 1.0f)
+	{
+		TicEtats = 0.0f;
+		int32 Total = 0;
+		if (Poison > 0.0f) Total += FMath::Max(1, FMath::RoundToInt(Stats.PvMax * 0.02f));
+		if (Brulure > 0.0f) Total += FMath::Max(2, FMath::RoundToInt(Stats.PvMax * 0.03f));
+		if (Total > 0)
+		{
+			Stats.Pv = FMath::Max(bAylis ? 1 : 0, Stats.Pv - Total);		// les etats seuls ne font pas tomber AYLIS
+			DegatsRecus += Total;
+			AfficherMessage(FString::Printf(TEXT("-%d"), Total), Brulure > 0.0f ? FColor(255, 150, 60) : FColor(170, 240, 90), 30.0f);
+			AVespEffet::Jouer(GetWorld(), EVespEffet::Poison, GetActorLocation(), FVector::UpVector,
+			                  Brulure > 0.0f ? FLinearColor(1.0f, 0.5f, 0.15f) : FLinearColor(0.6f, 1.0f, 0.3f));
+			if (!EstDebout())
+			{
+				Mourir();
+				return;
+			}
+		}
+	}
+
+	// Le saut (un arc de cercle), puis l'atterrissage
+	if (TempsSaut < DureeSaut)
+	{
+		TempsSaut += Secondes;
+		const float T = FMath::Clamp(TempsSaut / DureeSaut, 0.0f, 1.0f);
+		FVector P = FMath::Lerp(DepartSaut, ArriveeSaut, T);
+		P.Z = DepartSaut.Z + FMath::Sin(T * PI) * HauteurSaut;
+		SetActorLocation(P);
+		if (T >= 1.0f)
+		{
+			SetActorLocation(Monde ? Monde->Contraindre(DepartSaut, ArriveeSaut) : ArriveeSaut);
+			AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, FLinearColor(0.6f, 0.45f, 0.35f));
+			AVespEffet::Jouer(GetWorld(), EVespEffet::Poussiere, GetActorLocation(), FVector::UpVector, FLinearColor(0.5f, 0.4f, 0.35f));
+		}
+	}
+
+	// La poussee d'un coup : il glisse, puis s'arrete
+	if (!Poussee.IsNearlyZero(1.0f))
+	{
+		const FVector Ici = GetActorLocation();
+		SetActorLocation(Monde ? Monde->Contraindre(Ici, Ici + Poussee * Secondes) : Ici + Poussee * Secondes);
+		Poussee = FMath::VInterpTo(Poussee, FVector::ZeroVector, Secondes, 7.0f);
+	}
+
+	// Le corps : il respire, s'ecrase sous un coup
+	float Ecrase = 0.0f;
+	if (TempsEcrase > 0.0f)
+	{
+		TempsEcrase -= Secondes;
+		Ecrase = FMath::Sin(FMath::Clamp(1.0f - TempsEcrase / 0.22f, 0.0f, 1.0f) * PI) * 0.14f;
+	}
+	const float Souffle = FMath::Sin(TempsVie * 2.2f) * 0.012f;
+	const float Haut = 1.0f - Ecrase + Souffle;
+	const float Large = 1.0f + Ecrase * 0.7f - Souffle * 0.5f;
+	if (Modele->GetSkeletalMeshAsset())
+	{
+		Modele->SetRelativeScale3D(FVector(Large, Large, Haut) * EchelleModele);
+	}
+	else
+	{
+		Corps->SetRelativeScale3D(FVector(0.45f * Large, 0.45f * Large, Haut));
+	}
+}
+
+// ===================== Les coups =====================
+
+void AVespUnite::Encaisser(int32 Degats, bool bCritique, const FVector& Direction, float Force, bool bSansFlechir)
+{
+	if (!EstDebout())
+	{
+		return;
+	}
+	Stats.Pv = FMath::Max(0, Stats.Pv - Degats);
+	DegatsRecus += Degats;
+	TempsEclat = bCritique ? 0.16f : 0.1f;
+	CouleurEclat = bCritique ? FLinearColor(1.0f, 0.8f, 0.45f) : FLinearColor(1.0f, 0.92f, 0.85f);
+	DirectionCoup = Direction.GetSafeNormal2D();
+	Texte->SetText(FText::FromString(FString::Printf(TEXT("%s%d"), bCritique ? TEXT("CRIT ") : TEXT(""), Degats)));
+	Texte->SetTextRenderColor(bAylis ? FColor(255, 110, 110) : (bCritique ? FColor(255, 170, 60) : FColor(255, 235, 150)));
+	Texte->SetWorldSize(bCritique ? 60.0f : 42.0f);
+	TempsTexte = DureeTexte = bCritique ? 1.0f : 0.8f;
+	Pousser(DirectionCoup * Force);
+	TempsEcrase = 0.22f;
+	if (!EstDebout())
+	{
+		Mourir();
+		return;
+	}
+	if (bSansFlechir)
+	{
+		return;
+	}
+	Equilibre += Degats;
+	if (Equilibre >= SeuilEquilibre)
+	{
+		Equilibre = 0.0f;
+		Jouer(EVespGeste::Touche, 1.25f);
+	}
+}
+
+void AVespUnite::Mourir()
+{
+	Lueur->SetVisibility(false);
+	Poison = Brulure = Gel = Fige = 0.0f;
+	Modele->GlobalAnimRateScale = 1.0f;
+	TenirGarde(false);
+	if (bAnime)
+	{
+		Jouer(EVespGeste::Mort, 1.0f, false, true);
+	}
+	else
+	{
+		SetActorRotation(FRotator(0, GetActorRotation().Yaw, 90));	// la silhouette se couche
+	}
+	// L'ame s'echappe
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Mort, GetActorLocation(), FVector::UpVector,
+	                  bAylis ? FLinearColor(0.5f, 0.55f, 1.0f) : FLinearColor(0.75f, 0.3f, 1.0f), 0.3f);
+	TempsMort = 0.0f;
 }
 
 void AVespUnite::Soigner(int32 Quantite)
@@ -656,69 +852,23 @@ void AVespUnite::Soigner(int32 Quantite)
 	}
 }
 
-// Au debut de son tour : le poison (-3) et la brulure (-4), comme dans le prototype
-int32 AVespUnite::SubirEtats()
+void AVespUnite::AfficherMessage(const FString& Message, FColor Couleur, float TailleTexte)
 {
-	int32 Total = 0;
-	if (Poison > 0)
-	{
-		Total += 3;
-		Poison--;
-	}
-	if (Brulure > 0)
-	{
-		Total += 4;
-		Brulure--;
-	}
-	if (Total > 0 && EstDebout())
-	{
-		Encaisser(Total, false);
-		Texte->SetTextRenderColor(FColor(190, 110, 255));		// le violet des etats
-		AVespEffet::Jouer(GetWorld(), EVespEffet::Poison, GetActorLocation(), FVector::UpVector,
-		                  Brulure > 0 ? FLinearColor(1.0f, 0.5f, 0.15f) : FLinearColor(0.6f, 1.0f, 0.3f));
-	}
-	return Total;
+	Texte->SetText(FText::FromString(Message));
+	Texte->SetTextRenderColor(Couleur);
+	Texte->SetWorldSize(TailleTexte);
+	TempsTexte = 1.0f;
+	DureeTexte = 1.0f;
 }
 
-void AVespUnite::Encaisser(int32 Degats, bool bCritique)
+void AVespUnite::Annoncer(float Duree, const FLinearColor& Couleur)
 {
-	Stats.Pv = FMath::Max(0, Stats.Pv - Degats);
-	TempsEclat = 0.18f;		// sa lueur eclate un instant (l'impact)
-	TempsAction = 0.7f;
-	Texte->SetText(FText::FromString(FString::Printf(TEXT("%s-%d"), bCritique ? TEXT("CRIT ") : TEXT(""), Degats)));
-	Texte->SetTextRenderColor(bCritique ? FColor::Orange : FColor::Yellow);
-	TempsTexte = 0.9f;
-	DureeTexte = 0.9f;
-	Texte->SetWorldSize(bCritique ? 58.0f : 40.0f);
-	const FVector Poitrine = GetActorLocation() + FVector(0, 0, Taille * 0.55f);
-	AVespEffet::Jouer(GetWorld(), bCritique ? EVespEffet::Critique : EVespEffet::Impact, Poitrine, DirectionCoup, CouleurCoup, RetardImpact);
-	Recul = DirectionCoup * (bCritique ? 45.0f : 22.0f);
-	TempsEcrase = 0.25f;
-	RetardImpact = 0.0f;
-	if (EstDebout())
-	{
-		Jouer(AnimTouche, false);
-		return;
-	}
-	// L'ame s'echappe
-	AVespEffet::Jouer(GetWorld(), EVespEffet::Mort, GetActorLocation(), FVector::UpVector,
-	                  bAylis ? FLinearColor(0.5f, 0.55f, 1.0f) : FLinearColor(0.75f, 0.3f, 1.0f), 0.3f);
-	// Il tombe : il libere sa case, et reste au sol (sa lueur s'eteint)
-	Grille->Liberer(this);
-	Lueur->SetVisibility(false);
-	CheminRestant.Reset();
-	if (AnimChute && Modele->GetSkeletalMeshAsset())
-	{
-		Jouer(AnimChute, false);
-	}
-	else
-	{
-		SetActorRotation(FRotator(0, GetActorRotation().Yaw, 90));	// la silhouette se couche
-	}
+	TempsAnnonce = Duree;
+	CouleurAnnonce = Couleur;
 }
 
-void AVespUnite::MettreAJourTexte()
+void AVespUnite::Surbrillance(float Duree, const FLinearColor& Couleur)
 {
-	Texte->SetTextRenderColor(bAylis ? FColor(120, 180, 255) : FColor(255, 110, 90));
-	Texte->SetText(FText::GetEmpty());		// les pv sont affiches par l'interface (VespHUD) : ici, seulement les degats recus
+	TempsEclat = Duree;
+	CouleurEclat = Couleur;
 }

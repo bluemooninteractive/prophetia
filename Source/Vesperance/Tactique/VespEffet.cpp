@@ -173,7 +173,7 @@ void AVespEffet::Jouer(UWorld* Monde, EVespEffet Type, FVector Position, FVector
 			break;
 		}
 		case EVespEffet::Soin: AjouterMagie(TEXT("NS_Free_Magic_Buff"), Position, FRotator::ZeroRotator, 0.8f, Retard); break;
-		case EVespEffet::Onde: AjouterMagie(bBleu ? TEXT("NS_Free_Magic_Area1") : TEXT("NS_Free_Magic_Area2"), Position, FRotator::ZeroRotator, 0.9f, Retard); break;
+		case EVespEffet::Onde: AjouterMagie(TEXT("NS_Free_Magic_Circle2"), Position, FRotator::ZeroRotator, 0.4f, Retard); break;
 		case EVespEffet::Etincelles: AjouterMagie(TEXT("NS_Free_Magic_Circle1"), Position, FRotator::ZeroRotator, 0.7f, Retard); break;
 		default: break;
 	}

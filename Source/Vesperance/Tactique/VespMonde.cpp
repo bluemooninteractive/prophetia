@@ -1,5 +1,4 @@
 #include "VespMonde.h"
-#include "VespGrille.h"
 #include "VespEffet.h"
 #include "VespStyles.h"
 #include "Components/InstancedStaticMeshComponent.h"
@@ -23,6 +22,19 @@ namespace
 }
 
 // ===================== Les packs =====================
+
+// L'echelle pour qu'un modele fasse "Hauteur" cm de haut, sans depasser "LargeurMax" cm de large
+float AVespMonde::EchelleSur(UStaticMesh* M, float Hauteur, float LargeurMax)
+{
+	const FVector Taille = M->GetBounds().BoxExtent * 2.0f;
+	float E = Taille.Z > 1.0f ? Hauteur / Taille.Z : 1.0f;
+	const float Largeur = FMath::Max(Taille.X, Taille.Y);
+	if (Largeur * E > LargeurMax)
+	{
+		E = LargeurMax / Largeur;
+	}
+	return E;
+}
 
 UStaticMesh* AVespMonde::Modele(const FString& Chemin)
 {
@@ -393,7 +405,7 @@ void AVespMonde::Poser(UStaticMesh* M, const FVector& Pied, float Hauteur, float
 	{
 		return;
 	}
-	const float E = AVespGrille::EchelleSur(M, Hauteur, LargeurMax);
+	const float E = EchelleSur(M, Hauteur, LargeurMax);
 	const FRotator R(Hasard.FRandRange(-Inclinaison, Inclinaison), Yaw >= 0.0f ? Yaw : Hasard.FRandRange(0.0f, 360.0f), Hasard.FRandRange(-Inclinaison, Inclinaison));
 	Instances(M, bOmbre, DistanceMax)->AddInstance(FTransform(R, Pied, FVector(E)), true);
 }
@@ -696,6 +708,13 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 		Limites += FVector2D(Z.Centre.X, Z.Centre.Y);
 	}
 	Limites = Limites.ExpandBy(3200.0f);
+	// Le vrai sol (herbe, terre battue, matiere de l'acte) : il remplace les disques de couleur unie
+	PeindreLeSol(Limites);
+	const bool bSolVivant = SolVivant != nullptr;
+	if (bSolVivant)
+	{
+		EnvTerre->SetMaterial(0, SolVivant);
+	}
 	const float Z0 = GetActorLocation().Z;
 	auto F = [this](float A, float B) { return Hasard.FRandRange(A, B); };
 	auto Point = [&]() { return FVector(F(Limites.Min.X, Limites.Max.X), F(Limites.Min.Y, Limites.Max.Y), Z0); };
@@ -769,7 +788,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 				EnvChemin->AddInstance(FTransform(FRotator(0, Yaw, 0), Pose(P, -2.6f + (k % 2) * 0.15f), FVector(Cote / 100.0f, Cote / 100.0f, 1.0f)), true);
 			}
 		}
-		for (float D = 0.0f; D < Longueur && !Pal.Pave; D += 70.0f)
+		for (float D = 0.0f; D < Longueur && !Pal.Pave && !bSolVivant; D += 70.0f)
 		{
 			const FVector P = FMath::Lerp(A, B, D / Longueur) + FVector(F(-25.0f, 25.0f), F(-25.0f, 25.0f), 0);
 			const float E = DemiLargeurSentier * 2.0f / 100.0f * F(0.75f, 0.95f);

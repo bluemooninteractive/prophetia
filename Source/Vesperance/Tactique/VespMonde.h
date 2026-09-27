@@ -68,6 +68,8 @@ public:
 
 	// Un modele d'un pack, par son chemin (null s'il n'est pas dans le projet)
 	static UStaticMesh* Modele(const FString& Chemin);
+	// L'echelle pour qu'un modele fasse Hauteur cm de haut, sans depasser LargeurMax cm de large
+	static float EchelleSur(UStaticMesh* M, float Hauteur, float LargeurMax);
 
 	static constexpr float DemiLargeurSentier = 320.0f;
 
@@ -111,6 +113,12 @@ private:
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurChampignons;
 	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> CouleurLueurs;
 	UPROPERTY() TObjectPtr<UMaterialInterface> SolPeint;		// le sol herbeux peint du pack (actes I a IV)
+	// Le vrai sol : trois matieres (herbe, terre, et celle de l'acte) melangees par une carte peinte
+	// d'apres les sentiers et les clairieres (la terre battue des chemins, l'herbe au bord, les taches de l'acte)
+	UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SolVivant;
+	UPROPERTY() TObjectPtr<class UTexture2D> CarteDuSol;
+	void PeindreLeSol(const FBox2D& Limites);
+	static UMaterialInterface* MateriauDuSol();
 	UPROPERTY() TObjectPtr<UMaterialInterface> EauPeinte;		// l'eau peinte du pack (mares, ruisseaux)
 
 	// Les balises des clairieres, et toutes les lumieres du monde

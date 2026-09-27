@@ -1,5 +1,5 @@
 #include "VespGameMode.h"
-#include "VespGrille.h"
+#include "VespCombat.h"
 #include "VespUnite.h"
 #include "VespPlayerController.h"
 #include "VespHUD.h"
@@ -24,7 +24,7 @@
 // ===================== La nuit de la Foret des Brumes =====================
 // On transforme le niveau "Basic" : la lune a la place du soleil, un ciel sombre, une brume bleu-vert.
 // (le sol, la foret, les lanternes : c'est le monde de l'acte, VespMonde, qui les construit)
-static void AmbianceDeNuit(UWorld* Monde, AVespGrille* Grille, float ExpositionImage)
+static void AmbianceDeNuit(UWorld* Monde, float ExpositionImage)
 {
 	for (TActorIterator<ADirectionalLight> It(Monde); It; ++It)
 	{
@@ -79,7 +79,7 @@ AVespGameMode::AVespGameMode()
 {
 	PlayerControllerClass = AVespPlayerController::StaticClass();
 	HUDClass = AVespHUD::StaticClass();		// l'interface du combat
-	DefaultPawnClass = nullptr;		// pas de personnage a diriger au clavier : on joue a la souris, sur la grille
+	DefaultPawnClass = nullptr;		// AYLIS est un acteur a part, dirige par le PlayerController
 }
 
 // Les stats, comme dans le prototype (route.cpp)
@@ -99,25 +99,24 @@ void AVespGameMode::BeginPlay()
 	Super::BeginPlay();
 	UWorld* Monde = GetWorld();
 
-	// 1. Le monde de l'acte (construit par le PlayerController), et l'arene de combat (elle se deplace de
-	//    clairiere en clairiere)
+	// 1. Le monde de l'acte (construit par le PlayerController), et le combat (les Haschen, les attaques annoncees)
 	AVespMonde* LeMonde = Monde->SpawnActor<AVespMonde>(FVector(0, 0, 5), FRotator::ZeroRotator);
-	AVespGrille* Grille = Monde->SpawnActor<AVespGrille>(FVector(0, 0, 5), FRotator::ZeroRotator);
+	AVespCombat* LeCombat = Monde->SpawnActor<AVespCombat>(FVector::ZeroVector, FRotator::ZeroRotator);
 
-	AmbianceDeNuit(Monde, Grille, Exposition);
+	AmbianceDeNuit(Monde, Exposition);
 
-	// 2. AYLIS, a gauche de l'arene (colonne 1, ligne 3), voie de l'epee
-	AVespUnite* Aylis = Monde->SpawnActor<AVespUnite>(FVector::ZeroVector, FRotator::ZeroRotator);
-	Aylis->Preparer(Grille, FIntPoint(1, 3), Stats(TEXT("AYLIS"), 44, 13, 4), DOSSIER + TEXT("Aylis"), FLinearColor(0.2f, 0.35f, 1.0f), true);
+	// 2. AYLIS, voie de l'epee
+	AVespUnite* Aylis = Monde->SpawnActor<AVespUnite>(FVector(0, 0, 5), FRotator::ZeroRotator);
+	Aylis->Vitesse = 470.0f;
+	Aylis->Preparer(LeMonde, Stats(TEXT("AYLIS"), 70, 13, 3), DOSSIER + TEXT("Aylis"), FLinearColor(0.2f, 0.35f, 1.0f), true);
 
-	// 3. La magie de la clairiere : des feux follets qui flottent autour de l'arene
-	//    (les Haschen, eux, sont places par le PlayerController, salle apres salle)
-	Monde->SpawnActor<AVespLucioles>(Grille->GetActorLocation(), FRotator::ZeroRotator);
+	// 3. La magie : des feux follets qui flottent autour d'AYLIS
+	Monde->SpawnActor<AVespLucioles>(FVector(0, 0, 5), FRotator::ZeroRotator);
 
 	// 4. La camera : vue de haut et un peu de cote, presque sans perspective (un angle de vue etroit)
 	const float Elevation = FMath::DegreesToRadians(ElevationCamera);
 	const float Azimut = FMath::DegreesToRadians(AzimutCamera);
-	const FVector Cible = Grille->GetActorLocation();
+	const FVector Cible = LeMonde->GetActorLocation();
 	const FVector Position = Cible + FVector(-FMath::Cos(Elevation) * FMath::Cos(Azimut), FMath::Cos(Elevation) * FMath::Sin(Azimut),
 	                                        FMath::Sin(Elevation)) * DistanceCamera;
 	ACameraActor* Camera = Monde->SpawnActor<ACameraActor>(Position, (Cible - Position).Rotation());
@@ -127,6 +126,6 @@ void AVespGameMode::BeginPlay()
 	if (AVespPlayerController* Joueur = Cast<AVespPlayerController>(Monde->GetFirstPlayerController()))
 	{
 		Joueur->SetViewTarget(Camera);
-		Joueur->Commencer(Grille, LeMonde, Aylis, Camera);
+		Joueur->Commencer(LeMonde, LeCombat, Aylis, Camera);
 	}
 }

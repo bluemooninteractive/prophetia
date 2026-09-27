@@ -1,41 +1,44 @@
-// VespPlayerController : le deroulement d'une partie, de l'ecran titre au dernier boss.
+// VespPlayerController : le deroulement d'une partie, de l'ecran titre au dernier boss, et AYLIS au bout des doigts.
 //
 //   7 actes, chacun avec son monde, ses Haschen, sa regle et son boss :
-//     I   Les Terres Brumeuses  - la Foret des Brumes      - Skarn le Brise-Cranes (coups de masse annonces)
-//     II  Les Terres Hantees    - le Bois des Pendus        - la Matriarche (malefice, loups, decoctions)
-//     III Les Marais Noyes      - les Marais de Sombreval   - le Roi Noye (la maree toxique monte)
-//     IV  La Marche d'Ashka     - la forteresse d'Ashka     - le Gardien de Pierre (armure, ecrasement)
-//     V   Le Col d'Ashka        - le col gele               - Ashka (pluie de fleches, archers)
-//     VI  Les Terres de Cendre  - la faille ardente         - Vorgath le Destructeur (eruptions, deuxieme phase)
+//     I   Les Terres Brumeuses  - la Foret des Brumes      - Skarn le Brise-Cranes (sa masse brise la terre)
+//     II  Les Terres Hantees    - le Bois des Pendus        - la Matriarche (poison, loups, decoctions)
+//     III Les Marais Noyes      - les Marais de Sombreval   - le Roi Noye (les eaux toxiques montent)
+//     IV  La Marche d'Ashka     - la forteresse d'Ashka     - le Gardien de Pierre (armure, ecrasements)
+//     V   Le Col d'Ashka        - le col gele               - Ashka (fleches, pluies de fleches, blizzard)
+//     VI  Les Terres de Cendre  - la faille ardente         - Vorgath le Destructeur (charges, eruptions)
 //     VII Karn                  - la cite voilee            - l'Oracle de Karn (tout ce qu'AYLIS a affronte)
 //
-//   Chaque acte est un monde d'un seul tenant (VespMonde), qu'AYLIS parcourt librement, au clavier ou a la manette :
-//   un sentier principal jusqu'au boss, et des embranchements vers d'autres clairieres. En entrant dans une
-//   clairiere gardee, l'arene apparait et le combat se joue au tour par tour. Le seul chargement : entre deux actes.
-//   En ligne droite, un acte dure 15 a 20 minutes ; en explorant les embranchements, 40 minutes et plus.
-//   Apres chaque victoire : des eclats (la monnaie du marchand) et une rune a choisir parmi 3.
-//   L'interface (VespInterface) appelle les fonctions publiques : choisir une action, une rune, une salle...
+//   Chaque acte est un monde d'un seul tenant (VespMonde), qu'AYLIS parcourt librement, au clavier ou a la manette.
+//   Tout se joue en temps reel (VespCombat) : les Haschen attendent dans les clairieres gardees, une barriere
+//   se leve quand AYLIS y entre, et il faut les vaincre pour passer. Le seul chargement : entre deux actes.
+//
+//   Les commandes (clavier / manette) :
+//     ZQSD, WASD, fleches / stick gauche : marcher        la souris / stick droit : viser
+//     clic gauche, J / X : attaquer (trois coups enchaines)   clic droit, K / Y : attaque lourde (brise les armures)
+//     ESPACE / A : esquiver (on traverse les coups)       MAJ, F / gachette gauche (maintenue) : la garde au bouclier
+//     R / croix haut : boire une potion                   V / RB : l'attaque speciale (rage pleine)
+//     E / B : parler, ouvrir, prendre                      TAB / Select : la carte
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "VespUnite.h"
+#include "VespProgression.h"
+#include "VespCombat.h"
 #include "VespPlayerController.generated.h"
 
-class AVespGrille;
 class AVespMonde;
+class AVespCombat;
 class ACameraActor;
-struct FVespModeleHaschen;
 
 UENUM()
 enum class EVespPhase : uint8
 {
 	Titre,			// l'ecran titre
-	TourAylis,
-	TourHaschen,
 	Dialogue,		// quelqu'un parle (le parchemin)
 	ChoixRune,		// apres une victoire : une rune parmi 3
-	Exploration,	// AYLIS marche librement dans le monde de l'acte
+	Exploration,	// le jeu : AYLIS dans le monde de l'acte (on s'y bat aussi)
 	Marchand,
 	Evenement,
 	NouvelActe,		// le titre d'un nouvel acte
@@ -43,15 +46,17 @@ enum class EVespPhase : uint8
 	Defaite,		// AYLIS tombe : la vision se brise
 };
 
-// Les actions d'AYLIS (les cartes du bas de l'ecran), comme dans le prototype
+// Ce qu'AYLIS est en train de faire
 UENUM()
-enum class EVespAction : uint8
+enum class EVespGesteAylis : uint8
 {
-	Attaque,
-	Lourde,		// degats x1.8, mais rate 4 fois sur 10 (et fissure les armures)
-	Garde,		// petits degats, et les coups recus font 2 fois moins mal jusqu'au prochain tour
-	Potion,		// +15 pv
-	Speciale,	// quand la rage est pleine : degats x2.2
+	Libre,
+	Attaque,		// un coup de l'enchainement
+	Lourde,
+	Esquive,
+	Potion,
+	Speciale,
+	Touchee,		// elle vient d'encaisser un coup : un instant sans agir
 };
 
 UENUM()
@@ -64,7 +69,7 @@ enum class EVespSalle : uint8
 	Evenement,
 	Boss,
 	Depart,			// la clairiere ou commence l'acte
-	Tresor,			// au bout d'un embranchement : un coffre (des eclats et une rune)
+	Tresor,			// au bout d'un embranchement : un coffre
 };
 
 // Une salle sur la carte de la route
@@ -75,6 +80,7 @@ struct FVespNoeud
 	FVector Centre = FVector::ZeroVector;	// sa place dans le monde
 	TArray<int32> Suivants;			// les clairieres reliees par un sentier
 	bool bVisite = false;			// deja faite (combat gagne, coffre ouvert...)
+	float Rayon = 1000.0f;
 };
 
 // Un objet du marchand
@@ -95,31 +101,27 @@ class VESPERANCE_API AVespPlayerController : public APlayerController
 	friend class AVespHUD;
 	friend class SVespInterface;		// l'interface lit l'etat du jeu
 	friend class SVespCarteRoute;		// la carte de la route (dans l'interface)
+	friend class SVespMenu;				// l'inventaire et le Seuil
+	friend class SVespConstellation;
 
 public:
 	AVespPlayerController();
 	virtual void PlayerTick(float Secondes) override;
 	virtual void EndPlay(const EEndPlayReason::Type Raison) override;
 
-	void Commencer(AVespGrille* LaGrille, AVespMonde* LeMonde, AVespUnite* LAylis, ACameraActor* LaCamera);
+	void Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat, AVespUnite* LAylis, ACameraActor* LaCamera);
 
 	// Ce que l'interface peut demander
 	void NouvellePartie(int32 ActeDeDepart = 1);
 	void Quitter();
-	void ChoisirAction(EVespAction Action);
 	void ChoisirRune(int32 Numero);
 	void AcheterOffre(int32 Numero);
 	void QuitterMarchand();
 	void ChoisirEvenement(int32 Choix);
 	void AvancerDialogue();
 	void ContinuerApresLActe();
-	void PasserLeTour();
 	void Recommencer();
 
-	static FString NomAction(EVespAction Action);
-	static FString DetailAction(EVespAction Action, int32 Potions);
-	static FString AideAction(EVespAction Action);
-	bool ActionDisponible(EVespAction Action) const;
 	static FString NomSalle(EVespSalle Salle, int32 Acte);
 	static FString AideSalle(EVespSalle Salle);
 	static FString LettreSalle(EVespSalle Salle);
@@ -136,27 +138,33 @@ public:
 	FString ChoixEvenement(int32 Choix) const;
 	FString AideEvenement(int32 Choix) const;
 	FString Invite() const;					// ce qu'on peut faire ici (parler au marchand...)
-	bool CaseVisee(FIntPoint& Case) const;	// la case sous la souris, ou sous le curseur (clavier, manette)
+	int32 XpPourNiveau(int32 N) const { return 60 + 45 * (N - 1); }
 
-	UPROPERTY(EditAnywhere, Category = "Vesperance") int32 DeplacementParTour = 3;	// comme dans le prototype
-	UPROPERTY(EditAnywhere, Category = "Vesperance") float PauseEntreHaschen = 0.45f;
+	// Le menu d'AYLIS (I / Start) : l'inventaire et le Seuil. Le jeu s'arrete tant qu'il est ouvert.
+	void OuvrirMenu(int32 Onglet);
+	void FermerMenu();
+	bool EtoileAcquise(int32 Index) const { return Seuil.IsValidIndex(Index) && Seuil[Index]; }
+	bool EtoilePossible(int32 Index) const;			// assez de points, et l'etoile d'avant est allumee
+	void DebloquerEtoile(int32 Index);
+	void EquiperDuSac(int32 IndexSac);
+	void Retirer(EVespEmplacement E);
+	void JeterDuSac(int32 IndexSac);
+	const FVespObjet* Equipe(EVespEmplacement E) const { return bEquipe[(int32)E] ? &Equipement[(int32)E] : nullptr; }
+	float RechargeDuPouvoir(int32 N) const;			// de 0 (pret) a 1 (vient d'etre lance)
+	int32 EtoileDuPouvoir(int32 N) const;			// l'etoile qui donne ce pouvoir (ou -1)
+	static constexpr int32 TailleDuSac = 24;
+
 	static constexpr int32 NombreDActes = 7;
-	static constexpr int32 HaschenMax = 8;			// jamais plus de Haschen debout (les renforts s'arretent la)
 
 private:
 	// Le monde de l'acte
 	void GenererMonde();
-	void Declencher(int32 Zone);				// AYLIS entre dans une clairiere
+	void Declencher(int32 Zone);				// AYLIS entre dans une clairiere sans Haschen (repos, tresor, marchand...)
 	void RetourExploration();
-	void Explorer(float Secondes);
+	void Jouer(float Secondes);					// le jeu : marcher, viser, frapper, esquiver...
 	void RouvrirMarchand(int32 Zone);
-	FIntPoint CaseLaPlusProche(const FVector& Position) const;
-	TArray<FIntPoint> PlacesLoinDe(FIntPoint Depart, int32 DistanceMin) const;
-	bool DirectionPressee(FIntPoint& Direction, float Secondes);	// fleches, croix ou stick (avec repetition)
-	void CommandesDeCombat(float Secondes);
+	bool DirectionPressee(FIntPoint& Direction, float Secondes);	// les menus : fleches, croix ou stick (avec repetition)
 	void CommandesDeMenu(float Secondes);
-	void PreparerCombat(EVespSalle Type);
-	void ApresVictoire();
 	void ProposerRunes();
 	void AppliquerRune(int32 Rune);
 	int32 RuneAuHasard() const;
@@ -166,54 +174,43 @@ private:
 	void DialogueDuBoss();
 	void AmbianceDeLActe();
 
-	// Les Haschen
-	AVespUnite* CreerHaschen(const FVespModeleHaschen& Modele, FIntPoint Case, bool bSelonEtage = true);
-	AVespUnite* HaschenAuHasard(TArray<FIntPoint>& Places);
-	AVespUnite* EliteAuHasard(TArray<FIntPoint>& Places);
-	int32 AppelerRenforts(AVespUnite* Source, const FVespModeleHaschen& Modele, int32 Nombre);	// renvoie combien sont venus
-	bool CaseLibrePres(FIntPoint Centre, FIntPoint& Trouvee, int32 RayonMax = 3) const;
-	int32 HaschenDebout() const;
-	void LancerVague();
-	bool VerifierFinDeVague();		// true : plus personne debout (une vague arrive, ou c'est la victoire)
+	// AYLIS
+	FVector DirectionVisee() const;				// la souris, le stick droit, ou la marche
+	void Attaquer(bool bLourde);
+	void Esquiver(const FVector& Direction);
+	void BoirePotion();
+	void AttaqueSpeciale();
+	void AvancerGeste(float Secondes);
+	void GagnerXp(int32 Quantite);
+	void GagnerEclats(int32 Quantite, const FVector& Ou);
+	void Pouvoir(int32 N);						// les pouvoirs du Seuil (1, 2, 3)
+	void LacherButin(const FVector& Ou, int32 Chance);
+	void RamasserButin();
+	void AppliquerObjet(const FVespObjet& O, int32 Signe);	// ajoute (+1) ou retire (-1) ce qu'un objet donne
+	void HabillerAylis();						// l'arme, le bouclier et la tenue se voient
+	void CommandesDuMenu(float Secondes);
+	FVespCoup CoupDeBase() const;				// ce que tous les coups d'AYLIS ont en commun (effets de l'arme et des runes)
+	EVespArme ArmeEnMain() const { return bEquipe[(int32)EVespEmplacement::Arme] ? Equipement[(int32)EVespEmplacement::Arme].TypeArme : EVespArme::Poings; }
+	FVector Deplacement = FVector::ZeroVector;	// l'envie de marcher (clavier ou stick), dans le monde
 
-	// Le combat
-	void TourDAylis();
-	void FinDuTourDAylis();
-	void JouerTourHaschen(float Secondes);
-	void ReglesDuTour();						// au debut de chaque tour : la regle de l'acte (pieges, maree, eruptions...)
-	bool TourDuBoss(AVespUnite* Boss);			// true : il a utilise son tour
-	bool TourDeSkarn(AVespUnite* Skarn);
-	bool TourDeLaMatriarche(AVespUnite* Matriarche);
-	bool TourDuRoiNoye(AVespUnite* Roi);
-	bool TourDuGardien(AVespUnite* Gardien);
-	bool TourDAshka(AVespUnite* Ashka);
-	bool TourDeVorgath(AVespUnite* Vorgath);
-	bool TourDeLOracle(AVespUnite* Oracle);
-	void Annoncer(const TArray<FIntPoint>& Cases, int32 Degats, int32 Effet, TCHAR Terrain);	// une attaque annoncee
-	void FrapperZones(AVespUnite* Source);		// l'attaque annoncee tombe
-	void MontrerDangers();
-	void EffetDuTerrain(AVespUnite* U);			// fin de son tour sur la lave, les eaux toxiques, une dalle levee
-	void InfligerEffet(AVespUnite* Cible, int32 Effet);
-	void Blesser(AVespUnite* Cible, int32 Degats, const FString& Cause);	// des degats qui ne viennent pas d'un coup
-	void Explosions();							// les Haschen explosifs tombes explosent
-	void Fuir(AVespUnite* H);					// un tireur recule
-	void MontrerCasesAtteignables();
-	bool CaseSousLaSouris(FIntPoint& Case) const;
-	bool ResteDesHaschen() const;
-	void Ecrire(const FString& Message);			// le journal (les derniers messages)
-	void AgirSur(AVespUnite* Cible);
-	void ToucherAylis(AVespUnite* Attaquant, int32 Degats, bool bCritique);
-	void VerifierDefaite();
+	// Ce que le combat annonce
+	void QuandHaschenTombe(AVespUnite* H, int32 Categorie);
+	bool Talent(const TCHAR* Id) const { return EtoileAcquise(VespSeuil::Index(Id)); }
+	int32 PouvoirEnCours = 0;					// l'attaque speciale (0) ou le tourbillon du Seuil (1)
+	void QuandAylisTouchee(int32 Degats, bool bCritique, AVespUnite* Source);
+	void QuandClairiereFermee(int32 Zone);
+	void QuandClairiereLiberee(int32 Zone);
+	void Ecrire(const FString& Message, float Duree = 4.0f);
+
 	void Trembler(float Force) { Secousse = FMath::Min(1.5f, Secousse + Force); }
 	void Ralenti(float Echelle, float Duree);		// un instant de ralenti (un coup fatal, un critique)
 	void PlacerCamera(float Secondes);
 	// Le mode photo (le jeu lance avec -VespPhotos) : il parcourt les 7 actes et prend des photos pour la promo
 	void ModePhoto(float Secondes);
 	void Photographier(const FString& Nom, bool bAvecInterface);
-	int32 DeplacementCeTour() const;
 
-	UPROPERTY() TObjectPtr<AVespGrille> Grille;
 	UPROPERTY() TObjectPtr<AVespMonde> Monde;
+	UPROPERTY() TObjectPtr<AVespCombat> Combat;
 	UPROPERTY() TObjectPtr<class UNiagaraComponent> AuraRage;	// l'aura d'AYLIS quand la rage est pleine
 	bool bContours = true;										// les contours "toon" (F4)
 	bool bModePhoto = false;
@@ -222,7 +219,6 @@ private:
 	float PhotoAttente = 0.0f;
 	bool bCameraPhoto = false;		// la camera est placee a la main (le panorama)
 	UPROPERTY() TObjectPtr<AVespUnite> Aylis;
-	UPROPERTY() TArray<TObjectPtr<AVespUnite>> Haschen;
 	UPROPERTY() TObjectPtr<ACameraActor> CameraArene;
 	TSharedPtr<class SVespInterface> Interface;
 	FVector PositionCamera;
@@ -232,47 +228,73 @@ private:
 	bool bCaleCamera = true;		// la prochaine image : la camera se place d'un coup (debut d'un acte)
 	float Secousse = 0.0f;
 	float Zoom = 0.0f;				// > 0 : la camera se resserre un instant (un critique)
+	float Recul = 0.0f;				// la camera recule un peu pendant les combats
 	double FinDuRalenti = 0.0;
 
-	// L'etat du combat
+	// AYLIS
+	EVespGesteAylis Geste = EVespGesteAylis::Libre;
+	float TempsGeste = 0.0f;
+	float DureeGeste = 0.0f;
+	float MomentImpact = 0.0f;		// quand le coup en cours touche (en secondes depuis son debut)
+	bool bImpactFait = false;
+	int32 Combo = 0;				// le coup de l'enchainement (0, 1, 2)
+	bool bCoupSuivant = false;		// on a appuye pendant le coup : le suivant s'enchaine
+	float FinCombo = 0.0f;			// apres ce delai sans frapper, l'enchainement recommence au premier coup
+	FVector DirectionGeste = FVector::ForwardVector;
+	float ElanGeste = 0.0f;			// la distance dont AYLIS se fend vers sa cible
+	float RechargeEsquive = 0.0f;
+	bool bGardeLevee = false;
+	float TempsGarde = 0.0f;
+	bool bPotionBue = false;
+	FVector2D DerniereSouris = FVector2D::ZeroVector;
+	float TempsSouris = 0.0f;		// la souris a bouge il y a peu : on vise avec elle
+	FVector Regard = FVector::ForwardVector;
+
+	// La partie
 	EVespPhase Phase = EVespPhase::Titre;
-	EVespAction ActionChoisie = EVespAction::Attaque;
-	TArray<FString> Journal;
-	int32 Tour = 0;
 	int32 Potions = 3;
-	int32 Rage = 0;					// de 0 a 100 : elle monte quand AYLIS encaisse des coups
+	int32 Rage = 0;					// de 0 a 100 : elle monte avec les coups donnes et recus
 	int32 Eclats = 0;				// la monnaie du marchand
-	bool bEnGarde = false;
-	bool bADejaBouge = false;
-	int32 HaschenQuiJoue = 0;		// pendant le tour des Haschen : lequel joue
-	int32 EtapeHaschen = 0;			// 0 = il se prepare, 1 = il frappe (une fois arrive)
-	float Minuteur = 0.0f;
-	int32 VaguesRestantes = 0;		// les renforts qui arriveront quand la vague en cours sera tombee
-	int32 VagueActuelle = 1;
-	TArray<FIntPoint> ZonesDanger;	// les cases annoncees par un boss
-	int32 DegatsDanger = 0;
-	int32 EffetDanger = 0;
-	TCHAR TerrainDanger = '.';		// ce que deviennent les cases touchees ('.' = rien ne change)
-	TArray<FIntPoint> Eruptions;	// les Terres de Cendre : les cases qui vont entrer en eruption
-	bool bBlizzard = false;			// le col : ce tour-ci, le blizzard ralentit tout le monde
-	int32 PotionsDuBoss = 2;		// les decoctions de la Matriarche
+	int32 Niveau = 1;
+	int32 Xp = 0;
+	int32 PointsDeCompetence = 0;
+	float TempsNiveau = 0.0f;		// > 0 : le bandeau "NIVEAU" est affiche
+	int32 HaschenVaincus = 0;
+
+	// Le Seuil, les pouvoirs
+	TArray<bool> Seuil;
+	float Recharges[4] = {0, 0, 0, 0};		// les pouvoirs 1, 2, 3 (secondes restantes)
+	float TempsEgide = 0.0f;
+	bool bRiposte = false;					// la prochaine attaque apres une parade parfaite
+	float RechargePresage = 0.0f;
+	UPROPERTY() TObjectPtr<class UStaticMeshComponent> BulleEgide;
+
+	// L'inventaire
+	TArray<FVespObjet> Sac;
+	FVespObjet Equipement[(int32)EVespEmplacement::Nombre];
+	bool bEquipe[(int32)EVespEmplacement::Nombre] = {false, false, false, false, false, false};
+	FRandomStream HasardButin;
+	UPROPERTY() TArray<TObjectPtr<class AVespButin>> ButinsAuSol;
+	FString DernierButin;					// le dernier objet ramasse (un bandeau a droite)
+	FLinearColor CouleurDernierButin = FLinearColor::White;
+	float TempsButin = 0.0f;
+	bool bMenuOuvert = false;
+	int32 OngletMenu = 0;					// 0 : l'inventaire, 1 : le Seuil
+	int32 SelectionSac = 0;
+	int32 SelectionEtoile = 0;
+	int32 VueFiche = 0;						// change a chaque nouvel objet regarde (la fiche glisse)
 
 	// La route et les runes
 	int32 Acte = 1;
-	int32 Etage = 0;				// l'etage de la salle en cours (0 a 13)
-	EVespSalle TypeSalle = EVespSalle::Combat;
 	TArray<FVespNoeud> Noeuds;		// les clairieres du monde de l'acte
 	int32 ZoneActuelle = -1;		// la clairiere ou se passe ce qui se passe
-	int32 MarchandProche = -1;		// en exploration : un marchand a portee de voix
+	int32 MarchandProche = -1;		// un marchand a portee de voix
 	int32 MarchandZone = -1;		// le marchand dont on a les offres
 	bool bCarteOuverte = false;		// la carte du monde (TAB)
-	float TempsMessage = 0.0f;		// en exploration : le message s'affiche encore quelques secondes
-	// Le clavier et la manette
-	FIntPoint Curseur = FIntPoint(1, 3);	// en combat : la case visee au clavier ou a la manette
-	bool bCurseur = false;					// true : on vise avec le curseur (sinon avec la souris)
-	FVector2D DerniereSouris = FVector2D::ZeroVector;
+	float TempsMessage = 0.0f;		// le message s'affiche encore quelques secondes
+	// Les menus au clavier et a la manette
 	float Repetition = 0.0f;				// une direction tenue se repete
-	int32 SelectionMenu = 0;				// dans les menus : la carte choisie au clavier ou a la manette
+	int32 SelectionMenu = 0;				// la carte choisie au clavier ou a la manette
 	bool bSelectionVisible = false;
 	TArray<int32> RunesProposees;
 	TArray<int32> Runes;
@@ -281,13 +303,12 @@ private:
 	bool bFlamme = false;			// les coups d'AYLIS peuvent bruler
 	bool bSeve = false;				// +5 pv a chaque Haschen abattu
 	bool bFureur = false;			// la rage monte 2 fois plus vite
-	bool bEpines = false;			// renvoie 3 degats a qui touche AYLIS
-	bool bSangsue = false;			// +2 pv a chaque coup porte
+	bool bSangsue = false;			// +1 pv a chaque coup porte
 	bool bFortune = false;			// +50% d'eclats
-	bool bRempart = false;			// la garde divise les degats par 3
 	bool bGivre = false;			// les coups d'AYLIS peuvent geler
-	bool bPiedSur = false;			// les terrains dangereux n'atteignent plus AYLIS
-	FString MessageRoute;			// ce qui vient de se passer (affiche sur les ecrans de choix)
+	bool bPiedSur = false;			// les pieges et les flaques n'atteignent plus AYLIS
+	float BonusVitesse = 0.0f;		// la rune du Vent
+	FString MessageRoute;			// ce qui vient de se passer
 	float TempsPhase = 0.0f;		// depuis combien de temps l'ecran en cours est affiche (pour les fondus)
 
 	// Le dialogue
@@ -295,4 +316,5 @@ private:
 	TArray<FString> Repliques;
 	int32 LigneDialogue = 0;
 	float Ecriture = 0.0f;			// le nombre de lettres deja ecrites
+	bool bDialogueBoss = false;		// a la fin du dialogue, le boss attaque
 };
