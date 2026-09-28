@@ -6,6 +6,7 @@
 #include "VespCombat.h"
 #include "VespSons.h"
 #include "VespMenu.h"
+#include "VespOptions.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/SOverlay.h"
@@ -611,7 +612,7 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 	// (le Veilleur, les commandes) : la colonne se decale a gauche, pour ne pas passer dessous
 	+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Top)
 	.Padding(TAttribute<FMargin>::CreateLambda([this]() {
-		const bool bPanneau = bCommandes || (Joueur.IsValid() && Joueur->bVeilleurOuvert);
+		const bool bPanneau = bCommandes || (Joueur.IsValid() && (Joueur->bVeilleurOuvert || Joueur->bOptionsOuvertes));
 		return FMargin(0, 20, bPanneau ? 360 : 0, 0);
 	}))
 	[
@@ -662,7 +663,11 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
 		[
 			BoutonMenu(LOCTEXT("LeVeilleur", "LE VEILLEUR"), [this]() {
-				if (Joueur.IsValid()) Joueur->bVeilleurOuvert = !Joueur->bVeilleurOuvert;
+				if (Joueur.IsValid())
+				{
+					Joueur->bVeilleurOuvert = !Joueur->bVeilleurOuvert;
+					Joueur->bOptionsOuvertes = false;
+				}
 				bActes = bCommandes = false;
 			})
 		]
@@ -682,7 +687,18 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
 		[
-			BoutonMenu(LOCTEXT("VoirCommandes", "COMMANDES"), [this]() { bCommandes = !bCommandes; bActes = false; if (Joueur.IsValid()) Joueur->bVeilleurOuvert = false; })
+			BoutonMenu(LOCTEXT("VoirOptions", "OPTIONS"), [this]() {
+				if (Joueur.IsValid())
+				{
+					Joueur->bOptionsOuvertes = !Joueur->bOptionsOuvertes;
+					Joueur->bVeilleurOuvert = false;
+				}
+				bCommandes = bActes = false;
+			})
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
+		[
+			BoutonMenu(LOCTEXT("VoirCommandes", "COMMANDES"), [this]() { bCommandes = !bCommandes; bActes = false; if (Joueur.IsValid()) Joueur->bVeilleurOuvert = Joueur->bOptionsOuvertes = false; })
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 0)
 		[
@@ -691,6 +707,13 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 	]
 	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(0, 0, 60, 0))[Commandes()]
 	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(0, 0, 60, 0))[Veilleur()]
+	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Center).Padding(FMargin(0, 0, 60, 0))
+	[
+		SNew(SBox).Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->bOptionsOuvertes); })
+		[
+			SNew(SVespOptions).Joueur(Joueur).bEnJeu(false)
+		]
+	]
 	+ SOverlay::Slot().HAlign(HAlign_Left).VAlign(VAlign_Bottom).Padding(FMargin(60, 0, 0, 30))
 	[
 		SNew(STextBlock).Text(LOCTEXT("Entree", "ENTRÉE  /  (A)  pour commencer")).Font(Police("Bold", 12, 300))

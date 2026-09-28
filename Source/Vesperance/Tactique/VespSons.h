@@ -75,6 +75,10 @@ public:
 	// Un son "dans la tete" (l'interface)
 	static void Jouer2D(const UObject* Contexte, EVespSon Son, float Volume = 1.0f, float Hauteur = 1.0f);
 
+	// Les volumes des options (VespReglages), de 0 a 1
+	inline static float VolumeMusique = 1.0f;		// la musique et les tambours
+	inline static float VolumeEffets = 1.0f;		// tout le reste (coups, interface, ambiance, pluie)
+
 	// L'oreille : ou elle est, et vers ou elle regarde (celle de la camera)
 	void PlacerOreille(APlayerController* Joueur, const FVector& Position, const FRotator& Regard);
 

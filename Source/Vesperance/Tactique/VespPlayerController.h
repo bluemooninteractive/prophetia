@@ -103,6 +103,7 @@ class VESPERANCE_API AVespPlayerController : public APlayerController
 	friend class SVespCarteRoute;		// la carte de la route (dans l'interface)
 	friend class SVespMenu;				// l'inventaire et le Seuil
 	friend class SVespConstellation;
+	friend class SVespOptions;				// le panneau des options
 
 public:
 	AVespPlayerController();
@@ -157,6 +158,15 @@ public:
 
 	static constexpr int32 NombreDActes = 7;
 
+	// Les options (VespReglages) : musique, effets, plein ecran, secousses ; en jeu : abandonner la vision, quitter
+	static constexpr int32 LignesReglages = 6;
+	static constexpr int32 LignesReglagesTitre = 4;
+	void ChangerReglage(int32 Ligne, int32 Sens);		// Sens : -1 / +1 pour regler, 0 pour valider (la souris, ENTREE)
+	FString ValeurReglage(int32 Ligne) const;
+	static FString NomReglage(int32 Ligne);
+	int32 SelectionReglage = 0;
+	bool bOptionsOuvertes = false;						// l'ecran titre montre les options
+
 private:
 	// Le monde de l'acte
 	void GenererMonde();
@@ -203,7 +213,7 @@ private:
 	void QuandClairiereLiberee(int32 Zone);
 	void Ecrire(const FString& Message, float Duree = 4.0f);
 
-	void Trembler(float Force) { Secousse = FMath::Min(1.5f, Secousse + Force); }
+	void Trembler(float Force) { if (bSecoussesActives) Secousse = FMath::Min(1.5f, Secousse + Force); }
 	void Ralenti(float Echelle, float Duree);		// un instant de ralenti (un coup fatal, un critique)
 	void PlacerCamera(float Secondes);
 	// Le mode photo (le jeu lance avec -VespPhotos) : il parcourt les 7 actes et prend des photos pour la promo
@@ -331,6 +341,13 @@ private:
 	bool bSouvenirsPossibles = true;	// une vision commencee plus loin (pour tester) n'en rapporte pas
 	bool bSecondSouffle = false;		// le don "Second souffle", pas encore utilise dans cette vision
 	bool bVeilleurOuvert = false;		// l'ecran titre montre le Veilleur
+	UPROPERTY() TObjectPtr<class UVespReglages> Reglages;
+	bool bSecoussesActives = true;
+	bool bConfirmerAbandon = false;		// "abandonner la vision" : une seconde fois pour confirmer
+	bool bTestOptions = false;			// -VespOptions : photographie les options (titre puis en jeu), puis on quitte
+	void ChargerReglages();
+	void AppliquerReglages();
+	void CommandesDesReglages(float Secondes, int32 Nombre);
 	bool bTestOuverture = false;			// -VespOuverture : lance une vision, photographie son ouverture, puis on quitte (sans rien sauvegarder)
 	int32 TestFin = 0;						// -VespFin=1 ou 2 : deroule cette fin a Karn, la photographie, puis on quitte (sans rien sauvegarder)
 	bool bFinLancee = false;

@@ -1012,6 +1012,11 @@ void UVespSons::Lancer(EVespSon S, const FVector* Position, float Volume, float 
 	{
 		return;
 	}
+	if (VolumeEffets <= 0.001f)
+	{
+		return;
+	}
+	Volume *= VolumeEffets;
 	const double Maintenant = FPlatformTime::Seconds();
 	double& Derniere = DerniereFois.FindOrAdd((uint8)S);
 	if (S != EVespSon::Pas && Maintenant - Derniere < 0.035)
@@ -1167,16 +1172,20 @@ void UVespSons::Tick(float Secondes)
 	TensionActuelle = FMath::FInterpTo(TensionActuelle, TensionVoulue, Secondes, 0.8f);
 	if (Tambours)
 	{
-		Tambours->SetVolumeMultiplier(FMath::Max(0.001f, TensionActuelle * 0.7f));
+		Tambours->SetVolumeMultiplier(FMath::Max(0.001f, TensionActuelle * 0.7f * VolumeMusique));
 	}
 	if (Musique)
 	{
-		Musique->SetVolumeMultiplier(0.45f * (1.0f - TensionActuelle * 0.3f));
+		Musique->SetVolumeMultiplier(FMath::Max(0.001f, 0.45f * (1.0f - TensionActuelle * 0.3f) * VolumeMusique));
 	}
 	PluieActuelle = FMath::FInterpTo(PluieActuelle, PluieVoulue, Secondes, 0.5f);
 	if (BouclePluie)
 	{
-		BouclePluie->SetVolumeMultiplier(FMath::Max(0.001f, PluieActuelle * 0.9f));
+		BouclePluie->SetVolumeMultiplier(FMath::Max(0.001f, PluieActuelle * 0.9f * VolumeEffets));
+	}
+	if (Ambiance)
+	{
+		Ambiance->SetVolumeMultiplier(FMath::Max(0.001f, 0.8f * VolumeEffets));
 	}
 }
 

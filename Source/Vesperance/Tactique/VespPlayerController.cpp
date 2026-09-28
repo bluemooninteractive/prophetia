@@ -28,6 +28,8 @@
 #include "NiagaraComponent.h"
 #include "NiagaraSystem.h"
 #include "Engine/PostProcessVolume.h"
+#include "GameFramework/GameUserSettings.h"
+#include "VespReglages.h"
 #include "UnrealClient.h"
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
@@ -259,10 +261,12 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	TempsPhase = 0.0f;
 	bModePhoto = FParse::Param(FCommandLine::Get(), TEXT("VespPhotos"));
 	ChargerMemoire();
+	ChargerReglages();
 	PhotoAttente = 8.0f;
 	// -VespVeilleur (pour tester) : l'ecran titre s'ouvre sur le Veilleur, une photo, et on quitte
 	bTestVeilleur = bVeilleurOuvert = FParse::Param(FCommandLine::Get(), TEXT("VespVeilleur"));
 	bTestOuverture = FParse::Param(FCommandLine::Get(), TEXT("VespOuverture"));
+	bTestOptions = bOptionsOuvertes = FParse::Param(FCommandLine::Get(), TEXT("VespOptions"));
 	FParse::Value(FCommandLine::Get(), TEXT("VespFin="), TestFin);
 	if (Memoire && !bModePhoto)
 	{
@@ -346,7 +350,7 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0)
+	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions)
 	{
 		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
@@ -462,6 +466,146 @@ void AVespPlayerController::AcheterDon(int32 Index)
 	EcrireMemoire();
 	UVespSons::Jouer2D(this, EVespSon::Rune, 0.8f);
 	UE_LOG(LogTemp, Display, TEXT("VESPERANCE veilleur : %s rang %d pour %d souvenirs (reste %d)"), VespVeilleur::Don(Index).Nom, Rang + 1, Prix, Memoire->Souvenirs);
+}
+
+// ===================== Les options =====================
+
+static const TCHAR* EMPLACEMENT_REGLAGES = TEXT("VesperanceReglages");
+
+void AVespPlayerController::ChargerReglages()
+{
+	Reglages = Cast<UVespReglages>(UGameplayStatics::LoadGameFromSlot(EMPLACEMENT_REGLAGES, 0));
+	if (!Reglages)
+	{
+		Reglages = Cast<UVespReglages>(UGameplayStatics::CreateSaveGameObject(UVespReglages::StaticClass()));
+	}
+	AppliquerReglages();
+}
+
+void AVespPlayerController::AppliquerReglages()
+{
+	if (!Reglages)
+	{
+		return;
+	}
+	UVespSons::VolumeMusique = FMath::Clamp(Reglages->VolumeMusique, 0.0f, 1.0f);
+	UVespSons::VolumeEffets = FMath::Clamp(Reglages->VolumeEffets, 0.0f, 1.0f);
+	bSecoussesActives = Reglages->bSecousses;
+	if (!bSecoussesActives)
+	{
+		Secousse = 0.0f;
+	}
+}
+
+static bool EstEnPleinEcran()
+{
+	const UGameUserSettings* S = GEngine ? GEngine->GetGameUserSettings() : nullptr;
+	return S && S->GetFullscreenMode() != EWindowMode::Windowed;
+}
+
+FString AVespPlayerController::NomReglage(int32 Ligne)
+{
+	static const TCHAR* NOMS[LignesReglages] = {TEXT("MUSIQUE"), TEXT("EFFETS SONORES"), TEXT("PLEIN ÉCRAN"), TEXT("SECOUSSES DE LA CAMÉRA"),
+	                                            TEXT("ABANDONNER LA VISION"), TEXT("QUITTER LE JEU")};
+	return NOMS[FMath::Clamp(Ligne, 0, LignesReglages - 1)];
+}
+
+FString AVespPlayerController::ValeurReglage(int32 Ligne) const
+{
+	switch (Ligne)
+	{
+		case 0: return Reglages ? FString::Printf(TEXT("%d %%"), FMath::RoundToInt(Reglages->VolumeMusique * 100.0f)) : FString();
+		case 1: return Reglages ? FString::Printf(TEXT("%d %%"), FMath::RoundToInt(Reglages->VolumeEffets * 100.0f)) : FString();
+		case 2: return EstEnPleinEcran() ? TEXT("OUI") : TEXT("NON");
+		case 3: return Reglages && Reglages->bSecousses ? TEXT("OUI") : TEXT("NON");
+		case 4: return bConfirmerAbandon ? TEXT("ENCORE UNE FOIS POUR CONFIRMER") : FString();
+		default: return FString();
+	}
+}
+
+void AVespPlayerController::ChangerReglage(int32 Ligne, int32 Sens)
+{
+	if (!Reglages)
+	{
+		return;
+	}
+	if (Ligne != 4)
+	{
+		bConfirmerAbandon = false;
+	}
+	switch (Ligne)
+	{
+		case 0:
+		case 1:
+		{
+			float& V = Ligne == 0 ? Reglages->VolumeMusique : Reglages->VolumeEffets;
+			const float Pas = 0.1f;
+			V = Sens == 0 ? (V >= 0.99f ? 0.0f : V + Pas) : V + Sens * Pas;		// un clic fait le tour (0 apres 100 %)
+			V = FMath::Clamp(FMath::RoundToFloat(V * 10.0f) / 10.0f, 0.0f, 1.0f);
+			break;
+		}
+		case 2:
+			if (UGameUserSettings* S = GEngine ? GEngine->GetGameUserSettings() : nullptr)
+			{
+				S->SetFullscreenMode(EstEnPleinEcran() ? EWindowMode::Windowed : EWindowMode::WindowedFullscreen);
+				S->ApplySettings(false);
+				S->SaveSettings();
+			}
+			break;
+		case 3:
+			Reglages->bSecousses = !Reglages->bSecousses;
+			break;
+		case 4:
+			if (Phase == EVespPhase::Titre || Sens != 0)
+			{
+				return;
+			}
+			if (!bConfirmerAbandon)
+			{
+				bConfirmerAbandon = true;		// une seconde fois pour de bon
+				UVespSons::Jouer2D(this, EVespSon::Annonce, 0.6f);
+				return;
+			}
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE vision %d abandonnee a l'acte %s apres %s"), NumeroVision, *Romain(Acte), *UVespSauvegarde::Duree(ChronoPartie));
+			bMenuOuvert = false;
+			Recommencer();
+			return;
+		default:
+			if (Sens == 0)
+			{
+				Quitter();
+			}
+			return;
+	}
+	AppliquerReglages();
+	if (!bModePhoto && !bTestOptions)
+	{
+		UGameplayStatics::SaveGameToSlot(Reglages, EMPLACEMENT_REGLAGES, 0);
+	}
+	UVespSons::Jouer2D(this, EVespSon::Clic, 0.8f);
+}
+
+// Les options au clavier et a la manette : haut / bas pour choisir, gauche / droite pour regler, ENTREE / A pour valider
+void AVespPlayerController::CommandesDesReglages(float Secondes, int32 Nombre)
+{
+	FIntPoint D;
+	if (DirectionPressee(D, Secondes))
+	{
+		if (D.Y != 0)
+		{
+			SelectionReglage = FMath::Clamp(SelectionReglage + D.Y, 0, Nombre - 1);
+			bConfirmerAbandon = false;
+			UVespSons::Jouer2D(this, EVespSon::Survol);
+		}
+		else if (D.X != 0 && SelectionReglage <= 3)
+		{
+			ChangerReglage(SelectionReglage, SelectionReglage <= 1 ? D.X : 0);
+		}
+	}
+	if (WasInputKeyJustPressed(EKeys::Enter) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Bottom))
+	{
+		ChangerReglage(FMath::Clamp(SelectionReglage, 0, Nombre - 1), 0);
+	}
 }
 
 void AVespPlayerController::Quitter()
@@ -2192,6 +2336,7 @@ void AVespPlayerController::OuvrirMenu(int32 Onglet)
 void AVespPlayerController::FermerMenu()
 {
 	bMenuOuvert = false;
+	bConfirmerAbandon = false;
 	UVespSons::Jouer2D(this, EVespSon::Clic, 0.8f, 0.8f);
 }
 
@@ -2212,10 +2357,16 @@ void AVespPlayerController::CommandesDuMenu(float Secondes)
 		FermerMenu();
 		return;
 	}
-	if (Appui({EKeys::Tab, EKeys::Gamepad_LeftShoulder, EKeys::Gamepad_RightShoulder}))
+	if (Appui({EKeys::Tab, EKeys::Gamepad_RightShoulder}) || Appui({EKeys::Gamepad_LeftShoulder}))
 	{
-		OngletMenu = 1 - OngletMenu;
+		OngletMenu = (OngletMenu + (WasInputKeyJustPressed(EKeys::Gamepad_LeftShoulder) ? 2 : 1)) % 3;
+		bConfirmerAbandon = false;
 		UVespSons::Jouer2D(this, EVespSon::Survol);
+		return;
+	}
+	if (OngletMenu == 2)
+	{
+		CommandesDesReglages(Secondes, LignesReglages);
 		return;
 	}
 	FIntPoint D;
@@ -2237,7 +2388,7 @@ void AVespPlayerController::CommandesDuMenu(float Secondes)
 			JeterDuSac(SelectionSac);
 		}
 	}
-	else
+	else if (OngletMenu == 1)
 	{
 		if (bDirection)
 		{
@@ -2588,6 +2739,11 @@ void AVespPlayerController::Jouer(float Secondes)
 			OuvrirMenu(0);
 			return;
 		}
+		else if (Appui({EKeys::Escape}))
+		{
+			OuvrirMenu(2);			// la pause : les options, abandonner, quitter
+			return;
+		}
 	}
 	// Les recharges des pouvoirs, l'Egide
 	for (float& R : Recharges)
@@ -2790,6 +2946,20 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f && LigneDialogue < 2) { UE_LOG(LogTemp, Display, TEXT("VESPERANCE test : %s / %s"), *Orateurs[LigneDialogue], *Repliques[LigneDialogue]); Photographier(FString::Printf(TEXT("Ouverture%d"), LigneDialogue), true); Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
 		else if (Phase == EVespPhase::Dialogue && LigneDialogue >= 2) { Quitter(); return; }
 	}
+	if (bTestOptions)
+	{
+		if (Phase == EVespPhase::Titre && bOptionsOuvertes && TempsPhase > 28.0f)
+		{
+			SelectionReglage = 1;
+			Photographier(TEXT("Options_Titre"), true);
+			bOptionsOuvertes = false;
+			NouvellePartie(1);
+		}
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
+		else if (Phase == EVespPhase::Dialogue && TempsPhase > 0.5f) { Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Exploration && !bMenuOuvert && TempsPhase > 2.0f) { OuvrirMenu(2); SelectionReglage = 4; bConfirmerAbandon = true; TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Exploration && bMenuOuvert && TempsPhase > 1.5f) { Photographier(TEXT("Options_Jeu"), true); Quitter(); return; }
+	}
 	if (TestFin > 0)
 	{
 		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(NombreDActes);
@@ -2861,6 +3031,19 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	switch (Phase)
 	{
 		case EVespPhase::Titre:
+			if (bOptionsOuvertes)
+			{
+				if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right))
+				{
+					bOptionsOuvertes = false;
+					UVespSons::Jouer2D(this, EVespSon::Clic, 0.8f, 0.8f);
+				}
+				else
+				{
+					CommandesDesReglages(Secondes, LignesReglagesTitre);
+				}
+				return;
+			}
 			// Le Veilleur : Y ouvre et ferme ; 1 a 7, ou la croix et X, achetent un don
 			if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
 			{

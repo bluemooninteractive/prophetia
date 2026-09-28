@@ -1,4 +1,5 @@
 #include "VespMenu.h"
+#include "VespOptions.h"
 #include "VespTexte.h"
 #include "VespPlayerController.h"
 #include "VespProgression.h"
@@ -417,12 +418,20 @@ void SVespMenu::Construct(const FArguments& Args)
 					SNew(SOverlay)
 					+ SOverlay::Slot()[Inventaire()]
 					+ SOverlay::Slot()[LeSeuil()]
+					+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Center)
+					[
+						SNew(SBox).Visibility_Lambda([this]() { return Joueur.IsValid() && Joueur->OngletMenu == 2 ? EVisibility::Visible : EVisibility::Collapsed; })
+						[
+							SNew(SVespOptions).Joueur(Joueur).bEnJeu(true)
+						]
+					]
 					// L'en-tete : les onglets, et ce qu'AYLIS possede
 					+ SOverlay::Slot().VAlign(VAlign_Top).Padding(FMargin(60, 36, 60, 0))
 					[
 						SNew(SHorizontalBox)
 						+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 40, 0)[Onglet(LOCTEXT("OngletInventaire", "INVENTAIRE"), 0)]
 						+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 40, 0)[Onglet(LOCTEXT("OngletSeuil", "LE SEUIL"), 1)]
+						+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 40, 0)[Onglet(LOCTEXT("OngletOptions", "OPTIONS"), 2)]
 						+ SHorizontalBox::Slot().FillWidth(1.0f)
 						+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(28, 0, 0, 0)
 						[
