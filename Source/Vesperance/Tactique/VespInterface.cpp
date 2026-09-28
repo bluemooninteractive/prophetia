@@ -1,5 +1,6 @@
 #include "VespInterface.h"
 #include "VespTexte.h"
+#include "VespSauvegarde.h"
 #include "VespPlayerController.h"
 #include "VespUnite.h"
 #include "VespCombat.h"
@@ -527,7 +528,27 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 6, 0, 30)
 		[
-			SNew(STextBlock).Text(LOCTEXT("SousTitre", "Une vision. Une route. Sept terres a traverser.")).Font(Police("Italic", 18)).ColorAndOpacity(FLinearColor(0.65f, 0.62f, 0.74f))
+			SNew(STextBlock).Text(LOCTEXT("SousTitre", "Une vision. Une route. Sept terres à traverser.")).Font(Police("Italic", 18)).ColorAndOpacity(FLinearColor(0.65f, 0.62f, 0.74f))
+		]
+		// La memoire de la boucle : quelle vision s'apprete a partir, et ce que le monde en retient deja
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 0, 0, 26)
+		[
+			SNew(STextBlock).Font(Police("Bold", 11, 300)).ColorAndOpacity(FLinearColor(0.85f, 0.72f, 0.45f))
+			.Text_Lambda([this]() {
+				const AVespPlayerController* J = Joueur.Get();
+				if (!J || !J->Memoire || J->Memoire->Visions == 0)
+				{
+					return Texte(TEXT("VISION 1"));
+				}
+				const UVespSauvegarde* M = J->Memoire;
+				FString Ligne = FString::Printf(TEXT("VISION %d   ·   %d / 7 GARDIENS DÉJÀ VAINCUS   ·   %s DE ROUTE"), J->NumeroVision, M->GardiensDejaVaincus(),
+				                                *UVespSauvegarde::Duree(M->TempsDeJeu));
+				if (M->MeilleurePartie > 0.0f)
+				{
+					Ligne += FString::Printf(TEXT("   ·   RECORD %s"), *UVespSauvegarde::Duree(M->MeilleurePartie));
+				}
+				return Texte(Ligne);
+			})
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
@@ -838,7 +859,8 @@ TSharedRef<SWidget> SVespInterface::CoucheExploration()
 				}
 			}
 		}
-		return FString::Printf(TEXT("Clairières visitées : %d / %d"), Nombre, Total);
+		return J ? FString::Printf(TEXT("Clairières visitées : %d / %d   ·   Vision %d   ·   %s"), Nombre, Total, J->NumeroVision, *UVespSauvegarde::Duree(J->ChronoPartie))
+		         : FString();
 	};
 	return SNew(SOverlay).Visibility_Lambda([this]() { return VisibleSi(EnPhase((uint8)EVespPhase::Exploration)); })
 	// En haut a gauche : ou l'on est
@@ -1333,11 +1355,14 @@ TSharedRef<SWidget> SVespInterface::CoucheFin()
 				.Text_Lambda([this, bVictoire]() {
 					if (bVictoire())
 					{
-						return LOCTEXT("VictoireSuite", "L'Oracle est tombe. Karn s'eveille, et la route s'ouvre sur un monde que personne n'avait jamais vu.");
+						const AVespPlayerController* JV = Joueur.Get();
+						return Texte(FString::Printf(TEXT("Vision %d, arrivée au bout en %s. L'Oracle est tombé. Karn s'éveille, et la route s'ouvre sur un monde que personne n'avait jamais vu."),
+						                             JV ? JV->NumeroVision : 1, *UVespSauvegarde::Duree(JV ? JV->ChronoPartie : 0.0f)));
 					}
 					const AVespPlayerController* J = Joueur.Get();
-					return J ? Texte(FString::Printf(TEXT("Acte %s, niveau %d, %d Haschen vaincus. Ce n'était qu'un futur possible. La prophétie en montre d'autres."),
-					                                 *AVespPlayerController::Romain(J->Acte), J->Niveau, J->HaschenVaincus))
+					return J ? Texte(FString::Printf(TEXT("Vision %d, tombée à l'acte %s après %s de route (acte en cours depuis %s). Niveau %d, %d Haschen vaincus. Ce n'était qu'un futur possible. La prophétie en montre d'autres."),
+					                                 J->NumeroVision, *AVespPlayerController::Romain(J->Acte), *UVespSauvegarde::Duree(J->ChronoPartie),
+					                                 *UVespSauvegarde::Duree(J->ChronoActe), J->Niveau, J->HaschenVaincus))
 					         : FText::GetEmpty();
 				})
 			]

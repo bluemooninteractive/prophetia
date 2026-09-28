@@ -312,6 +312,18 @@ private:
 	FString MessageRoute;			// ce qui vient de se passer
 	float TempsPhase = 0.0f;		// depuis combien de temps l'ecran en cours est affiche (pour les fondus)
 
+	// La memoire de la boucle (VespSauvegarde) et le chronometre
+	UPROPERTY() TObjectPtr<class UVespSauvegarde> Memoire;
+	int32 NumeroVision = 1;			// la vision en cours
+	float ChronoActe = 0.0f;		// secondes de jeu dans l'acte en cours
+	float ChronoPartie = 0.0f;		// secondes de jeu depuis le debut de la vision
+	TArray<float> TempsDesActes;	// les actes termines de cette vision
+	void ChargerMemoire();
+	void EcrireMemoire();
+	void FinirLActe();				// note le temps de l'acte (boss vaincu)
+	void MemoriserLaChute();		// AYLIS vient de tomber
+	bool ChronoEnMarche() const;
+
 	// Le dialogue
 	TArray<FString> Orateurs;
 	TArray<FString> Repliques;

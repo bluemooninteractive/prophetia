@@ -1,4 +1,6 @@
 #include "VespPlayerController.h"
+#include "VespSauvegarde.h"
+#include "Misc/App.h"
 #include "VespMonde.h"
 #include "VespCombat.h"
 #include "VespUnite.h"
@@ -57,7 +59,7 @@ static const FVespInfoActe ACTES[7] = {
 	{TEXT("Les Terres Brumeuses"), TEXT("La Forêt des Brumes"), TEXT("Le cercle des anciens"),
 	 TEXT("Une forêt calme... pour l'instant. Apprends à lire les Haschen : quand ils rougeoient, ils vont frapper. Esquive, ou pare au dernier moment."),
 	 FLinearColor(0.05f, 0.12f, 0.16f), 0.006f, FLinearColor(0.55f, 0.65f, 1.0f), 3.0f, 0.35f},
-	{TEXT("Les Terres Hantees"), TEXT("Le Bois des Pendus"), TEXT("La clairière de la Matriarche"),
+	{TEXT("Les Terres Hantées"), TEXT("Le Bois des Pendus"), TEXT("La clairière de la Matriarche"),
 	 TEXT("Le poison suinte du sol pendant les combats. Les loups chassent en meute et foncent en ligne droite."),
 	 FLinearColor(0.07f, 0.13f, 0.05f), 0.012f, FLinearColor(0.62f, 0.78f, 0.55f), 2.4f, 0.3f},
 	{TEXT("Les Marais Noyés"), TEXT("Les Marais de Sombreval"), TEXT("Le trône englouti"),
@@ -172,11 +174,13 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	Phase = EVespPhase::Titre;
 	TempsPhase = 0.0f;
 	bModePhoto = FParse::Param(FCommandLine::Get(), TEXT("VespPhotos"));
+	ChargerMemoire();
 	PhotoAttente = 8.0f;
 }
 
 void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
 {
+	EcrireMemoire();
 	UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
 	if (Interface.IsValid() && GEngine && GEngine->GameViewport)
 	{
@@ -209,6 +213,83 @@ void AVespPlayerController::NouvellePartie(int32 ActeDeDepart)
 	AmbianceDeLActe();
 	Phase = EVespPhase::NouvelActe;
 	TempsPhase = 0.0f;
+	// Une nouvelle vision commence : la prophetie s'en souviendra
+	ChronoActe = ChronoPartie = 0.0f;
+	TempsDesActes.Reset();
+	if (Memoire)
+	{
+		Memoire->Visions = NumeroVision;
+		EcrireMemoire();
+	}
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE vision %d : depart a l'acte %d"), NumeroVision, Acte);
+}
+
+// ===================== La memoire de la boucle, et le chronometre =====================
+
+static const TCHAR* EMPLACEMENT_MEMOIRE = TEXT("Vesperance");
+
+void AVespPlayerController::ChargerMemoire()
+{
+	Memoire = Cast<UVespSauvegarde>(UGameplayStatics::LoadGameFromSlot(EMPLACEMENT_MEMOIRE, 0));
+	if (!Memoire)
+	{
+		Memoire = Cast<UVespSauvegarde>(UGameplayStatics::CreateSaveGameObject(UVespSauvegarde::StaticClass()));
+	}
+	Memoire->Completer();
+	NumeroVision = Memoire->Visions + 1;
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE memoire : %d visions, %d victoires, %d gardiens deja vaincus, %s de jeu"),
+	       Memoire->Visions, Memoire->Victoires, Memoire->GardiensDejaVaincus(), *UVespSauvegarde::Duree(Memoire->TempsDeJeu));
+}
+
+void AVespPlayerController::EcrireMemoire()
+{
+	if (!Memoire || bModePhoto)
+	{
+		return;		// (les photos ne comptent pas comme des visions)
+	}
+	UGameplayStatics::SaveGameToSlot(Memoire, EMPLACEMENT_MEMOIRE, 0);
+}
+
+bool AVespPlayerController::ChronoEnMarche() const
+{
+	return !bModePhoto && Phase != EVespPhase::Titre && Phase != EVespPhase::NouvelActe && Phase != EVespPhase::Victoire && Phase != EVespPhase::Defaite;
+}
+
+void AVespPlayerController::FinirLActe()
+{
+	const int32 i = FMath::Clamp(Acte, 1, NombreDActes) - 1;
+	TempsDesActes.Add(ChronoActe);
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE chrono : vision %d, acte %s termine en %s (partie : %s)"), NumeroVision, *Romain(Acte),
+	       *UVespSauvegarde::Duree(ChronoActe), *UVespSauvegarde::Duree(ChronoPartie));
+	if (Memoire)
+	{
+		Memoire->GardiensVaincus[i] = true;
+		Memoire->DerniersActes[i] = ChronoActe;
+		if (Memoire->MeilleursActes[i] <= 0.0f || ChronoActe < Memoire->MeilleursActes[i])
+		{
+			Memoire->MeilleursActes[i] = ChronoActe;
+		}
+		EcrireMemoire();
+	}
+	ChronoActe = 0.0f;
+}
+
+void AVespPlayerController::MemoriserLaChute()
+{
+	const bool bFaceAuBoss = Noeuds.IsValidIndex(ZoneActuelle) && Noeuds[ZoneActuelle].Type == EVespSalle::Boss && Combat && Combat->BossActif();
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE chrono : vision %d tombee a l'acte %s%s, apres %s (acte en cours depuis %s)"), NumeroVision, *Romain(Acte),
+	       bFaceAuBoss ? TEXT(" face au gardien") : TEXT(""), *UVespSauvegarde::Duree(ChronoPartie), *UVespSauvegarde::Duree(ChronoActe));
+	if (Memoire)
+	{
+		const int32 i = FMath::Clamp(Acte, 1, NombreDActes) - 1;
+		if (bFaceAuBoss)
+		{
+			Memoire->MortsParGardien[i]++;
+		}
+		Memoire->DerniereChuteActe = Acte;
+		Memoire->bDerniereChuteBoss = bFaceAuBoss;
+		EcrireMemoire();
+	}
 }
 
 void AVespPlayerController::Quitter()
@@ -330,7 +411,7 @@ static const FVespTexteEvenement EVENEMENTS[] = {
 	{TEXT("La source claire"),
 	 TEXT("Une eau si pure qu'elle brille dans la nuit. Les feux follets tournent autour sans oser la toucher."),
 	 {TEXT("Boire"), TEXT("Remplir une fiole")}, {TEXT("+35% pv"), TEXT("+1 potion")}, 1, 7},
-	{TEXT("Le Haschen blesse"),
+	{TEXT("Le Haschen blessé"),
 	 TEXT("Un eclaireur Haschen, adosse a un arbre. Il ne peut plus se battre. Il te regarde sans rien dire."),
 	 {TEXT("L'achever"), TEXT("L'epargner")}, {TEXT("+25 éclats"), TEXT("+6 pv max : la prophétie s'en souviendra")}, 1, 7},
 	{TEXT("Le coffre sous la mousse"),
@@ -338,14 +419,14 @@ static const FVespTexteEvenement EVENEMENTS[] = {
 	 {TEXT("L'ouvrir"), TEXT("Le laisser")}, {TEXT("Une chance sur deux : 45 éclats... ou une embuscade"), TEXT("Rien ne se passe")}, 1, 7},
 	{TEXT("Le colporteur des brumes"),
 	 TEXT("Une silhouette encapuchonnee sort du brouillard. Elle tend une main pleine de runes et reclame tes potions."),
-	 {TEXT("Echanger 2 potions"), TEXT("Refuser")}, {TEXT("-2 potions, une rune au hasard"), TEXT("La silhouette disparaît")}, 1, 7},
+	 {TEXT("Échanger 2 potions"), TEXT("Refuser")}, {TEXT("-2 potions, une rune au hasard"), TEXT("La silhouette disparaît")}, 1, 7},
 	{TEXT("Les pendus"),
 	 TEXT("Des cordes grincent au-dessus du sentier. L'un des pendus ouvre les yeux et murmure le nom d'AYLIS."),
-	 {TEXT("Ecouter"), TEXT("Couper la corde")}, {TEXT("-10 pv, +2 attaque"), TEXT("+30 éclats")}, 2, 3},
+	 {TEXT("Écouter"), TEXT("Couper la corde")}, {TEXT("-10 pv, +2 attaque"), TEXT("+30 éclats")}, 2, 3},
 	{TEXT("Le feu des voyageurs"),
 	 TEXT("Un feu encore tiede, abandonne en hate. Des provisions, et des sacs a moitié ouverts."),
 	 {TEXT("Manger"), TEXT("Fouiller les sacs")}, {TEXT("+20% pv"), TEXT("+20 éclats")}, 1, 7},
-	{TEXT("Le deserteur"),
+	{TEXT("Le déserteur"),
 	 TEXT("Un jeune Haschen sans arme tremble derriere un rocher. Il a fui le camp d'Ashka."),
 	 {TEXT("L'aider"), TEXT("Le chasser")}, {TEXT("-1 potion, +35 éclats"), TEXT("Il s'enfuit dans la nuit")}, 4, 6},
 	{TEXT("La cloche engloutie"),
@@ -900,6 +981,7 @@ void AVespPlayerController::QuandAylisTouchee(int32 Degats, bool bCritique, AVes
 		{
 			Phase = EVespPhase::Defaite;
 			TempsPhase = 0.0f;
+			MemoriserLaChute();
 			Ralenti(0.2f, 0.6f);
 			if (UVespSons* Sons = GetWorld()->GetSubsystem<UVespSons>())
 			{
@@ -942,10 +1024,21 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 	Monde->MarquerZoneFaite(Zone);
 	if (N.Type == EVespSalle::Boss)
 	{
+		FinirLActe();
 		if (Acte >= NombreDActes)
 		{
 			Phase = EVespPhase::Victoire;		// le dernier boss est tombe
 			TempsPhase = 0.0f;
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE chrono : vision %d arrivee au bout en %s"), NumeroVision, *UVespSauvegarde::Duree(ChronoPartie));
+			if (Memoire)
+			{
+				Memoire->Victoires++;
+				if (Memoire->MeilleurePartie <= 0.0f || ChronoPartie < Memoire->MeilleurePartie)
+				{
+					Memoire->MeilleurePartie = ChronoPartie;
+				}
+				EcrireMemoire();
+			}
 			return;
 		}
 		// Un nouvel acte : AYLIS reprend toutes ses forces, et la prophetie la renforce
@@ -1136,8 +1229,8 @@ void AVespPlayerController::DialogueDuBoss()
 			Orateurs = {TEXT("L'Oracle"), TEXT("AYLIS"), TEXT("L'Oracle")};
 			Repliques = {
 				TEXT("Mille fois, j'ai vu ta route finir ici, AYLIS. Dans chaque vision, tu tombes au cœur du Voile."),
-				TEXT("Alors regarde bien celle-ci. Elle est differente."),
-				TEXT("Il n'y a pas de visions differentes. Il n'y a que moi... et la fin de la route."),
+				TEXT("Alors regarde bien celle-ci. Elle est différente."),
+				TEXT("Il n'y a pas de visions différentes. Il n'y a que moi... et la fin de la route."),
 			};
 			break;
 	}
@@ -2198,6 +2291,17 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
 	}
 	TempsPhase += Secondes;
+	// Le chronometre : du vrai temps (pas ralenti par les effets), seulement quand on joue
+	if (ChronoEnMarche())
+	{
+		const float Vrai = FMath::Min((float)FApp::GetDeltaTime(), 0.25f);
+		ChronoActe += Vrai;
+		ChronoPartie += Vrai;
+		if (Memoire)
+		{
+			Memoire->TempsDeJeu += Vrai;
+		}
+	}
 	TempsMessage = FMath::Max(0.0f, TempsMessage - Secondes);
 	TempsNiveau = FMath::Max(0.0f, TempsNiveau - Secondes);
 	if (bModePhoto)

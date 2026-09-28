@@ -8,6 +8,7 @@
 #include "Engine/StaticMesh.h"
 #include "Engine/SkeletalMesh.h"
 #include "Engine/Texture2D.h"
+#include "Sound/SoundWave.h"
 #include "ImageUtils.h"
 #include "ImageCore.h"
 #include "Misc/Paths.h"
@@ -114,6 +115,20 @@ int32 UVespUsagesCommandlet::Main(const FString& Parametres)
 					const FString Fichier = FPaths::ProjectSavedDir() / TEXT("Vignettes") / (T->GetName() + TEXT(".png"));
 					FImageUtils::SaveImageByExtension(*Fichier, Image);
 				}
+			}
+		}
+	}
+	// -Sons=/Game/Dossier : la duree de chaque son (pour choisir sans pouvoir ecouter)
+	FString DossierSons;
+	if (FParse::Value(*Parametres, TEXT("Sons="), DossierSons))
+	{
+		TArray<FAssetData> Sons;
+		Registre.GetAssetsByPath(FName(*DossierSons), Sons, true);
+		for (const FAssetData& A : Sons)
+		{
+			if (USoundWave* W = A.AssetClassPath == USoundWave::StaticClass()->GetClassPathName() ? Cast<USoundWave>(A.GetAsset()) : nullptr)
+			{
+				UE_LOG(LogTemp, Display, TEXT("VESPERANCE son : %s  %.2f s"), *W->GetPathName(), W->GetDuration());
 			}
 		}
 	}
