@@ -176,6 +176,8 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	bModePhoto = FParse::Param(FCommandLine::Get(), TEXT("VespPhotos"));
 	ChargerMemoire();
 	PhotoAttente = 8.0f;
+	// -VespVeilleur (pour tester) : l'ecran titre s'ouvre sur le Veilleur, une photo, et on quitte
+	bTestVeilleur = bVeilleurOuvert = FParse::Param(FCommandLine::Get(), TEXT("VespVeilleur"));
 }
 
 void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
@@ -210,6 +212,11 @@ void AVespPlayerController::NouvellePartie(int32 ActeDeDepart)
 		Eclats += 40 * Avance;
 		Niveau += 3 * Avance;
 	}
+	// Les dons du Veilleur ; une vision commencee plus loin ne rapporte pas de Souvenirs
+	bVeilleurOuvert = false;
+	bSouvenirsPossibles = Acte == 1;
+	SouvenirsDeLaVision = 0;
+	AppliquerDons();
 	AmbianceDeLActe();
 	Phase = EVespPhase::NouvelActe;
 	TempsPhase = 0.0f;
@@ -290,6 +297,70 @@ void AVespPlayerController::MemoriserLaChute()
 		Memoire->bDerniereChuteBoss = bFaceAuBoss;
 		EcrireMemoire();
 	}
+}
+
+// ===================== Le Veilleur : les Souvenirs et les dons =====================
+
+static_assert(VespVeilleur::Nombre == UVespSauvegarde::NombreDeDons, "un rang par don dans la sauvegarde");
+
+int32 AVespPlayerController::RangDon(int32 Index) const
+{
+	return Memoire ? Memoire->Don(Index) : 0;
+}
+
+void AVespPlayerController::GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquoi)
+{
+	if (!bSouvenirsPossibles || bModePhoto || Quantite <= 0 || !Memoire)
+	{
+		return;
+	}
+	SouvenirsDeLaVision += Quantite;
+	Memoire->Souvenirs += Quantite;
+	Memoire->SouvenirsGagnes += Quantite;
+	MomentSouvenirs = FPlatformTime::Seconds();
+	EcrireMemoire();		// gardes tout de suite, meme si le jeu est coupe net
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE souvenirs : +%d (%s), %d dans cette vision, %d en reserve"), Quantite, Pourquoi, SouvenirsDeLaVision, Memoire->Souvenirs);
+}
+
+void AVespPlayerController::AppliquerDons()
+{
+	bSecondSouffle = false;
+	if (bModePhoto || !Memoire)
+	{
+		return;		// (les photos montrent AYLIS sans les dons)
+	}
+	auto Rang = [this](const TCHAR* Id) { return RangDon(VespVeilleur::Index(Id)); };
+	Aylis->Stats.PvMax += 10 * Rang(TEXT("vigueur"));
+	Aylis->Stats.Pv = Aylis->Stats.PvMax;
+	Aylis->Stats.Attaque += 2 * Rang(TEXT("tranchant"));
+	Aylis->Stats.Defense += Rang(TEXT("pierre"));
+	Potions += Rang(TEXT("fiole"));
+	Eclats += 40 * Rang(TEXT("bourse"));
+	PointsDeCompetence += Rang(TEXT("etoile"));
+	bSecondSouffle = Rang(TEXT("souffle")) > 0;
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE dons : %d pv, %d attaque, %d defense, %d potions, %d eclats, %d points du Seuil%s"),
+	       Aylis->Stats.PvMax, Aylis->Stats.Attaque, Aylis->Stats.Defense, Potions, Eclats, PointsDeCompetence, bSecondSouffle ? TEXT(", second souffle") : TEXT(""));
+}
+
+void AVespPlayerController::AcheterDon(int32 Index)
+{
+	if (Phase != EVespPhase::Titre || !Memoire || Index < 0 || Index >= VespVeilleur::Nombre)
+	{
+		return;
+	}
+	SelectionDon = Index;
+	const int32 Rang = Memoire->Don(Index);
+	const int32 Prix = VespVeilleur::Prix(Index, Rang);
+	if (Prix <= 0 || Memoire->Souvenirs < Prix)
+	{
+		UVespSons::Jouer2D(this, EVespSon::Survol, 0.5f, 0.7f);		// pas assez (ou deja au maximum)
+		return;
+	}
+	Memoire->Souvenirs -= Prix;
+	Memoire->Dons[Index] = Rang + 1;
+	EcrireMemoire();
+	UVespSons::Jouer2D(this, EVespSon::Rune, 0.8f);
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE veilleur : %s rang %d pour %d souvenirs (reste %d)"), VespVeilleur::Don(Index).Nom, Rang + 1, Prix, Memoire->Souvenirs);
 }
 
 void AVespPlayerController::Quitter()
@@ -977,6 +1048,20 @@ void AVespPlayerController::QuandAylisTouchee(int32 Degats, bool bCritique, AVes
 	}
 	if (!Aylis->EstDebout())
 	{
+		// Le don du Veilleur : une fois par vision, AYLIS se releve
+		if (bSecondSouffle && Phase != EVespPhase::Defaite)
+		{
+			bSecondSouffle = false;
+			Aylis->Relever(Aylis->Stats.PvMax / 2);
+			Geste = EVespGesteAylis::Libre;
+			bGardeLevee = false;
+			Trembler(1.0f);
+			Ralenti(0.25f, 0.8f);
+			UVespSons::Jouer2D(this, EVespSon::Niveau, 0.9f);
+			AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Buff"), Aylis->GetActorLocation(), FRotator::ZeroRotator, 1.3f);
+			Ecrire(TEXT("Second souffle : le Veilleur retient la vision. AYLIS se relève."), 4.0f);
+			return;
+		}
 		if (Phase != EVespPhase::Defaite)
 		{
 			Phase = EVespPhase::Defaite;
@@ -1024,11 +1109,15 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 	Monde->MarquerZoneFaite(Zone);
 	if (N.Type == EVespSalle::Boss)
 	{
+		// Des Souvenirs pour le gardien (bien plus la premiere fois qu'il tombe)
+		const bool bPremiereFois = Memoire && !Memoire->GardiensVaincus[FMath::Clamp(Acte, 1, NombreDActes) - 1];
 		FinirLActe();
+		GagnerSouvenirs(15 + 5 * Acte + (bPremiereFois ? 25 : 0), bPremiereFois ? TEXT("gardien vaincu pour la premiere fois") : TEXT("gardien"));
 		if (Acte >= NombreDActes)
 		{
 			Phase = EVespPhase::Victoire;		// le dernier boss est tombe
 			TempsPhase = 0.0f;
+			GagnerSouvenirs(60, TEXT("victoire"));
 			UE_LOG(LogTemp, Display, TEXT("VESPERANCE chrono : vision %d arrivee au bout en %s"), NumeroVision, *UVespSauvegarde::Duree(ChronoPartie));
 			if (Memoire)
 			{
@@ -1057,6 +1146,7 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 	// Des eclats, AYLIS reprend son souffle, puis choisit une rune
 	const int32 Gain = N.Type == EVespSalle::Elite ? FMath::RandRange(32, 42) + Acte * 6 : FMath::RandRange(12, 18) + Acte * 3;
 	GagnerEclats(Gain, Aylis->GetActorLocation());
+	GagnerSouvenirs(N.Type == EVespSalle::Elite ? 5 : 2, TEXT("clairiere"));
 	const int32 Soin = Aylis->Stats.PvMax / 6;
 	Aylis->Soigner(Soin);
 	Aylis->Jouer(EVespGeste::Victoire, 1.0f, true);
@@ -2304,6 +2394,13 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	}
 	TempsMessage = FMath::Max(0.0f, TempsMessage - Secondes);
 	TempsNiveau = FMath::Max(0.0f, TempsNiveau - Secondes);
+	if (bTestVeilleur && Phase == EVespPhase::Titre && TempsPhase > 30.0f)
+	{
+		bTestVeilleur = false;
+		Photographier(TEXT("Veilleur"), true);
+		Quitter();
+		return;
+	}
 	if (bModePhoto)
 	{
 		ModePhoto(Secondes);
@@ -2347,6 +2444,37 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	switch (Phase)
 	{
 		case EVespPhase::Titre:
+			// Le Veilleur : Y ouvre et ferme ; 1 a 7, ou la croix et X, achetent un don
+			if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
+			{
+				bVeilleurOuvert = !bVeilleurOuvert;
+				UVespSons::Jouer2D(this, EVespSon::Clic);
+			}
+			if (bVeilleurOuvert)
+			{
+				const FKey Chiffres[VespVeilleur::Nombre] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven};
+				for (int32 i = 0; i < VespVeilleur::Nombre; i++)
+				{
+					if (WasInputKeyJustPressed(Chiffres[i]))
+					{
+						AcheterDon(i);
+					}
+				}
+				FIntPoint Direction;
+				if (DirectionPressee(Direction, Secondes) && Direction.Y != 0)
+				{
+					SelectionDon = (SelectionDon + Direction.Y + VespVeilleur::Nombre) % VespVeilleur::Nombre;
+					UVespSons::Jouer2D(this, EVespSon::Survol);
+				}
+				if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Left))
+				{
+					AcheterDon(SelectionDon);
+				}
+				if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right))
+				{
+					bVeilleurOuvert = false;
+				}
+			}
 			if (bValider || WasInputKeyJustPressed(EKeys::SpaceBar))
 			{
 				NouvellePartie(1);

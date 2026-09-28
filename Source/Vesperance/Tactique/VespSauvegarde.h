@@ -2,7 +2,8 @@
 //
 // Chaque partie est une nouvelle "vision" envoyee par la prophetie. Le monde s'en souvient : le numero de la vision,
 // ce que chaque gardien a fait a AYLIS (et subi), et les temps (par acte, par partie). Rien de ce qu'AYLIS porte
-// (niveau, objets, etoiles du Seuil) ne passe d'une vision a l'autre : seulement la memoire.
+// (niveau, objets, etoiles du Seuil) ne passe d'une vision a l'autre : seulement la memoire, et les Souvenirs
+// gagnes en route, que le Veilleur echange entre deux visions contre des dons qui durent (VespVeilleur).
 #pragma once
 
 #include "CoreMinimal.h"
@@ -16,6 +17,7 @@ class VESPERANCE_API UVespSauvegarde : public USaveGame
 
 public:
 	static constexpr int32 NombreDActes = 7;
+	static constexpr int32 NombreDeDons = 7;
 
 	// Le numero de la derniere vision lancee (0 : jamais joue)
 	UPROPERTY() int32 Visions = 0;
@@ -32,6 +34,10 @@ public:
 	UPROPERTY() TArray<float> DerniersActes;
 	UPROPERTY() float MeilleurePartie = 0.0f;
 	UPROPERTY() float TempsDeJeu = 0.0f;		// tout confondu, depuis la premiere vision
+	// Ce qui survit vraiment a la mort : les Souvenirs (gagnes en route, jamais perdus) et le rang de chaque don du Veilleur
+	UPROPERTY() int32 Souvenirs = 0;
+	UPROPERTY() int32 SouvenirsGagnes = 0;		// depuis la premiere vision
+	UPROPERTY() TArray<int32> Dons;
 
 	// Les tableaux ont toujours une case par acte (une vieille sauvegarde peut en avoir moins)
 	void Completer()
@@ -40,7 +46,10 @@ public:
 		GardiensVaincus.SetNum(NombreDActes);
 		MeilleursActes.SetNum(NombreDActes);
 		DerniersActes.SetNum(NombreDActes);
+		Dons.SetNum(NombreDeDons);
 	}
+
+	int32 Don(int32 Index) const { return Dons.IsValidIndex(Index) ? Dons[Index] : 0; }
 
 	int32 GardiensDejaVaincus() const
 	{

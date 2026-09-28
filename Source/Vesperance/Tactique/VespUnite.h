@@ -163,6 +163,7 @@ public:
 	// Il encaisse : le recul (Direction x Poussee), l'eclat, le chiffre. bSansFlechir : il ne bronche pas (boss, armure).
 	void Encaisser(int32 Degats, bool bCritique, const FVector& Direction, float Poussee, bool bSansFlechir = false);
 	void Soigner(int32 Quantite);
+	void Relever(int32 Pv);				// il etait tombe : il se releve (le second souffle d'AYLIS)
 	void AfficherMessage(const FString& Message, FColor Couleur, float Taille = 38.0f);
 	// Il se prepare a frapper : ses yeux rougeoient (une attaque annoncee), pendant Duree secondes
 	void Annoncer(float Duree, const FLinearColor& Couleur = FLinearColor(1.0f, 0.15f, 0.05f));

@@ -121,6 +121,7 @@ public:
 	void AvancerDialogue();
 	void ContinuerApresLActe();
 	void Recommencer();
+	void AcheterDon(int32 Index);			// le Veilleur (ecran titre) : un rang de plus, contre des Souvenirs
 
 	static FString NomSalle(EVespSalle Salle, int32 Acte);
 	static FString AideSalle(EVespSalle Salle);
@@ -323,6 +324,18 @@ private:
 	void FinirLActe();				// note le temps de l'acte (boss vaincu)
 	void MemoriserLaChute();		// AYLIS vient de tomber
 	bool ChronoEnMarche() const;
+
+	// Le Veilleur : les Souvenirs gagnes en route (ils survivent a la mort) et les dons achetes entre deux visions
+	int32 SouvenirsDeLaVision = 0;		// gagnes pendant cette vision (deja ranges dans la memoire)
+	double MomentSouvenirs = 0.0;		// le dernier gain (la pastille brille un instant)
+	bool bSouvenirsPossibles = true;	// une vision commencee plus loin (pour tester) n'en rapporte pas
+	bool bSecondSouffle = false;		// le don "Second souffle", pas encore utilise dans cette vision
+	bool bVeilleurOuvert = false;		// l'ecran titre montre le Veilleur
+	bool bTestVeilleur = false;			// -VespVeilleur : une photo du Veilleur, puis on quitte
+	int32 SelectionDon = 0;				// le don choisi a la manette
+	void GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquoi);
+	void AppliquerDons();				// au depart d'une vision
+	int32 RangDon(int32 Index) const;
 
 	// Le dialogue
 	TArray<FString> Orateurs;

@@ -898,6 +898,26 @@ void AVespUnite::Mourir()
 	TempsMort = 0.0f;
 }
 
+void AVespUnite::Relever(int32 Pv)
+{
+	Stats.Pv = FMath::Clamp(Pv, 1, Stats.PvMax);
+	DegatsRecus = 0.0f;
+	Equilibre = 0.0f;
+	Invulnerable = 2.0f;			// le temps de se remettre en garde
+	Lueur->SetVisibility(true);
+	if (bAnime)
+	{
+		ArreterGeste();
+		Jouer(EVespGeste::Victoire, 1.2f);
+	}
+	else
+	{
+		SetActorRotation(FRotator(0, GetActorRotation().Yaw, 0));
+	}
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Soin, GetActorLocation(), FVector::UpVector, FLinearColor(0.85f, 0.75f, 1.0f));
+	AfficherMessage(FString::Printf(TEXT("+%d"), Stats.Pv), FColor(200, 180, 255), 48.0f);
+}
+
 void AVespUnite::Soigner(int32 Quantite)
 {
 	const int32 Avant = Stats.Pv;

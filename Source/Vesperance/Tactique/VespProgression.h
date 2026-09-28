@@ -37,6 +37,27 @@ namespace VespSeuil
 	const TCHAR* NomVoie(EVespVoie Voie);
 }
 
+// ===================== Le Veilleur =====================
+// Entre deux visions, le Veilleur Oswin echange les Souvenirs (gagnes en route, gardes a la mort) contre des dons.
+// Un don dure pour toutes les visions suivantes : c'est ce qui rend la suivante un peu plus forte.
+
+struct FVespDon
+{
+	const TCHAR* Id;
+	const TCHAR* Nom;
+	const TCHAR* Aide;		// ce que donne chaque rang
+	int32 RangMax;
+	int32 Prix[5];			// le prix de chaque rang
+};
+
+namespace VespVeilleur
+{
+	constexpr int32 Nombre = 7;
+	const FVespDon& Don(int32 Index);
+	int32 Index(const TCHAR* Id);
+	int32 Prix(int32 Index, int32 RangActuel);		// le prix du rang suivant (0 : deja au maximum)
+}
+
 // ===================== Le butin =====================
 
 enum class EVespRarete : uint8 { Commun, Rare, Epique, Legendaire };

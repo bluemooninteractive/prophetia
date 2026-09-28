@@ -57,6 +57,44 @@ const TCHAR* VespSeuil::NomVoie(EVespVoie Voie)
 	}
 }
 
+// ===================== Le Veilleur : les 7 dons =====================
+
+static const FVespDon DONS[VespVeilleur::Nombre] = {
+	{TEXT("vigueur"), TEXT("Vigueur"), TEXT("+10 pv max au départ de chaque vision."), 5, {30, 60, 100, 150, 220}},
+	{TEXT("tranchant"), TEXT("Tranchant"), TEXT("+2 attaque au départ de chaque vision."), 3, {60, 140, 260, 0, 0}},
+	{TEXT("pierre"), TEXT("Peau de pierre"), TEXT("+1 défense au départ de chaque vision."), 3, {50, 120, 220, 0, 0}},
+	{TEXT("fiole"), TEXT("Fiole du Veilleur"), TEXT("+1 potion au départ de chaque vision."), 2, {80, 200, 0, 0, 0}},
+	{TEXT("bourse"), TEXT("Bourse d'éclats"), TEXT("+40 éclats au départ de chaque vision."), 3, {40, 90, 160, 0, 0}},
+	{TEXT("etoile"), TEXT("Étoile ancienne"), TEXT("+1 point du Seuil au départ de chaque vision."), 2, {120, 300, 0, 0, 0}},
+	{TEXT("souffle"), TEXT("Second souffle"), TEXT("Une fois par vision, le Veilleur retient la chute : AYLIS se relève avec la moitié de ses pv."), 1, {300, 0, 0, 0, 0}},
+};
+
+const FVespDon& VespVeilleur::Don(int32 Index)
+{
+	return DONS[FMath::Clamp(Index, 0, Nombre - 1)];
+}
+
+int32 VespVeilleur::Index(const TCHAR* Id)
+{
+	for (int32 i = 0; i < Nombre; i++)
+	{
+		if (FCString::Strcmp(DONS[i].Id, Id) == 0)
+		{
+			return i;
+		}
+	}
+	return -1;
+}
+
+int32 VespVeilleur::Prix(int32 Index, int32 RangActuel)
+{
+	if (Index < 0 || Index >= Nombre || RangActuel >= DONS[Index].RangMax)
+	{
+		return 0;
+	}
+	return DONS[Index].Prix[FMath::Clamp(RangActuel, 0, 4)];
+}
+
 // ===================== Le butin =====================
 
 FLinearColor VespButin::CouleurRarete(EVespRarete R)
