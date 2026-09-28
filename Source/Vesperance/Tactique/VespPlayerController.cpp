@@ -161,7 +161,10 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 			UVespSons::Jouer2D(this, EVespSon::Rune, 0.6f, 1.3f);
 		}
 	};
-	// Le monde du premier acte ; l'ecran titre le montre, la camera tourne lentement autour d'AYLIS
+	// Le monde du premier acte ; l'ecran titre le montre, la camera tourne lentement autour d'AYLIS.
+	// Chaque vision tire son decor (les photos gardent toujours le meme, pour pouvoir les comparer)
+	Monde->GraineVision = FParse::Param(FCommandLine::Get(), TEXT("VespPhotos")) ? 0 : 1 + (int32)(FPlatformTime::Cycles() % 100000);
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE decor : graine %d"), Monde->GraineVision);
 	GenererMonde();
 	if (UVespSons* Sons = GetWorld()->GetSubsystem<UVespSons>())
 	{

@@ -51,6 +51,8 @@ public:
 
 	// Construit tout le monde de l'acte (c'est le "chargement")
 	void Construire(int32 Acte, const TArray<FVespZone>& LesZones, const TArray<FVespCouloir>& LesCouloirs);
+	// Tiree a chaque vision : le decor (arbres, rochers, maisons...) change d'une vision a l'autre. 0 : toujours le meme (les photos)
+	int32 GraineVision = 0;
 
 	// Peut-on marcher ici ? (dans une clairiere, ou sur un sentier)
 	bool EstPraticable(const FVector& P) const;

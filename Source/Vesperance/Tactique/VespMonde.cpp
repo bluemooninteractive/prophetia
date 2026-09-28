@@ -783,7 +783,7 @@ void AVespMonde::Construire(int32 LActe, const TArray<FVespZone>& LesZones, cons
 	Acte = FMath::Clamp(LActe, 1, 7);
 	Zones = LesZones;
 	Couloirs = LesCouloirs;
-	Hasard.Initialize(900 + Acte * 77);
+	Hasard.Initialize(900 + Acte * 77 + GraineVision * 7919);
 	const FVespStyleActe& S = StyleDeLActe(Acte);
 	const FVespPalette Pal = PaletteDeLActe(Acte);
 	UE_LOG(LogTemp, Display, TEXT("VESPERANCE arbres (acte %d) : %d modeles, le premier : %s"), Acte, Pal.Arbres.Num(), Pal.Arbres.Num() ? *GetNameSafe(Pal.Arbres[0]) : TEXT("aucun"));
