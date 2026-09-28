@@ -518,7 +518,7 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)[SNew(SVespSceau)]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, -10, 0, 0)
 		[
-			SNew(STextBlock).Text(LOCTEXT("Studio", "BLUEMOON INTERACTIVE PRÉSENTE")).Font(Police("Regular", 11, 700)).ColorAndOpacity(DOUX)
+			SNew(STextBlock).Text(LOCTEXT("Studio", "HEARTHWISE GAMES PRÉSENTE")).Font(Police("Regular", 11, 700)).ColorAndOpacity(DOUX)
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 8, 0, 0)
 		[
@@ -585,7 +585,7 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 	]
 	+ SOverlay::Slot().HAlign(HAlign_Right).VAlign(VAlign_Bottom).Padding(FMargin(0, 0, 40, 30))
 	[
-		SNew(STextBlock).Text(LOCTEXT("Mention", "BlueMoon Interactive  -  2027  -  en développement, susceptible de changer"))
+		SNew(STextBlock).Text(LOCTEXT("Mention", "Hearthwise Games  -  2027  -  en développement, susceptible de changer"))
 		.Font(Police("Regular", 10)).ColorAndOpacity(FLinearColor(0.66f, 0.63f, 0.75f, 0.6f))
 	];
 }
