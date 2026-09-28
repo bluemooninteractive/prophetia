@@ -438,6 +438,28 @@ void AVespCombat::Embuscade(const FVector& Centre, bool bElite)
 	UVespSons::Jouer(this, EVespSon::Os, Centre, 1.0f, 0.7f);
 }
 
+void AVespCombat::LibererSansCombat(int32 Zone)
+{
+	for (int32 g = 0; g < Groupes.Num(); g++)
+	{
+		if (Groupes[g].Zone != Zone)
+		{
+			continue;
+		}
+		Groupes[g].bLibere = true;
+		Groupes[g].bEngage = false;
+		Groupes[g].bFerme = false;
+		Groupes[g].VaguesRestantes = 0;
+		for (FVespHaschen& H : Haschen)
+		{
+			if (H.Groupe == g && H.U.IsValid())
+			{
+				H.U->Destroy();
+			}
+		}
+	}
+}
+
 void AVespCombat::LeverLaBarriere()
 {
 	for (int32 g = 0; g < Groupes.Num(); g++)

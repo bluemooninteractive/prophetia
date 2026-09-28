@@ -7,6 +7,7 @@
 #include "VespSons.h"
 #include "VespMenu.h"
 #include "VespOptions.h"
+#include "VespPartie.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/SOverlay.h"
@@ -655,6 +656,26 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 				}
 				return Texte(Ligne);
 			})
+		]
+		// Une vision mise de cote : on la reprend (ENTREE), ou on en commence une autre (elle est alors abandonnee)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+		[
+			SNew(SVerticalBox).Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->PartieSuspendue != nullptr); })
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
+			[
+				BoutonMenu(LOCTEXT("Reprendre", "REPRENDRE LA VISION"), [this]() { if (Joueur.IsValid()) Joueur->ReprendreLaVision(); })
+			]
+			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 0, 0, 8)
+			[
+				SNew(STextBlock).Font(Police("Italic", 12)).ColorAndOpacity(DOUX)
+				.Text_Lambda([this]() {
+					const AVespPlayerController* J = Joueur.Get();
+					const UVespPartie* P = J ? J->PartieSuspendue.Get() : nullptr;
+					return P ? Texte(FString::Printf(TEXT("Vision %d  ·  acte %s  ·  niveau %d  ·  %s de route  —  « nouvelle vision » l'abandonne"),
+					                                 P->NumeroVision, *AVespPlayerController::Romain(P->Acte), P->Niveau, *UVespSauvegarde::Duree(P->ChronoPartie)))
+					         : FText::GetEmpty();
+				})
+			]
 		]
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
@@ -1471,7 +1492,7 @@ TSharedRef<SWidget> SVespInterface::CoucheNouvelActe()
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 22, 0, 0)
 			[
 				SNew(STextBlock).Font(Police("Italic", 14)).ColorAndOpacity(FLinearColor(0.55f, 0.9f, 0.62f))
-				.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->Acte > 1 && Joueur->Runes.Num() + Joueur->HaschenVaincus > 0); })
+				.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->Acte > 1 && !Joueur->bReprise && Joueur->Runes.Num() + Joueur->HaschenVaincus > 0); })
 				.Text(LOCTEXT("Forces", "AYLIS reprend des forces : tous les pv, +6 pv max, +1 attaque, et une potion."))
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 34, 0, 0)

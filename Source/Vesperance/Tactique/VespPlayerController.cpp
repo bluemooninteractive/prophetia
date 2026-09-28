@@ -30,6 +30,7 @@
 #include "Engine/PostProcessVolume.h"
 #include "GameFramework/GameUserSettings.h"
 #include "VespReglages.h"
+#include "VespPartie.h"
 #include "UnrealClient.h"
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
@@ -268,6 +269,15 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	bTestOuverture = FParse::Param(FCommandLine::Get(), TEXT("VespOuverture"));
 	bTestOptions = bOptionsOuvertes = FParse::Param(FCommandLine::Get(), TEXT("VespOptions"));
 	FParse::Value(FCommandLine::Get(), TEXT("VespFin="), TestFin);
+	FParse::Value(FCommandLine::Get(), TEXT("VespReprise="), TestReprise);
+	if (!bModePhoto && !bTestOuverture && TestFin == 0 && !bTestOptions)
+	{
+		PartieSuspendue = Cast<UVespPartie>(UGameplayStatics::LoadGameFromSlot(EmplacementPartie(), 0));
+		if (PartieSuspendue && TestReprise == 1)
+		{
+			PartieSuspendue = nullptr;		// (le test repart d'une vision neuve)
+		}
+	}
 	if (Memoire && !bModePhoto)
 	{
 		Combat->bOracleAylis = Memoire->Victoires > 0;
@@ -280,6 +290,7 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 
 void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
 {
+	SauverPartie();
 	EcrireMemoire();
 	UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
 	if (Interface.IsValid() && GEngine && GEngine->GameViewport)
@@ -297,6 +308,8 @@ void AVespPlayerController::NouvellePartie(int32 ActeDeDepart)
 		return;
 	}
 	UVespSons::Jouer2D(this, EVespSon::Clic);
+	EffacerPartie();
+	bVisionEnCours = true;
 	Acte = FMath::Clamp(ActeDeDepart, 1, NombreDActes);
 	if (Acte > 1)
 	{
@@ -350,7 +363,7 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions)
+	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0)
 	{
 		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
@@ -383,6 +396,7 @@ void AVespPlayerController::FinirLActe()
 
 void AVespPlayerController::MemoriserLaChute()
 {
+	EffacerPartie();
 	const bool bFaceAuBoss = Noeuds.IsValidIndex(ZoneActuelle) && Noeuds[ZoneActuelle].Type == EVespSalle::Boss && Combat && Combat->BossActif();
 	UE_LOG(LogTemp, Display, TEXT("VESPERANCE chrono : vision %d tombee a l'acte %s%s, apres %s (acte en cours depuis %s)"), NumeroVision, *Romain(Acte),
 	       bFaceAuBoss ? TEXT(" face au gardien") : TEXT(""), *UVespSauvegarde::Duree(ChronoPartie), *UVespSauvegarde::Duree(ChronoActe));
@@ -568,6 +582,7 @@ void AVespPlayerController::ChangerReglage(int32 Ligne, int32 Sens)
 			}
 			UE_LOG(LogTemp, Display, TEXT("VESPERANCE vision %d abandonnee a l'acte %s apres %s"), NumeroVision, *Romain(Acte), *UVespSauvegarde::Duree(ChronoPartie));
 			bMenuOuvert = false;
+			EffacerPartie();
 			Recommencer();
 			return;
 		default:
@@ -784,9 +799,9 @@ FString AVespPlayerController::AideEvenement(int32 Choix) const { return Eveneme
 // Un sentier principal d'ouest en est : 9 clairieres, du depart jusqu'au boss. Et des embranchements de 1 a 3
 // clairieres vers le nord ou le sud, qui finissent sur un tresor ou une elite.
 
-static EVespSalle SalleDEmbranchement(bool bDerniere)
+static EVespSalle SalleDEmbranchement(bool bDerniere, FRandomStream& Hasard)
 {
-	const int32 D = FMath::RandRange(0, 99);
+	const int32 D = Hasard.RandRange(0, 99);
 	if (bDerniere)
 	{
 		return D < 55 ? EVespSalle::Tresor : EVespSalle::Elite;
@@ -800,6 +815,10 @@ static EVespSalle SalleDEmbranchement(bool bDerniere)
 
 void AVespPlayerController::GenererMonde()
 {
+	// La carte est tiree avec une graine : une vision reprise retrouve la meme
+	GraineCarte = GraineCarteImposee != 0 ? GraineCarteImposee : 1 + (int32)(FPlatformTime::Cycles() % 1000000);
+	GraineCarteImposee = 0;
+	HasardCarte.Initialize(GraineCarte);
 	Noeuds.Reset();
 	ZoneActuelle = -1;
 	MarchandZone = -1;
@@ -808,14 +827,14 @@ void AVespPlayerController::GenererMonde()
 	const float Pas = 2900.0f;
 	// Le sentier principal
 	const EVespSalle Principal[9] = {
-		EVespSalle::Depart, EVespSalle::Combat, FMath::RandBool() ? EVespSalle::Combat : EVespSalle::Evenement, EVespSalle::Elite,
-		FMath::RandBool() ? EVespSalle::Marchand : EVespSalle::Evenement, EVespSalle::Combat, EVespSalle::Combat, EVespSalle::Repos, EVespSalle::Boss};
+		EVespSalle::Depart, EVespSalle::Combat, (HasardCarte.FRand() < 0.5f) ? EVespSalle::Combat : EVespSalle::Evenement, EVespSalle::Elite,
+		(HasardCarte.FRand() < 0.5f) ? EVespSalle::Marchand : EVespSalle::Evenement, EVespSalle::Combat, EVespSalle::Combat, EVespSalle::Repos, EVespSalle::Boss};
 	for (int32 i = 0; i < 9; i++)
 	{
 		FVespNoeud N;
 		N.Type = Principal[i];
 		N.Etage = i;
-		N.Centre = Base + FVector(i > 0 && i < 8 ? FMath::FRandRange(-450.0f, 450.0f) : 0.0f, i * Pas, 0);
+		N.Centre = Base + FVector(i > 0 && i < 8 ? HasardCarte.FRandRange(-450.0f, 450.0f) : 0.0f, i * Pas, 0);
 		if (i > 0)
 		{
 			Noeuds[i - 1].Suivants.Add(i);
@@ -826,15 +845,15 @@ void AVespPlayerController::GenererMonde()
 	int32 Branches = 0;
 	for (int32 i = 1; i <= 6; i++)
 	{
-		if (FMath::RandRange(0, 99) >= 70 && !(i >= 5 && Branches < 3))
+		if (HasardCarte.RandRange(0, 99) >= 70 && !(i >= 5 && Branches < 3))
 		{
 			continue;
 		}
-		const float Cote = FMath::RandBool() ? 1.0f : -1.0f;
-		const int32 Longueur = FMath::RandRange(1, 3);
+		const float Cote = (HasardCarte.FRand() < 0.5f) ? 1.0f : -1.0f;
+		const int32 Longueur = HasardCarte.RandRange(1, 3);
 		const FVector Depuis = Noeuds[i].Centre;
 		const FVector Positions[3] = {
-			FVector(Base.X + Cote * (2700.0f + FMath::FRandRange(-250.0f, 250.0f)), Depuis.Y + 1000.0f, Base.Z),
+			FVector(Base.X + Cote * (2700.0f + HasardCarte.FRandRange(-250.0f, 250.0f)), Depuis.Y + 1000.0f, Base.Z),
 			FVector(Base.X + Cote * 5200.0f, Depuis.Y + 1800.0f, Base.Z),
 			FVector(Base.X + Cote * 7700.0f, Depuis.Y + 1000.0f, Base.Z),
 		};
@@ -842,7 +861,7 @@ void AVespPlayerController::GenererMonde()
 		for (int32 k = 0; k < Longueur; k++)
 		{
 			FVespNoeud N;
-			N.Type = SalleDEmbranchement(k == Longueur - 1);
+			N.Type = SalleDEmbranchement(k == Longueur - 1, HasardCarte);
 			N.Etage = i + k + 1;
 			N.Centre = Positions[k];
 			const int32 Nouveau = Noeuds.Add(N);
@@ -940,6 +959,7 @@ void AVespPlayerController::RetourExploration()
 	Phase = EVespPhase::Exploration;
 	TempsPhase = 0.0f;
 	TempsMessage = MessageRoute.IsEmpty() ? 0.0f : 5.0f;
+	SauverPartie();
 }
 
 FString AVespPlayerController::Invite() const
@@ -1448,6 +1468,7 @@ void AVespPlayerController::ContinuerApresLActe()
 	if (Phase == EVespPhase::NouvelActe && TempsPhase > 1.0f)
 	{
 		UVespSons::Jouer2D(this, EVespSon::Clic);
+		bReprise = false;
 		MessageRoute = FString::Printf(TEXT("%s. Suis le sentier vers l'est : %s attend au bout."), InfoActe(Acte).Lieu, *NomDuBoss());
 		RetourExploration();
 		if (bOuvertureAFaire)
@@ -1841,6 +1862,7 @@ void AVespPlayerController::FinDeLaRoute()
 
 void AVespPlayerController::TerminerLaVision(int32 Fin)
 {
+	EffacerPartie();
 	FinObtenue = Fin;
 	Phase = EVespPhase::Victoire;
 	TempsPhase = 0.0f;
@@ -1869,6 +1891,159 @@ FString AVespPlayerController::TexteDeLaFin() const
 	}
 	return FString::Printf(TEXT("Vision %d, arrivée au bout en %s. AYLIS garde désormais la porte de Karn, comme l'Oracle avant. La prochaine vision trouvera un Oracle au visage familier."),
 	                       NumeroVision, *UVespSauvegarde::Duree(ChronoPartie));
+}
+
+// ===================== Mettre la vision de cote, et la reprendre =====================
+
+void AVespPlayerController::SauverPartie()
+{
+	if (!bVisionEnCours || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || !IsValid(Aylis) || !Monde || !Combat)
+	{
+		return;
+	}
+	if (Phase != EVespPhase::Exploration || Combat->EnCombat())
+	{
+		return;		// (en plein combat, on garde la derniere : celle d'avant le combat)
+	}
+	UVespPartie* P = Cast<UVespPartie>(UGameplayStatics::CreateSaveGameObject(UVespPartie::StaticClass()));
+	P->NumeroVision = NumeroVision;
+	P->Acte = Acte;
+	P->GraineVision = Monde->GraineVision;
+	P->GraineCarte = GraineCarte;
+	for (const FVespNoeud& N : Noeuds)
+	{
+		P->Visites.Add(N.bVisite);
+	}
+	P->Position = Aylis->GetActorLocation();
+	P->Stats = Aylis->Stats;
+	P->Potions = Potions;
+	P->Rage = Rage;
+	P->Eclats = Eclats;
+	P->Niveau = Niveau;
+	P->Xp = Xp;
+	P->PointsDeCompetence = PointsDeCompetence;
+	P->HaschenVaincus = HaschenVaincus;
+	P->BonusVitesse = BonusVitesse;
+	P->Runes = Runes;
+	const bool Effets[8] = {bFlamme, bSeve, bFureur, bSangsue, bFortune, bGivre, bPiedSur, Combat->bEpines};
+	for (int32 b = 0; b < 8; b++)
+	{
+		P->EffetsDesRunes |= Effets[b] ? (1 << b) : 0;
+	}
+	P->BonusParade = Combat->BonusParade;
+	P->Seuil = Seuil;
+	for (const FVespObjet& O : Sac)
+	{
+		P->Sac.Add(FVespObjetSauve::De(O));
+	}
+	for (int32 e = 0; e < (int32)EVespEmplacement::Nombre; e++)
+	{
+		P->Equipement.Add(FVespObjetSauve::De(Equipement[e]));
+		P->Equipe.Add(bEquipe[e]);
+	}
+	P->ChronoPartie = ChronoPartie;
+	P->ChronoActe = ChronoActe;
+	P->TempsDesActes = TempsDesActes;
+	P->SouvenirsDeLaVision = SouvenirsDeLaVision;
+	P->bSouvenirsPossibles = bSouvenirsPossibles;
+	P->bSecondSouffle = bSecondSouffle;
+	P->DejaDit = DejaDitDansLaVision.Array();
+	UGameplayStatics::SaveGameToSlot(P, EmplacementPartie(), 0);
+}
+
+void AVespPlayerController::EffacerPartie()
+{
+	bVisionEnCours = false;
+	PartieSuspendue = nullptr;
+	if (!bModePhoto && UGameplayStatics::DoesSaveGameExist(EmplacementPartie(), 0))
+	{
+		UGameplayStatics::DeleteGameInSlot(EmplacementPartie(), 0);
+	}
+}
+
+void AVespPlayerController::ReprendreLaVision()
+{
+	if (Phase != EVespPhase::Titre || !PartieSuspendue)
+	{
+		return;
+	}
+	const UVespPartie* P = PartieSuspendue;
+	UVespSons::Jouer2D(this, EVespSon::Clic);
+	bVeilleurOuvert = bOptionsOuvertes = false;
+	NumeroVision = P->NumeroVision;
+	Acte = FMath::Clamp(P->Acte, 1, NombreDActes);
+	// L'acte, refait a l'identique : le meme decor, la meme carte
+	Monde->GraineVision = P->GraineVision;
+	GraineCarteImposee = P->GraineCarte;
+	AmbianceDeLActe();
+	// AYLIS, telle qu'elle etait (les stats comprennent deja les objets, les runes et les etoiles)
+	Aylis->Stats = P->Stats;
+	Potions = P->Potions;
+	Rage = P->Rage;
+	Eclats = P->Eclats;
+	Niveau = P->Niveau;
+	Xp = P->Xp;
+	PointsDeCompetence = P->PointsDeCompetence;
+	HaschenVaincus = P->HaschenVaincus;
+	BonusVitesse = P->BonusVitesse;
+	Runes = P->Runes;
+	bool* Effets[7] = {&bFlamme, &bSeve, &bFureur, &bSangsue, &bFortune, &bGivre, &bPiedSur};
+	for (int32 b = 0; b < 7; b++)
+	{
+		*Effets[b] = (P->EffetsDesRunes & (1 << b)) != 0;
+	}
+	Combat->bPiedSur = bPiedSur;
+	Combat->bEpines = (P->EffetsDesRunes & (1 << 7)) != 0;
+	Combat->BonusParade = P->BonusParade;
+	Seuil = P->Seuil;
+	Seuil.SetNum(VespSeuil::Nombre);
+	Sac.Reset();
+	for (const FVespObjetSauve& O : P->Sac)
+	{
+		Sac.Add(O.Objet());
+	}
+	for (int32 e = 0; e < (int32)EVespEmplacement::Nombre; e++)
+	{
+		bEquipe[e] = P->Equipe.IsValidIndex(e) && P->Equipe[e] && P->Equipement.IsValidIndex(e);
+		if (bEquipe[e])
+		{
+			Equipement[e] = P->Equipement[e].Objet();
+		}
+	}
+	HabillerAylis();
+	ChronoPartie = P->ChronoPartie;
+	ChronoActe = P->ChronoActe;
+	TempsDesActes = P->TempsDesActes;
+	SouvenirsDeLaVision = P->SouvenirsDeLaVision;
+	bSouvenirsPossibles = P->bSouvenirsPossibles;
+	bSecondSouffle = P->bSecondSouffle;
+	DejaDitDansLaVision.Reset();
+	DejaDitDansLaVision.Append(P->DejaDit);
+	// Les clairieres deja faites le restent ; AYLIS reprend ou elle s'etait arretee
+	int32 Faites = 0;
+	for (int32 i = 0; i < Noeuds.Num() && i < P->Visites.Num(); i++)
+	{
+		if (P->Visites[i])
+		{
+			Noeuds[i].bVisite = true;
+			if (Noeuds[i].Type != EVespSalle::Marchand)
+			{
+				Monde->MarquerZoneFaite(i);
+			}
+			Combat->LibererSansCombat(i);
+			Faites++;
+		}
+	}
+	Aylis->Teleporter(P->Position);
+	bCaleCamera = true;
+	bVisionEnCours = true;
+	bOuvertureAFaire = false;
+	bReprise = true;
+	PartieSuspendue = nullptr;
+	Phase = EVespPhase::NouvelActe;			// le titre de l'acte, puis la route
+	TempsPhase = 0.0f;
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE reprise : vision %d, acte %s, %d clairieres deja faites, niveau %d, %d eclats, %d runes, %s de route"),
+	       NumeroVision, *Romain(Acte), Faites, Niveau, Eclats, Runes.Num(), *UVespSauvegarde::Duree(ChronoPartie));
 }
 
 void AVespPlayerController::Recommencer()
@@ -2946,6 +3121,43 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f && LigneDialogue < 2) { UE_LOG(LogTemp, Display, TEXT("VESPERANCE test : %s / %s"), *Orateurs[LigneDialogue], *Repliques[LigneDialogue]); Photographier(FString::Printf(TEXT("Ouverture%d"), LigneDialogue), true); Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
 		else if (Phase == EVespPhase::Dialogue && LigneDialogue >= 2) { Quitter(); return; }
 	}
+	if (TestReprise == 1)
+	{
+		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(2);
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
+		else if (Phase == EVespPhase::Dialogue && TempsPhase > 0.5f) { Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Exploration && TempsPhase > 3.0f)
+		{
+			// des progres : une clairiere faite, des eclats, une rune, AYLIS un peu plus loin
+			Noeuds[1].bVisite = true;
+			Monde->MarquerZoneFaite(1);
+			Combat->LibererSansCombat(1);
+			Eclats = 123;
+			AppliquerRune(1);
+			Aylis->Teleporter(Noeuds[1].Centre);
+			bCaleCamera = true;
+			SauverPartie();
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE test reprise : vision de cote (graine %d, %d clairieres)"), GraineCarte, Noeuds.Num());
+			PlacerCamera(0.0f);
+			Photographier(TEXT("Reprise_Avant"), true);
+			bVisionEnCours = false;		// (quitter ne la reecrit pas)
+			Quitter();
+			return;
+		}
+	}
+	if (TestReprise == 2)
+	{
+		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f && !bFinLancee) { Photographier(TEXT("Reprise_Titre"), true); bFinLancee = true; ReprendreLaVision(); }
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) { Photographier(TEXT("Reprise_Acte"), true); ContinuerApresLActe(); }
+		else if (Phase == EVespPhase::Exploration && TempsPhase > 3.0f)
+		{
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE test reprise : graine %d, clairiere 1 faite %d, %d clairieres"), GraineCarte, Noeuds.IsValidIndex(1) && Noeuds[1].bVisite ? 1 : 0, Noeuds.Num());
+			Photographier(TEXT("Reprise_Apres"), true);
+			EffacerPartie();
+			Quitter();
+			return;
+		}
+	}
 	if (bTestOptions)
 	{
 		if (Phase == EVespPhase::Titre && bOptionsOuvertes && TempsPhase > 28.0f)
@@ -3077,7 +3289,14 @@ void AVespPlayerController::PlayerTick(float Secondes)
 			}
 			if (bValider || WasInputKeyJustPressed(EKeys::SpaceBar))
 			{
-				NouvellePartie(1);
+				if (PartieSuspendue)
+				{
+					ReprendreLaVision();
+				}
+				else
+				{
+					NouvellePartie(1);
+				}
 			}
 			return;
 		case EVespPhase::Victoire:

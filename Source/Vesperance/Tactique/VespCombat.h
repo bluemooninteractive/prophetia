@@ -183,6 +183,7 @@ public:
 	void Preparer(AVespMonde* LeMonde, AVespUnite* LAylis);
 	// Les Haschen de l'acte : un groupe par clairiere gardee, et des patrouilles sur les sentiers
 	void Peupler(int32 Acte, const TArray<FVespLieu>& Lieux);
+	void LibererSansCombat(int32 Zone);		// une clairiere deja faite (une vision reprise) : ses Haschen n'apparaissent pas
 	void Vider();
 	// A chaque image de jeu (le PlayerController l'appelle ; rien ne bouge pendant les menus)
 	void Avancer(float Secondes);

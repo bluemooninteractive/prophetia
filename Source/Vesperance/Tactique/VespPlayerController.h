@@ -122,6 +122,7 @@ public:
 	void AvancerDialogue();
 	void ContinuerApresLActe();
 	void Recommencer();
+	void ReprendreLaVision();				// l'ecran titre : la vision mise de cote reprend ou elle en etait
 	void AcheterDon(int32 Index);			// le Veilleur (ecran titre) : un rang de plus, contre des Souvenirs
 
 	static FString NomSalle(EVespSalle Salle, int32 Acte);
@@ -345,6 +346,18 @@ private:
 	bool bSecoussesActives = true;
 	bool bConfirmerAbandon = false;		// "abandonner la vision" : une seconde fois pour confirmer
 	bool bTestOptions = false;			// -VespOptions : photographie les options (titre puis en jeu), puis on quitte
+
+	// La vision en cours, mise de cote pour la reprendre (VespPartie)
+	UPROPERTY() TObjectPtr<class UVespPartie> PartieSuspendue;	// sur l'ecran titre : la vision a reprendre (ou rien)
+	bool bVisionEnCours = false;		// une vision est lancee (et pas encore tombee, gagnee ou abandonnee)
+	bool bReprise = false;				// l'ecran de l'acte qui s'affiche vient d'une reprise
+	int32 GraineCarte = 0;				// la carte de l'acte en cours (clairieres, sentiers)
+	int32 GraineCarteImposee = 0;		// a la reprise : la carte a refaire a l'identique
+	FRandomStream HasardCarte;
+	int32 TestReprise = 0;				// -VespReprise=1 (met une vision de cote) puis =2 (la reprend) ; un emplacement a part
+	const TCHAR* EmplacementPartie() const { return TestReprise > 0 ? TEXT("VesperancePartieTest") : TEXT("VesperancePartie"); }
+	void SauverPartie();
+	void EffacerPartie();
 	void ChargerReglages();
 	void AppliquerReglages();
 	void CommandesDesReglages(float Secondes, int32 Nombre);
