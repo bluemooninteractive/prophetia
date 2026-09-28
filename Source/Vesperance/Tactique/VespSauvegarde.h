@@ -38,6 +38,8 @@ public:
 	UPROPERTY() int32 Souvenirs = 0;
 	UPROPERTY() int32 SouvenirsGagnes = 0;		// depuis la premiere vision
 	UPROPERTY() TArray<int32> Dons;
+	// Les repliques deja entendues (le Veilleur ne repete pas ses confidences d'une vision a l'autre)
+	UPROPERTY() TArray<FString> Entendues;
 
 	// Les tableaux ont toujours une case par acte (une vieille sauvegarde peut en avoir moins)
 	void Completer()

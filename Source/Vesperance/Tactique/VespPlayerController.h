@@ -331,11 +331,22 @@ private:
 	bool bSouvenirsPossibles = true;	// une vision commencee plus loin (pour tester) n'en rapporte pas
 	bool bSecondSouffle = false;		// le don "Second souffle", pas encore utilise dans cette vision
 	bool bVeilleurOuvert = false;		// l'ecran titre montre le Veilleur
+	bool bTestOuverture = false;			// -VespOuverture : lance une vision, photographie son ouverture, puis on quitte (sans rien sauvegarder)
 	bool bTestVeilleur = false;			// -VespVeilleur : une photo du Veilleur, puis on quitte
 	int32 SelectionDon = 0;				// le don choisi a la manette
 	void GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquoi);
 	void AppliquerDons();				// au depart d'une vision
 	int32 RangDon(int32 Index) const;
+
+	// Les dialogues qui se souviennent (le document narratif) : l'ouverture d'une vision, le Veilleur au feu de camp,
+	// les gardiens qui savent s'ils ont deja tue AYLIS ou deja ete vaincus, la ligne de la chute
+	TFunction<void()> ApresDialogue;		// ce qui se passe quand le dialogue est fini (le soin du feu de camp...)
+	bool bOuvertureAFaire = false;			// la premiere ligne de la vision, en entrant dans le premier acte
+	TSet<FString> DejaDitDansLaVision;		// ce qui a deja ete dit dans cette vision (pas deux fois la meme chose)
+	void Dire(const TArray<FString>& Qui, const TArray<FString>& Quoi, TFunction<void()> Suite = nullptr);
+	void OuvertureDeLaVision();
+	void ParlerAuVeilleur();
+	FString LigneDeChute() const;			// "Vision 8 : tombee dans les Marais Noyes, sous la maree du Roi Noye."
 
 	// Le dialogue
 	TArray<FString> Orateurs;

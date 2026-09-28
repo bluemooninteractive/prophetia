@@ -1479,8 +1479,8 @@ TSharedRef<SWidget> SVespInterface::CoucheFin()
 						                             JV ? JV->NumeroVision : 1, *UVespSauvegarde::Duree(JV ? JV->ChronoPartie : 0.0f)));
 					}
 					const AVespPlayerController* J = Joueur.Get();
-					return J ? Texte(FString::Printf(TEXT("Vision %d, tombée à l'acte %s après %s de route (acte en cours depuis %s). Niveau %d, %d Haschen vaincus. Ce n'était qu'un futur possible. La prophétie en montre d'autres."),
-					                                 J->NumeroVision, *AVespPlayerController::Romain(J->Acte), *UVespSauvegarde::Duree(J->ChronoPartie),
+					return J ? Texte(FString::Printf(TEXT("%s Après %s de route (acte %s en cours depuis %s). Niveau %d, %d Haschen vaincus. La prophétie en imagine une autre."),
+					                                 *J->LigneDeChute(), *UVespSauvegarde::Duree(J->ChronoPartie), *AVespPlayerController::Romain(J->Acte),
 					                                 *UVespSauvegarde::Duree(J->ChronoActe), J->Niveau, J->HaschenVaincus))
 					         : FText::GetEmpty();
 				})

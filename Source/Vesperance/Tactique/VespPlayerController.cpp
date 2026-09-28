@@ -84,6 +84,70 @@ static const FVespInfoActe& InfoActe(int32 Acte)
 	return ACTES[FMath::Clamp(Acte, 1, 7) - 1];
 }
 
+// ===================== Ce que le monde retient (les textes du document narratif) =====================
+
+// Ou tombe une vision, et sous quels coups (la ligne de la chute)
+static const TCHAR* LIEU_DE_CHUTE[7] = {
+	TEXT("dans les Terres Brumeuses"), TEXT("dans les Terres Hantées"), TEXT("dans les Marais Noyés"), TEXT("sur la Marche d'Ashka"),
+	TEXT("sur le Col d'Ashka"), TEXT("dans les Terres de Cendre"), TEXT("à Karn"),
+};
+static const TCHAR* COUPS_DU_GARDIEN[7] = {
+	TEXT("sous la masse de Skarn"), TEXT("sous les crocs de la Matriarche"), TEXT("sous la marée du Roi Noyé"), TEXT("sous les poings du Gardien de Pierre"),
+	TEXT("sous les flèches d'Ashka"), TEXT("dans les flammes de Vorgath"), TEXT("devant l'Oracle"),
+};
+// Le gardien, au milieu d'une phrase
+static const TCHAR* GARDIEN[7] = {
+	TEXT("Skarn"), TEXT("la Matriarche"), TEXT("le Roi Noyé"), TEXT("le Gardien de Pierre"), TEXT("Ashka"), TEXT("Vorgath"), TEXT("l'Oracle"),
+};
+// Le gardien se souvient : il a deja tue AYLIS (l'une des visions), ou il a deja ete vaincu
+static const TCHAR* APRES_UNE_MORT[7] = {
+	TEXT("Encore toi ? Le sol se souvient de ta dernière chute."),
+	TEXT("Mes loups ont gardé ton odeur. Ils t'attendaient."),
+	TEXT("Tu reviens toujours par l'eau. Comme tout le monde."),
+	TEXT("INTRUS DÉJÀ VU. PORTE TOUJOURS FERMÉE."),
+	TEXT("La prophétie avait raison la dernière fois. Pourquoi pas cette fois ?"),
+	TEXT("J'ai gardé tes cendres. Elles ont la couleur de l'aube."),
+	TEXT("Et de mille un."),
+};
+static const TCHAR* DEJA_VAINCU[7] = {
+	TEXT("Tu m'as déjà brisé une fois. Je n'ai pas oublié comment."),
+	TEXT("Une autre vision m'a déjà chassée d'ici. Elle n'est jamais arrivée plus loin."),
+	TEXT("Je me suis déjà noyé deux fois. Une de plus ne me fait pas peur."),
+	TEXT("ANOMALIE. CETTE VISION EST DÉJÀ PASSÉE."),
+	TEXT("Tu m'as déjà vaincue. Et pourtant tu es encore là, au début. Qu'est-ce que ça t'a donné ?"),
+	TEXT("Ma forge s'est rallumée sans toi. Elle se rallume toujours."),
+	TEXT("Tu m'as déjà atteint. Alors tu sais ce qu'il y a derrière moi. Tu veux vraiment le revoir ?"),
+};
+// La premiere ligne d'une vision (a partir de la deuxieme)
+static const TCHAR* OUVERTURES[5] = {
+	TEXT("Vision %d. La route a la même odeur."),
+	TEXT("Vision %d. Les brumes, encore. Mais pas tout à fait les mêmes pas."),
+	TEXT("Vision %d. Je me souviens de la route. Pas de la fin."),
+	TEXT("Vision %d. Quelqu'un a marché ici avant moi. Moi, sans doute."),
+	TEXT("Vision %d. On recommence. On recommence toujours un peu mieux."),
+};
+// Le Veilleur, quand rien de particulier ne s'est passe, et ce qu'AYLIS lui repond
+static const TCHAR* VEILLEUR_AMBIANCE[10] = {
+	TEXT("Le feu ne s'éteint jamais tout à fait. Les visions non plus."),
+	TEXT("Mange quelque chose. Même une vision a besoin de forces."),
+	TEXT("Les Haschen ne s'approchent pas des flammes. Ils ont peur de ce qu'elles montrent."),
+	TEXT("J'ai entretenu ce feu pour des milliers de visions. Aucune ne s'est assise exactement comme toi."),
+	TEXT("La route est plus courte qu'elle n'en a l'air. C'est la fin qui est longue."),
+	TEXT("Écoute le bois craquer. Chaque fois, c'est une vision qui passe quelque part."),
+	TEXT("Je ne te demande pas où tu vas. Je le sais. Je te demande si c'est le moment."),
+	TEXT("Repose-toi. Les gardiens, eux, ne dorment jamais. C'est leur faiblesse."),
+	TEXT("Un jour, une vision m'a demandé mon nom. Je le lui ai donné. Je n'en ai plus eu besoin depuis."),
+	TEXT("Quand le Voile se lèvera, j'aimerais voir le soleil. Juste une fois."),
+};
+static const TCHAR* REPONSES_AU_VEILLEUR[5] = {
+	TEXT("Garde le feu allumé."),
+	TEXT("Encore un peu de route."),
+	TEXT("Merci, Oswin."),
+	TEXT("Je ne m'attarde pas."),
+	TEXT("Alors à la prochaine vision."),
+};
+static const TCHAR* VEILLEUR = TEXT("Oswin, le Veilleur");
+
 // ===================== La mise en route =====================
 
 AVespPlayerController::AVespPlayerController()
@@ -181,6 +245,7 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	PhotoAttente = 8.0f;
 	// -VespVeilleur (pour tester) : l'ecran titre s'ouvre sur le Veilleur, une photo, et on quitte
 	bTestVeilleur = bVeilleurOuvert = FParse::Param(FCommandLine::Get(), TEXT("VespVeilleur"));
+	bTestOuverture = FParse::Param(FCommandLine::Get(), TEXT("VespOuverture"));
 }
 
 void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
@@ -220,6 +285,8 @@ void AVespPlayerController::NouvellePartie(int32 ActeDeDepart)
 	bSouvenirsPossibles = Acte == 1;
 	SouvenirsDeLaVision = 0;
 	AppliquerDons();
+	bOuvertureAFaire = Acte == 1;
+	DejaDitDansLaVision.Reset();
 	AmbianceDeLActe();
 	Phase = EVespPhase::NouvelActe;
 	TempsPhase = 0.0f;
@@ -253,9 +320,9 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto)
+	if (!Memoire || bModePhoto || bTestOuverture)
 	{
-		return;		// (les photos ne comptent pas comme des visions)
+		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
 	UGameplayStatics::SaveGameToSlot(Memoire, EMPLACEMENT_MEMOIRE, 0);
 }
@@ -657,16 +724,10 @@ void AVespPlayerController::Declencher(int32 Zone)
 			OuvrirMarchand();
 			return;
 		case EVespSalle::Repos:
-		{
 			N.bVisite = true;
 			Monde->MarquerZoneFaite(Zone);
-			const int32 Soin = Aylis->Stats.PvMax * 60 / 100;
-			Aylis->Soigner(Soin);
-			Potions++;
-			UVespSons::Jouer(this, EVespSon::Soin, Aylis->GetActorLocation());
-			Ecrire(FString::Printf(TEXT("AYLIS se repose au coin du feu : +%d pv et une potion."), Soin), 5.0f);
+			ParlerAuVeilleur();		// Oswin parle, puis AYLIS se repose
 			return;
-		}
 		case EVespSalle::Tresor:
 		{
 			N.bVisite = true;
@@ -1203,6 +1264,11 @@ void AVespPlayerController::ContinuerApresLActe()
 		UVespSons::Jouer2D(this, EVespSon::Clic);
 		MessageRoute = FString::Printf(TEXT("%s. Suis le sentier vers l'est : %s attend au bout."), InfoActe(Acte).Lieu, *NomDuBoss());
 		RetourExploration();
+		if (bOuvertureAFaire)
+		{
+			bOuvertureAFaire = false;
+			OuvertureDeLaVision();
+		}
 	}
 }
 
@@ -1327,6 +1393,37 @@ void AVespPlayerController::DialogueDuBoss()
 			};
 			break;
 	}
+	// Le gardien se souvient des visions passees : il a tue la derniere, ou il a deja ete vaincu
+	const int32 i = FMath::Clamp(Acte, 1, NombreDActes) - 1;
+	if (Memoire && !bModePhoto)
+	{
+		const bool bIlATueLaDerniere = Memoire->bDerniereChuteBoss && Memoire->DerniereChuteActe == Acte;
+		const bool bDejaVaincu = Memoire->GardiensVaincus[i];
+		const TCHAR* Souvenir = bIlATueLaDerniere ? APRES_UNE_MORT[i] : (bDejaVaincu ? DEJA_VAINCU[i] : (Memoire->MortsParGardien[i] > 0 ? APRES_UNE_MORT[i] : nullptr));
+		if (Souvenir)
+		{
+			// (au 4e acte, la prophetie decrit d'abord le Gardien de Pierre)
+			const int32 Ou = Orateurs.Num() > 1 && Orateurs[0] == TEXT("La prophétie") ? 1 : 0;
+			const FString Gardien = Orateurs[Ou];
+			const bool bVainqueur = Souvenir == APRES_UNE_MORT[i];
+			Orateurs.Insert(Gardien, Ou);
+			Repliques.Insert(Souvenir, Ou);
+			Orateurs.Insert(TEXT("AYLIS"), Ou + 1);
+			Repliques.Insert(bVainqueur ? TEXT("Toi.") : (i == 6 ? TEXT("Oui.") : TEXT("Alors tu sais comment ça finit.")), Ou + 1);
+		}
+	}
+	// A partir de la dixieme vision, les gardiens connaissent son nom
+	if (NumeroVision >= 10)
+	{
+		for (int32 k = 0; k < Repliques.Num(); k++)
+		{
+			if (Orateurs[k] != TEXT("AYLIS"))
+			{
+				Repliques[k] = Repliques[k].Replace(TEXT(", petite vision"), TEXT(", AYLIS"));
+			}
+		}
+	}
+	ApresDialogue = nullptr;
 	LigneDialogue = 0;
 	Ecriture = 0.0f;
 	bDialogueBoss = true;
@@ -1352,10 +1449,149 @@ void AVespPlayerController::AvancerDialogue()
 	}
 	else
 	{
+		if (bDialogueBoss)
+		{
+			MessageRoute = NomDuBoss() + TEXT(" attaque !");
+		}
 		bDialogueBoss = false;
-		MessageRoute = NomDuBoss() + TEXT(" attaque !");
+		TFunction<void()> Suite = MoveTemp(ApresDialogue);
+		ApresDialogue = nullptr;
 		RetourExploration();
+		if (Suite)
+		{
+			Suite();
+		}
 	}
+}
+
+// Un dialogue hors combat (le parchemin) ; Suite : ce qui se passe une fois la derniere replique lue
+void AVespPlayerController::Dire(const TArray<FString>& Qui, const TArray<FString>& Quoi, TFunction<void()> Suite)
+{
+	if (Quoi.Num() == 0 || bModePhoto)
+	{
+		if (Suite)
+		{
+			Suite();
+		}
+		return;
+	}
+	Orateurs = Qui;
+	Repliques = Quoi;
+	ApresDialogue = MoveTemp(Suite);
+	LigneDialogue = 0;
+	Ecriture = 0.0f;
+	bDialogueBoss = false;
+	Phase = EVespPhase::Dialogue;
+	TempsPhase = 0.0f;
+	Geste = EVespGesteAylis::Libre;
+	Aylis->TenirGarde(false);
+}
+
+// La premiere vision : la prophetie raconte. Les suivantes : une ligne d'AYLIS, qui se souvient de la derniere chute
+void AVespPlayerController::OuvertureDeLaVision()
+{
+	if (NumeroVision <= 1)
+	{
+		Dire({TEXT("La prophétie"), TEXT("La prophétie"), TEXT("La prophétie"), TEXT("La prophétie"), TEXT("AYLIS")},
+		     {TEXT("Le Voile avance. Sept terres, et plus une seule qui dorme."),
+		      TEXT("Alors la prophétie a fait ce qu'elle fait toujours : elle a imaginé quelqu'un qui arrive au bout."),
+		      TEXT("Ce quelqu'un n'existe pas encore. Il faudra marcher pour exister."),
+		      TEXT("AYLIS ouvre les yeux au milieu des brumes."),
+		      TEXT("Une route. Bon. On y va.")});
+		return;
+	}
+	const int32 Chute = Memoire ? Memoire->DerniereChuteActe : 0;
+	FString Ligne;
+	if (Chute >= 1 && Memoire->bDerniereChuteBoss)
+	{
+		Ligne = FString::Printf(TEXT("Vision %d. Cette fois, %s ne verra pas le coup venir."), NumeroVision, GARDIEN[Chute - 1]);
+	}
+	else if (Chute > 1 && FMath::RandBool())
+	{
+		Ligne = FString::Printf(TEXT("Vision %d. La dernière s'est arrêtée %s. Pas celle-ci."), NumeroVision, LIEU_DE_CHUTE[Chute - 1]);
+	}
+	else
+	{
+		Ligne = FString(OUVERTURES[FMath::RandRange(0, UE_ARRAY_COUNT(OUVERTURES) - 1)]).Replace(TEXT("%d"), *FString::FromInt(NumeroVision));
+	}
+	Dire({TEXT("AYLIS")}, {Ligne});
+}
+
+// Oswin, au feu de camp : la premiere condition remplie (et pas encore entendue), sinon une replique d'ambiance.
+// Puis le repos : +60 % des pv et une potion.
+void AVespPlayerController::ParlerAuVeilleur()
+{
+	TArray<FString> Qui, Quoi;
+	auto Oswin = [&](const FString& L) { Qui.Add(VEILLEUR); Quoi.Add(L); };
+	auto Reponse = [&](const FString& L) { Qui.Add(TEXT("AYLIS")); Quoi.Add(L); };
+	auto Nouveau = [this](const TCHAR* Id) {
+		if (!Memoire || Memoire->Entendues.Contains(Id))
+		{
+			return false;
+		}
+		Memoire->Entendues.Add(Id);
+		return true;
+	};
+	const bool bMortIciLaDerniereFois = Memoire && Memoire->bDerniereChuteBoss && Memoire->DerniereChuteActe == Acte;
+	if (Nouveau(TEXT("veilleur_premiere")))
+	{
+		Oswin(TEXT("Assieds-toi. Les visions ont toujours froid, au début."));
+		Reponse(TEXT("Qui es-tu ?"));
+		Oswin(TEXT("Oswin. Je garde les feux le long de la route, et je me souviens de chaque vision qui s'y est assise. Ce que tu rapportes, je le garde pour la suivante."));
+	}
+	else if (bMortIciLaDerniereFois && !DejaDitDansLaVision.Contains(TEXT("veilleur_chute")))
+	{
+		DejaDitDansLaVision.Add(TEXT("veilleur_chute"));
+		Oswin(TEXT("La dernière est passée ici aussi. Elle avait ta façon de tenir la lame."));
+		Reponse(TEXT("Jusqu'où est-elle allée ?"));
+		Oswin(FString::Printf(TEXT("Jusqu'à %s. Pas plus loin."), GARDIEN[FMath::Clamp(Acte, 1, NombreDActes) - 1]));
+	}
+	else if (NumeroVision >= 5 && Nouveau(TEXT("veilleur_demarche")))
+	{
+		Oswin(TEXT("Je commence à reconnaître ta démarche. Ce n'est pas bon signe, pour toi."));
+		Reponse(TEXT("Alors regarde bien. Celle-ci va plus loin."));
+	}
+	else if (Memoire && Memoire->GardiensVaincus[0] && Nouveau(TEXT("veilleur_skarn")))
+	{
+		Oswin(TEXT("Skarn ne rit plus. Tu sais ce qu'on dit, quand Skarn ne rit plus ? Non. Personne ne le sait encore."));
+	}
+	else if (Acte >= 6 && Nouveau(TEXT("veilleur_oracle")))
+	{
+		Oswin(TEXT("L'Oracle... je l'ai connu, avant. Quand il avait encore des traits de lumière, comme toi."));
+		Reponse(TEXT("Comme moi ?"));
+		Oswin(TEXT("Il regardait la route de la même façon. Va. Il t'attend depuis longtemps."));
+	}
+	else
+	{
+		TArray<int32> Libres;
+		for (int32 k = 0; k < UE_ARRAY_COUNT(VEILLEUR_AMBIANCE); k++)
+		{
+			if (!DejaDitDansLaVision.Contains(VEILLEUR_AMBIANCE[k]))
+			{
+				Libres.Add(k);
+			}
+		}
+		const TCHAR* Ligne = VEILLEUR_AMBIANCE[Libres.Num() > 0 ? Libres[FMath::RandRange(0, Libres.Num() - 1)] : FMath::RandRange(0, UE_ARRAY_COUNT(VEILLEUR_AMBIANCE) - 1)];
+		DejaDitDansLaVision.Add(Ligne);
+		Oswin(Ligne);
+		Reponse(REPONSES_AU_VEILLEUR[FMath::RandRange(0, UE_ARRAY_COUNT(REPONSES_AU_VEILLEUR) - 1)]);
+	}
+	EcrireMemoire();
+	Dire(Qui, Quoi, [this]() {
+		const int32 Soin = Aylis->Stats.PvMax * 60 / 100;
+		Aylis->Soigner(Soin);
+		Potions++;
+		UVespSons::Jouer(this, EVespSon::Soin, Aylis->GetActorLocation());
+		Ecrire(FString::Printf(TEXT("AYLIS se repose au coin du feu : +%d pv et une potion."), Soin), 5.0f);
+	});
+}
+
+FString AVespPlayerController::LigneDeChute() const
+{
+	const int32 i = FMath::Clamp(Acte, 1, NombreDActes) - 1;
+	const bool bSousLeGardien = Memoire && Memoire->bDerniereChuteBoss && Memoire->DerniereChuteActe == Acte;
+	return bSousLeGardien ? FString::Printf(TEXT("Vision %d : tombée %s, %s."), NumeroVision, LIEU_DE_CHUTE[i], COUPS_DU_GARDIEN[i])
+	                      : FString::Printf(TEXT("Vision %d : tombée %s."), NumeroVision, LIEU_DE_CHUTE[i]);
 }
 
 void AVespPlayerController::Recommencer()
@@ -2397,6 +2633,13 @@ void AVespPlayerController::PlayerTick(float Secondes)
 	}
 	TempsMessage = FMath::Max(0.0f, TempsMessage - Secondes);
 	TempsNiveau = FMath::Max(0.0f, TempsNiveau - Secondes);
+	if (bTestOuverture)
+	{
+		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(1);
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
+		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f && LigneDialogue < 2) { UE_LOG(LogTemp, Display, TEXT("VESPERANCE test : %s / %s"), *Orateurs[LigneDialogue], *Repliques[LigneDialogue]); Photographier(FString::Printf(TEXT("Ouverture%d"), LigneDialogue), true); Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Dialogue && LigneDialogue >= 2) { Quitter(); return; }
+	}
 	if (bTestVeilleur && Phase == EVespPhase::Titre && TempsPhase > 30.0f)
 	{
 		bTestVeilleur = false;
@@ -2636,6 +2879,10 @@ void AVespPlayerController::Photographier(const FString& Nom, bool bAvecInterfac
 		TArray64<uint8> Png;
 		FImageUtils::PNGCompressImageArray(Taille.X, Taille.Y, Pixels, Png);
 		FFileHelper::SaveArrayToFile(Png, *Fichier);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("VESPERANCE photo ratee : %s"), *Fichier);
 	}
 }
 
