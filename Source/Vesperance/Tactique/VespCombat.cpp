@@ -262,8 +262,19 @@ AVespUnite* AVespCombat::Creer(int32 IndexModele, int32 Categorie, const FVector
 	if (M.Taille >= 205.0f) V *= 0.88f;
 	if (Categorie == 2) V = M.Style == LANCEUR ? 330.0f : 290.0f;
 	U->Vitesse = V;
-	U->Preparer(Monde, S, DOSSIER + M.Dossier, M.Teinte, false);
+	// Apres une premiere victoire, la vision d'avant a pris la place de l'Oracle : il a le visage d'AYLIS
+	const bool bVisageDAylis = Categorie == 2 && A == 6 && bOracleAylis;
+	U->Preparer(Monde, S, DOSSIER + (bVisageDAylis ? FString(TEXT("Aylis")) : FString(M.Dossier)), bVisageDAylis ? FLinearColor(0.85f, 0.8f, 1.0f) : M.Teinte, false);
 	Armer(U, M, Categorie == 2 ? Acte : 0);
+	// Les echos de Karn reprennent l'arme de la derniere vision tombee
+	if (FString(M.Dossier) == TEXT("Aylis") && !ArmeEcho.IsEmpty())
+	{
+		U->Equiper(ArmeEcho, LongueurEcho, false, FString(), TypeEcho);
+		if (TypeEcho == EVespArme::Dagues && !SecondeArmeEcho.IsEmpty())
+		{
+			U->EquiperSecondeArme(SecondeArmeEcho, LongueurEcho);
+		}
+	}
 	FVespHaschen H;
 	H.U = U;
 	H.Groupe = Groupe;

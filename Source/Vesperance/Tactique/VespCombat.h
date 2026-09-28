@@ -220,6 +220,12 @@ public:
 	TFunction<void()> SurEsquive;									// une esquive au dernier moment
 
 	// Les runes d'AYLIS qui touchent au combat
+	// Ce dont le monde se souvient (le PlayerController le donne au debut de la vision)
+	bool bOracleAylis = false;		// apres une premiere victoire, l'Oracle a le visage d'AYLIS
+	FString ArmeEcho;				// l'arme de la derniere vision tombee (vide : l'epee des echos)
+	FString SecondeArmeEcho;
+	float LongueurEcho = 0.5f;
+	EVespArme TypeEcho = EVespArme::Epee;
 	bool bEpines = false;			// qui touche AYLIS au contact se blesse
 	bool bPiedSur = false;			// les pieges, flaques et eruptions (sans lanceur) n'atteignent pas AYLIS
 	float MultCritique = 2.0f;		// un critique d'AYLIS multiplie les degats par ceci

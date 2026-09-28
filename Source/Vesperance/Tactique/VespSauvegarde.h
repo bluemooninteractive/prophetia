@@ -40,6 +40,13 @@ public:
 	UPROPERTY() TArray<int32> Dons;
 	// Les repliques deja entendues (le Veilleur ne repete pas ses confidences d'une vision a l'autre)
 	UPROPERTY() TArray<FString> Entendues;
+	// La vraie fin : combien de fois une vision a accepte de se dissoudre dans le Voile
+	UPROPERTY() int32 VraiesFins = 0;
+	// L'arme de la derniere vision tombee : les echos de Karn la reprennent
+	UPROPERTY() FString ArmeDerniereChute;
+	UPROPERTY() FString SecondeArmeDerniereChute;
+	UPROPERTY() float LongueurArmeDerniereChute = 0.5f;
+	UPROPERTY() uint8 TypeArmeDerniereChute = 0;
 
 	// Les tableaux ont toujours une case par acte (une vieille sauvegarde peut en avoir moins)
 	void Completer()

@@ -332,6 +332,8 @@ private:
 	bool bSecondSouffle = false;		// le don "Second souffle", pas encore utilise dans cette vision
 	bool bVeilleurOuvert = false;		// l'ecran titre montre le Veilleur
 	bool bTestOuverture = false;			// -VespOuverture : lance une vision, photographie son ouverture, puis on quitte (sans rien sauvegarder)
+	int32 TestFin = 0;						// -VespFin=1 ou 2 : deroule cette fin a Karn, la photographie, puis on quitte (sans rien sauvegarder)
+	bool bFinLancee = false;
 	bool bTestVeilleur = false;			// -VespVeilleur : une photo du Veilleur, puis on quitte
 	int32 SelectionDon = 0;				// le don choisi a la manette
 	void GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquoi);
@@ -347,6 +349,19 @@ private:
 	void OuvertureDeLaVision();
 	void ParlerAuVeilleur();
 	FString LigneDeChute() const;			// "Vision 8 : tombee dans les Marais Noyes, sous la maree du Roi Noye."
+
+	// Ce qu'AYLIS dit en route : une ligne sous le jeu, quelques secondes, jamais plus d'une par minute
+	FString ParoleAylis;
+	float TempsParole = 0.0f;				// > 0 : la ligne s'affiche
+	float ProchaineParole = 0.0f;			// > 0 : AYLIS se tait encore
+	bool bPvBasDit = false;					// "pas ici, pas encore" : une fois, jusqu'a ce qu'AYLIS reprenne des forces
+	void ParlerEnRoute(const TCHAR* const* Lignes, int32 Nombre, bool bForcer = false);
+
+	// Les fins : 1, la route a un nouvel Oracle (AYLIS refuse et garde la porte) ; 2, le Voile se referme (la vraie fin)
+	int32 FinObtenue = 0;
+	void FinDeLaRoute();					// l'Oracle vient de tomber
+	void TerminerLaVision(int32 Fin);
+	FString TexteDeLaFin() const;
 
 	// Le dialogue
 	TArray<FString> Orateurs;

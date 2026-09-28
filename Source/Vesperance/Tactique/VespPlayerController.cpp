@@ -148,6 +148,22 @@ static const TCHAR* REPONSES_AU_VEILLEUR[5] = {
 };
 static const TCHAR* VEILLEUR = TEXT("Oswin, le Veilleur");
 
+// Ce qu'AYLIS dit en route (le document narratif : 3 a 5 variantes par declencheur)
+static const TCHAR* EN_ENTRANT[7] = {
+	TEXT("Une route. Bon. On y va."),
+	TEXT("Des arbres qui pendent des choses. Charmant."),
+	TEXT("Des marais. Évidemment."),
+	TEXT("Des murs. Enfin quelque chose qui ne pousse pas."),
+	TEXT("Il fait plus froid ici. Ou c'est que j'existe un peu plus."),
+	TEXT("Tout brûle. Au moins, on y voit clair."),
+	TEXT("Karn. Cette ville me connaît déjà."),
+};
+static const TCHAR* CLAIRIERE_LIBEREE[4] = {TEXT("Suivante."), TEXT("Respire."), TEXT("Une de moins."), TEXT("Le chemin est libre.")};
+static const TCHAR* PV_BAS[4] = {TEXT("Pas ici. Pas encore."), TEXT("Encore debout."), TEXT("Ça ne finira pas là."), TEXT("Respire. Recommence.")};
+static const TCHAR* PLUS_DE_POTIONS[4] = {TEXT("Il faudra faire sans."), TEXT("Plus une goutte."), TEXT("Sans filet, alors."), TEXT("Tant pis. On avance.")};
+static const TCHAR* PARADE[4] = {TEXT("Je l'ai vu venir."), TEXT("Trop lent."), TEXT("Pas cette fois."), TEXT("Prévisible.")};
+static const TCHAR* LEGENDAIRE[4] = {TEXT("Celle-là, je la garde."), TEXT("Enfin quelque chose à ma mesure."), TEXT("Oh. Ça, c'est une trouvaille."), TEXT("La prophétie a bon goût.")};
+
 // ===================== La mise en route =====================
 
 AVespPlayerController::AVespPlayerController()
@@ -207,6 +223,7 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	Combat->SurMessage = [this](const FString& M) { Ecrire(M, 3.5f); };
 	Combat->SurParade = [this]() {
 		Rage = FMath::Min(100, Rage + 20);
+		ParlerEnRoute(PARADE, UE_ARRAY_COUNT(PARADE));
 		Ralenti(0.15f, 0.18f);
 		if (Talent(TEXT("riposte")))
 		{
@@ -246,6 +263,15 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	// -VespVeilleur (pour tester) : l'ecran titre s'ouvre sur le Veilleur, une photo, et on quitte
 	bTestVeilleur = bVeilleurOuvert = FParse::Param(FCommandLine::Get(), TEXT("VespVeilleur"));
 	bTestOuverture = FParse::Param(FCommandLine::Get(), TEXT("VespOuverture"));
+	FParse::Value(FCommandLine::Get(), TEXT("VespFin="), TestFin);
+	if (Memoire && !bModePhoto)
+	{
+		Combat->bOracleAylis = Memoire->Victoires > 0;
+		Combat->ArmeEcho = Memoire->ArmeDerniereChute;
+		Combat->SecondeArmeEcho = Memoire->SecondeArmeDerniereChute;
+		Combat->LongueurEcho = Memoire->LongueurArmeDerniereChute;
+		Combat->TypeEcho = (EVespArme)Memoire->TypeArmeDerniereChute;
+	}
 }
 
 void AVespPlayerController::EndPlay(const EEndPlayReason::Type Raison)
@@ -320,7 +346,7 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto || bTestOuverture)
+	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0)
 	{
 		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
@@ -365,6 +391,11 @@ void AVespPlayerController::MemoriserLaChute()
 		}
 		Memoire->DerniereChuteActe = Acte;
 		Memoire->bDerniereChuteBoss = bFaceAuBoss;
+		const FVespObjet* Arme = Equipe(EVespEmplacement::Arme);
+		Memoire->ArmeDerniereChute = Arme ? Arme->Modele : FString();
+		Memoire->SecondeArmeDerniereChute = Arme ? Arme->SecondModele : FString();
+		Memoire->LongueurArmeDerniereChute = Arme ? Arme->Longueur : 0.5f;
+		Memoire->TypeArmeDerniereChute = (uint8)(Arme ? Arme->TypeArme : EVespArme::Poings);
 		EcrireMemoire();
 	}
 }
@@ -588,10 +619,22 @@ static const FVespTexteEvenement EVENEMENTS[] = {
 };
 static constexpr int32 NOMBRE_EVENEMENTS = UE_ARRAY_COUNT(EVENEMENTS);
 
-FString AVespPlayerController::TitreEvenement() const { return EVENEMENTS[EvenementActuel].Titre; }
-FString AVespPlayerController::TexteEvenement() const { return EVENEMENTS[EvenementActuel].Texte; }
-FString AVespPlayerController::ChoixEvenement(int32 Choix) const { return EVENEMENTS[EvenementActuel].Choix[Choix]; }
-FString AVespPlayerController::AideEvenement(int32 Choix) const { return EVENEMENTS[EvenementActuel].Aide[Choix]; }
+// Le dernier choix, devant le coeur du Voile (pas un evenement de la route : EvenementActuel = COEUR_DU_VOILE)
+static constexpr int32 COEUR_DU_VOILE = -1;
+static const TCHAR* CHOIX_DU_VOILE[2] = {TEXT("Se dissoudre dans le Voile"), TEXT("Refuser, et garder la porte")};
+static const TCHAR* AIDE_DU_VOILE[2] = {
+	TEXT("Le Voile se referme et les sept terres se réveillent. AYLIS s'efface. C'est la fin de la route."),
+	TEXT("Comme l'Oracle avant. AYLIS devient le nouvel Oracle, et la boucle continue."),
+};
+
+FString AVespPlayerController::TitreEvenement() const { return EvenementActuel == COEUR_DU_VOILE ? TEXT("Le cœur du Voile") : EVENEMENTS[EvenementActuel].Titre; }
+FString AVespPlayerController::TexteEvenement() const
+{
+	return EvenementActuel == COEUR_DU_VOILE ? TEXT("Mille visions sont tombées sur cette route. Une seule peut refermer le Voile : celle qui accepte de cesser d'exister.")
+	                                          : EVENEMENTS[EvenementActuel].Texte;
+}
+FString AVespPlayerController::ChoixEvenement(int32 Choix) const { return EvenementActuel == COEUR_DU_VOILE ? CHOIX_DU_VOILE[Choix & 1] : EVENEMENTS[EvenementActuel].Choix[Choix]; }
+FString AVespPlayerController::AideEvenement(int32 Choix) const { return EvenementActuel == COEUR_DU_VOILE ? AIDE_DU_VOILE[Choix & 1] : EVENEMENTS[EvenementActuel].Aide[Choix]; }
 
 // ===================== Le monde de l'acte =====================
 // Un sentier principal d'ouest en est : 9 clairieres, du depart jusqu'au boss. Et des embranchements de 1 a 3
@@ -908,6 +951,11 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 		return;
 	}
 	UVespSons::Jouer2D(this, EVespSon::Clic);
+	if (EvenementActuel == COEUR_DU_VOILE)
+	{
+		TerminerLaVision(Choix == 0 ? 2 : 1);
+		return;
+	}
 	const FVector Ici = Aylis->GetActorLocation() + FVector(0, 0, 100);
 	auto PerdrePv = [this](int32 N) { Aylis->Stats.Pv = FMath::Max(1, Aylis->Stats.Pv - N); };
 	auto RuneOfferte = [this](const TCHAR* Debut) {
@@ -1139,6 +1187,11 @@ void AVespPlayerController::QuandAylisTouchee(int32 Degats, bool bCritique, AVes
 		}
 		return;
 	}
+	if (!bPvBasDit && Aylis->Stats.Pv * 3 < Aylis->Stats.PvMax)
+	{
+		bPvBasDit = true;
+		ParlerEnRoute(PV_BAS, UE_ARRAY_COUNT(PV_BAS));
+	}
 	// Un coup encaisse interrompt ce qu'AYLIS faisait (sauf la garde, et les grands gestes deja lances)
 	if (!bGardeLevee && Source && Geste != EVespGesteAylis::Lourde && Geste != EVespGesteAylis::Speciale && Geste != EVespGesteAylis::Esquive)
 	{
@@ -1179,19 +1232,7 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 		GagnerSouvenirs(15 + 5 * Acte + (bPremiereFois ? 25 : 0), bPremiereFois ? TEXT("gardien vaincu pour la premiere fois") : TEXT("gardien"));
 		if (Acte >= NombreDActes)
 		{
-			Phase = EVespPhase::Victoire;		// le dernier boss est tombe
-			TempsPhase = 0.0f;
-			GagnerSouvenirs(60, TEXT("victoire"));
-			UE_LOG(LogTemp, Display, TEXT("VESPERANCE chrono : vision %d arrivee au bout en %s"), NumeroVision, *UVespSauvegarde::Duree(ChronoPartie));
-			if (Memoire)
-			{
-				Memoire->Victoires++;
-				if (Memoire->MeilleurePartie <= 0.0f || ChronoPartie < Memoire->MeilleurePartie)
-				{
-					Memoire->MeilleurePartie = ChronoPartie;
-				}
-				EcrireMemoire();
-			}
+			FinDeLaRoute();		// le dernier gardien est tombe : l'Oracle parle, puis l'une des fins
 			return;
 		}
 		// Un nouvel acte : AYLIS reprend toutes ses forces, et la prophetie la renforce
@@ -1211,6 +1252,7 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 	const int32 Gain = N.Type == EVespSalle::Elite ? FMath::RandRange(32, 42) + Acte * 6 : FMath::RandRange(12, 18) + Acte * 3;
 	GagnerEclats(Gain, Aylis->GetActorLocation());
 	GagnerSouvenirs(N.Type == EVespSalle::Elite ? 5 : 2, TEXT("clairiere"));
+	ParlerEnRoute(CLAIRIERE_LIBEREE, UE_ARRAY_COUNT(CLAIRIERE_LIBEREE));
 	const int32 Soin = Aylis->Stats.PvMax / 6;
 	Aylis->Soigner(Soin);
 	Aylis->Jouer(EVespGeste::Victoire, 1.0f, true);
@@ -1268,6 +1310,10 @@ void AVespPlayerController::ContinuerApresLActe()
 		{
 			bOuvertureAFaire = false;
 			OuvertureDeLaVision();
+		}
+		else if (Acte > 1)
+		{
+			ParlerEnRoute(&EN_ENTRANT[FMath::Clamp(Acte, 1, NombreDActes) - 1], 1, true);
 		}
 	}
 }
@@ -1594,6 +1640,93 @@ FString AVespPlayerController::LigneDeChute() const
 	                      : FString::Printf(TEXT("Vision %d : tombée %s."), NumeroVision, LIEU_DE_CHUTE[i]);
 }
 
+// ===================== Les paroles en route, et les fins =====================
+
+void AVespPlayerController::ParlerEnRoute(const TCHAR* const* Lignes, int32 Nombre, bool bForcer)
+{
+	if (bModePhoto || Nombre <= 0 || (!bForcer && ProchaineParole > 0.0f))
+	{
+		return;
+	}
+	TArray<int32> Libres;
+	for (int32 k = 0; k < Nombre; k++)
+	{
+		if (!DejaDitDansLaVision.Contains(Lignes[k]))
+		{
+			Libres.Add(k);
+		}
+	}
+	const TCHAR* Ligne = Lignes[Libres.Num() > 0 ? Libres[FMath::RandRange(0, Libres.Num() - 1)] : FMath::RandRange(0, Nombre - 1)];
+	DejaDitDansLaVision.Add(Ligne);
+	ParoleAylis = Ligne;
+	TempsParole = 3.5f;
+	ProchaineParole = 60.0f;
+}
+
+// L'Oracle vient de tomber. La premiere fois, il revele le secret : il a ete la premiere vision.
+// Ensuite (l'Oracle a le visage de la vision d'avant), AYLIS peut choisir de refermer le Voile.
+void AVespPlayerController::FinDeLaRoute()
+{
+	const bool bPremiereVictoire = !Memoire || Memoire->Victoires == 0;
+	if (bPremiereVictoire)
+	{
+		Dire({TEXT("L'Oracle"), TEXT("AYLIS"), TEXT("L'Oracle"), TEXT("L'Oracle"), TEXT("AYLIS"), TEXT("L'Oracle"), TEXT("La prophétie")},
+		     {TEXT("Tu as atteint le bout. Comme moi, il y a mille visions."),
+		      TEXT("Comme toi ?"),
+		      TEXT("Je suis la toute première vision. La prophétie m'a envoyé bien avant toi, et j'ai marché jusqu'ici. En arrivant, j'ai compris : le Voile ne se referme que si une vision accepte de s'y dissoudre."),
+		      TEXT("J'ai refusé. Alors je suis resté devant la porte, et j'ai regardé toutes les autres tomber."),
+		      TEXT("Et maintenant ?"),
+		      TEXT("Maintenant, c'est ta porte."),
+		      TEXT("AYLIS prend sa place devant la porte de Karn. Le Voile, lui, attend encore.")},
+		     [this]() { TerminerLaVision(1); });
+		return;
+	}
+	Dire({TEXT("L'Oracle"), TEXT("AYLIS"), TEXT("L'Oracle"), TEXT("La prophétie")},
+	     {TEXT("Tu as mon visage. Ou c'est moi qui ai le tien."),
+	      TEXT("Tu étais moi. La vision d'avant."),
+	      TEXT("Et j'ai refusé, comme la première. Derrière moi, le Voile attend toujours une vision qui accepte de s'y fondre."),
+	      TEXT("La porte de Karn s'ouvre sur le cœur du Voile.")},
+	     [this]() {
+		     EvenementActuel = COEUR_DU_VOILE;
+		     SelectionMenu = 0;
+		     bSelectionVisible = false;
+		     Phase = EVespPhase::Evenement;
+		     TempsPhase = 0.0f;
+	     });
+}
+
+void AVespPlayerController::TerminerLaVision(int32 Fin)
+{
+	FinObtenue = Fin;
+	Phase = EVespPhase::Victoire;
+	TempsPhase = 0.0f;
+	GagnerSouvenirs(Fin == 2 ? 100 : 60, Fin == 2 ? TEXT("la vraie fin") : TEXT("victoire"));
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE fin %d : vision %d arrivee au bout en %s"), Fin, NumeroVision, *UVespSauvegarde::Duree(ChronoPartie));
+	if (Memoire)
+	{
+		Memoire->Victoires++;
+		Memoire->VraiesFins += Fin == 2 ? 1 : 0;
+		if (Memoire->MeilleurePartie <= 0.0f || ChronoPartie < Memoire->MeilleurePartie)
+		{
+			Memoire->MeilleurePartie = ChronoPartie;
+		}
+		EcrireMemoire();
+	}
+}
+
+FString AVespPlayerController::TexteDeLaFin() const
+{
+	if (FinObtenue == 2)
+	{
+		const int32 Avant = FMath::Max(1, NumeroVision - 1);
+		return FString::Printf(TEXT("Vision %d, arrivée au bout en %s. AYLIS s'efface trait par trait, et le Voile se referme avec. Les sept terres se réveillent. Sur la route, %s"),
+		                       NumeroVision, *UVespSauvegarde::Duree(ChronoPartie),
+		                       *(Avant == 1 ? FString(TEXT("une vision attend en silence : celle qui a marché avant.")) : FString::Printf(TEXT("%d visions attendent en silence : toutes celles qui ont marché avant."), Avant)));
+	}
+	return FString::Printf(TEXT("Vision %d, arrivée au bout en %s. AYLIS garde désormais la porte de Karn, comme l'Oracle avant. La prochaine vision trouvera un Oracle au visage familier."),
+	                       NumeroVision, *UVespSauvegarde::Duree(ChronoPartie));
+}
+
 void AVespPlayerController::Recommencer()
 {
 	UGameplayStatics::SetGlobalTimeDilation(this, 1.0f);
@@ -1903,6 +2036,10 @@ void AVespPlayerController::RamasserButin()
 		}
 		DernierButin = O.Nom;
 		CouleurDernierButin = VespButin::CouleurRarete(O.Rarete);
+		if (O.Rarete == EVespRarete::Legendaire)
+		{
+			ParlerEnRoute(LEGENDAIRE, UE_ARRAY_COUNT(LEGENDAIRE), true);
+		}
 		TempsButin = 4.0f;
 		UVespSons::Jouer(this, EVespSon::Ramasser, B->GetActorLocation(), 0.9f);
 		AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, B->GetActorLocation() + FVector(0, 0, 70), FVector::UpVector, CouleurDernierButin);
@@ -2135,6 +2272,10 @@ void AVespPlayerController::BoirePotion()
 		return;
 	}
 	Potions--;
+	if (Potions == 0)
+	{
+		ParlerEnRoute(PLUS_DE_POTIONS, UE_ARRAY_COUNT(PLUS_DE_POTIONS));
+	}
 	Geste = EVespGesteAylis::Potion;
 	TempsGeste = 0.0f;
 	bPotionBue = false;
@@ -2632,6 +2773,15 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		}
 	}
 	TempsMessage = FMath::Max(0.0f, TempsMessage - Secondes);
+	TempsParole = FMath::Max(0.0f, TempsParole - Secondes);
+	if (Phase == EVespPhase::Exploration)
+	{
+		ProchaineParole = FMath::Max(0.0f, ProchaineParole - Secondes);
+	}
+	if (bPvBasDit && Aylis->Stats.Pv * 2 > Aylis->Stats.PvMax)
+	{
+		bPvBasDit = false;
+	}
 	TempsNiveau = FMath::Max(0.0f, TempsNiveau - Secondes);
 	if (bTestOuverture)
 	{
@@ -2639,6 +2789,27 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
 		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f && LigneDialogue < 2) { UE_LOG(LogTemp, Display, TEXT("VESPERANCE test : %s / %s"), *Orateurs[LigneDialogue], *Repliques[LigneDialogue]); Photographier(FString::Printf(TEXT("Ouverture%d"), LigneDialogue), true); Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
 		else if (Phase == EVespPhase::Dialogue && LigneDialogue >= 2) { Quitter(); return; }
+	}
+	if (TestFin > 0)
+	{
+		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(NombreDActes);
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
+		else if (Phase == EVespPhase::Exploration && !bFinLancee && TempsPhase > 3.0f)
+		{
+			bFinLancee = true;
+			if (Memoire) Memoire->Victoires = TestFin == 2 ? 1 : 0;
+			Photographier(TEXT("FinKarn"), true);
+			FinDeLaRoute();
+		}
+		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f)
+		{
+			Photographier(FString::Printf(TEXT("Fin%d_Ligne%d"), TestFin, LigneDialogue), true);
+			Ecriture = 9999.0f;
+			AvancerDialogue();
+			TempsPhase = 0.0f;
+		}
+		else if (Phase == EVespPhase::Evenement && TempsPhase > 2.0f) { Photographier(TEXT("Fin2_Choix"), true); ChoisirEvenement(0); }
+		else if (Phase == EVespPhase::Victoire && TempsPhase > 2.5f) { Photographier(FString::Printf(TEXT("Fin%d_Ecran"), TestFin), true); Quitter(); return; }
 	}
 	if (bTestVeilleur && Phase == EVespPhase::Titre && TempsPhase > 30.0f)
 	{

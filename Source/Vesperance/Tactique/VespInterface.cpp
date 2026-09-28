@@ -1100,6 +1100,15 @@ TSharedRef<SWidget> SVespInterface::CoucheExploration()
 			SNew(STextBlock).Font(Police("Italic", 15)).ColorAndOpacity(FLinearColor(0.6f, 0.95f, 0.66f))
 			.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->MessageRoute) : FText::GetEmpty(); })
 		]
+	]
+	// En bas, au-dessus des pouvoirs : ce qu'AYLIS dit en route (une ligne, quelques secondes)
+	+ SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(FMargin(0, 0, 0, 200))
+	[
+		SNew(STextBlock).Font(Police("Italic", 17))
+		.ShadowOffset(FVector2D(1, 2)).ShadowColorAndOpacity(FLinearColor(0, 0, 0, 0.8f))
+		.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->TempsParole > 0.0f); })
+		.ColorAndOpacity_Lambda([this]() { return FSlateColor(FLinearColor(0.85f, 0.88f, 1.0f, Joueur.IsValid() ? FMath::Clamp(Joueur->TempsParole, 0.0f, 1.0f) : 0.0f)); })
+		.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("AYLIS  —  « %s »"), *Joueur->ParoleAylis)) : FText::GetEmpty(); })
 	];
 }
 
@@ -1466,7 +1475,10 @@ TSharedRef<SWidget> SVespInterface::CoucheFin()
 			[
 				SNew(STextBlock).Font(Police("Bold", 52, 160))
 				.ColorAndOpacity_Lambda([bVictoire]() { return FSlateColor(bVictoire() ? OR_PALE : FLinearColor(0.85f, 0.75f, 1.0f)); })
-				.Text_Lambda([bVictoire]() { return bVictoire() ? LOCTEXT("Victoire", "LE VOILE SE DÉCHIRE") : LOCTEXT("Defaite", "LA VISION SE BRISE..."); })
+				.Text_Lambda([this, bVictoire]() {
+					if (!bVictoire()) return LOCTEXT("Defaite", "LA VISION SE BRISE...");
+					return Joueur.IsValid() && Joueur->FinObtenue == 2 ? LOCTEXT("VraieFin", "LE VOILE SE REFERME") : LOCTEXT("NouvelOracle", "UN NOUVEL ORACLE");
+				})
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 14, 0, 40)
 			[
@@ -1475,8 +1487,7 @@ TSharedRef<SWidget> SVespInterface::CoucheFin()
 					if (bVictoire())
 					{
 						const AVespPlayerController* JV = Joueur.Get();
-						return Texte(FString::Printf(TEXT("Vision %d, arrivée au bout en %s. L'Oracle est tombé. Karn s'éveille, et la route s'ouvre sur un monde que personne n'avait jamais vu."),
-						                             JV ? JV->NumeroVision : 1, *UVespSauvegarde::Duree(JV ? JV->ChronoPartie : 0.0f)));
+						return JV ? Texte(JV->TexteDeLaFin()) : FText::GetEmpty();
 					}
 					const AVespPlayerController* J = Joueur.Get();
 					return J ? Texte(FString::Printf(TEXT("%s Après %s de route (acte %s en cours depuis %s). Niveau %d, %d Haschen vaincus. La prophétie en imagine une autre."),
