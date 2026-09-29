@@ -16,6 +16,7 @@
 #include "Widgets/Layout/SBox.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Layout/SSpacer.h"
+#include "Widgets/Layout/SGridPanel.h"
 #include "Widgets/Input/SButton.h"
 #include "Widgets/Text/STextBlock.h"
 #include "Widgets/Images/SImage.h"
@@ -508,70 +509,92 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 			+ SVerticalBox::Slot().AutoHeight()[Liste]
 		];
 	};
-	// Le Veilleur : les dons contre des Souvenirs (ils durent pour toutes les visions)
+	// Le Veilleur : les cartes (a debloquer avec des Souvenirs, a activer dans la limite de la capacite) et les chandelles
 	auto Veilleur = [this]() -> TSharedRef<SWidget> {
-		TSharedRef<SVerticalBox> Liste = SNew(SVerticalBox);
-		for (int32 i = 0; i < VespVeilleur::Nombre; i++)
-		{
-			const FVespDon& Don = VespVeilleur::Don(i);
-			auto Rang = [this, i]() { const AVespPlayerController* J = Joueur.Get(); return J ? J->RangDon(i) : 0; };
-			auto Prix = [i, Rang]() { return VespVeilleur::Prix(i, Rang()); };
-			auto Abordable = [this, Prix]() { const AVespPlayerController* J = Joueur.Get(); const int32 P = Prix(); return J && J->Memoire && P > 0 && J->Memoire->Souvenirs >= P; };
+		// Une case cliquable : son contenu, son etat (active, surlignee)
+		auto Case = [this](int32 Ligne, TSharedRef<SWidget> Contenu) -> TSharedRef<SWidget> {
 			TSharedRef<TWeakPtr<SButton>> Lien = MakeShared<TWeakPtr<SButton>>();
 			TSharedRef<SButton> Bouton = SNew(SButton).IsFocusable(false).ButtonStyle(&StyleBouton)
-			.OnClicked_Lambda([this, i]() { if (Joueur.IsValid()) Joueur->AcheterDon(i); return FReply::Handled(); })
-			.OnHovered_Lambda([this, i]() { if (Joueur.IsValid()) { Joueur->SelectionDon = i; UVespSons::Jouer2D(Joueur.Get(), EVespSon::Survol); } })
+			.OnClicked_Lambda([this, Ligne]() { if (Joueur.IsValid()) Joueur->ActionVeilleur(Ligne); return FReply::Handled(); })
+			.OnHovered_Lambda([this, Ligne]() { if (Joueur.IsValid() && Joueur->SelectionDon != Ligne) { Joueur->SelectionDon = Ligne; UVespSons::Jouer2D(Joueur.Get(), EVespSon::Survol); } })
 			[
-				SNew(SBorder).Padding(FMargin(14, 8))
-				.BorderImage_Lambda([this, Lien, i]() {
+				SNew(SBorder).Padding(FMargin(12, 8))
+				.BorderImage_Lambda([this, Lien, Ligne]() {
+					const AVespPlayerController* J = Joueur.Get();
 					const TSharedPtr<SButton> B = Lien->Pin();
-					return (B.IsValid() && B->IsHovered()) || (Joueur.IsValid() && Joueur->SelectionDon == i) ? &CarteChoisie : &Carte;
+					const bool bVise = (B.IsValid() && B->IsHovered()) || (J && J->SelectionDon == Ligne);
+					const bool bActive = Ligne > 0 && J && J->Memoire && J->Memoire->Active(Ligne - 1);
+					return bActive ? &CarteChoisie : (bVise ? &CarteSurvol : &Carte);
 				})
 				[
-					SNew(SHorizontalBox)
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 14, 0)
-					[
-						SNew(STextBlock).Text(Texte(FString::FromInt(i + 1))).Font(Police("Bold", 14)).ColorAndOpacity(DOUX)
-					]
-					+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
-					[
-						SNew(SVerticalBox)
-						+ SVerticalBox::Slot().AutoHeight()
-						[
-							SNew(SHorizontalBox)
-							+ SHorizontalBox::Slot().AutoWidth()
-							[
-								SNew(STextBlock).Text(Texte(VespMajuscules(Don.Nom))).Font(Police("Bold", 13, 120)).ColorAndOpacity(TEXTE)
-							]
-							+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(12, 0, 0, 0)
-							[
-								SNew(STextBlock).Font(Police("Bold", 11, 100)).ColorAndOpacity(OR)
-								.Text_Lambda([i, Rang]() { return Texte(FString::Printf(TEXT("RANG %d / %d"), Rang(), VespVeilleur::Don(i).RangMax)); })
-							]
-						]
-						+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
-						[
-							SNew(STextBlock).Text(Texte(Don.Aide)).Font(Police("Italic", 11)).ColorAndOpacity(DOUX).AutoWrapText(true)
-						]
-					]
-					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(18, 0, 0, 0)
-					[
-						SNew(SBox).WidthOverride(64)
-						[
-							SNew(STextBlock).Justification(ETextJustify::Right).Font(Police("Bold", 15))
-							.ColorAndOpacity_Lambda([Prix, Abordable]() { return FSlateColor(Prix() <= 0 ? OR_PALE : (Abordable() ? OR : FLinearColor(0.5f, 0.47f, 0.58f))); })
-							.Text_Lambda([Prix]() { const int32 P = Prix(); return P <= 0 ? Texte(TEXT("MAX")) : Texte(FString::FromInt(P)); })
-						]
-					]
+					Contenu
 				]
 			];
 			*Lien = Bouton;
-			Liste->AddSlot().AutoHeight().Padding(0, 3)[Bouton];
+			return Bouton;
+		};
+		TSharedRef<SGridPanel> Grille = SNew(SGridPanel);
+		for (int32 i = 0; i < VespVeilleur::Nombre; i++)
+		{
+			const FVespCarte& C = VespVeilleur::Carte(i);
+			auto Etat = [this, i]() -> int32 {		// 0 : a debloquer, 1 : inactive, 2 : active
+				const AVespPlayerController* J = Joueur.Get();
+				return !J || !J->Memoire || !J->Memoire->Debloquee(i) ? 0 : (J->Memoire->Active(i) ? 2 : 1);
+			};
+			TSharedRef<SWidget> Contenu = SNew(SBox).WidthOverride(262).HeightOverride(66)
+			[
+				SNew(SVerticalBox)
+				+ SVerticalBox::Slot().AutoHeight()
+				[
+					SNew(SHorizontalBox)
+					+ SHorizontalBox::Slot().FillWidth(1.0f)
+					[
+						SNew(STextBlock).Text(Texte(VespMajuscules(C.Nom))).Font(Police("Bold", 11, 80))
+						.ColorAndOpacity_Lambda([Etat]() { return FSlateColor(Etat() == 0 ? DOUX : TEXTE); })
+					]
+					+ SHorizontalBox::Slot().AutoWidth()
+					[
+						SNew(STextBlock).Text(Texte(FString::Printf(TEXT("%d"), C.Cout))).Font(Police("Bold", 11)).ColorAndOpacity(VIOLET)
+						.ToolTipText(LOCTEXT("CoutCarte", "La place que la carte prend dans la capacité"))
+					]
+				]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 2, 0, 0)
+				[
+					SNew(STextBlock).Text(Texte(C.Aide)).Font(Police("Italic", 10)).ColorAndOpacity(DOUX).AutoWrapText(true)
+				]
+				+ SVerticalBox::Slot().FillHeight(1.0f).VAlign(VAlign_Bottom)
+				[
+					SNew(STextBlock).Font(Police("Bold", 9, 120))
+					.ColorAndOpacity_Lambda([this, i, Etat]() {
+						const AVespPlayerController* J = Joueur.Get();
+						const int32 E = Etat();
+						const bool bAbordable = J && J->Memoire && J->Memoire->Souvenirs >= VespVeilleur::Carte(i).Prix;
+						return FSlateColor(E == 2 ? OR : (E == 1 ? DOUX : (bAbordable ? OR_PALE : FLinearColor(0.5f, 0.47f, 0.58f))));
+					})
+					.Text_Lambda([i, Etat]() {
+						const int32 E = Etat();
+						return E == 2 ? Texte(TEXT("EMPORTÉE")) : (E == 1 ? Texte(TEXT("AU REPOS")) : Texte(FString::Printf(TEXT("DÉBLOQUER : %d SOUVENIRS"), VespVeilleur::Carte(i).Prix)));
+					})
+				]
+			];
+			Grille->AddSlot(i % 2, i / 2).Padding(3)[Case(i + 1, Contenu)];
 		}
-		return SNew(SBorder).BorderImage(&Panneau).Padding(FMargin(26, 20))
+		// La chandelle : +1 de capacite
+		TSharedRef<SWidget> Chandelle = Case(0,
+			SNew(SHorizontalBox)
+			+ SHorizontalBox::Slot().FillWidth(1.0f).VAlign(VAlign_Center)
+			[
+				SNew(STextBlock).Font(Police("Bold", 11, 80)).ColorAndOpacity(TEXTE)
+				.Text_Lambda([this]() {
+					const AVespPlayerController* J = Joueur.Get();
+					const int32 Prix = J && J->Memoire ? VespVeilleur::PrixChandelle(J->Memoire->Chandelles) : 0;
+					return Prix > 0 ? Texte(FString::Printf(TEXT("ALLUMER UNE CHANDELLE  ·  +1 capacité  ·  %d SOUVENIRS"), Prix)) : Texte(TEXT("TOUTES LES CHANDELLES BRÛLENT"));
+				})
+			]);
+		return SNew(SBorder).BorderImage(&Panneau).Padding(FMargin(22, 18))
 		.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->bVeilleurOuvert); })
 		[
-			SNew(SBox).WidthOverride(580)
+			SNew(SBox).WidthOverride(560)
 			[
 				SNew(SVerticalBox)
 				+ SVerticalBox::Slot().AutoHeight()
@@ -581,25 +604,34 @@ TSharedRef<SWidget> SVespInterface::CoucheTitre()
 					[
 						SNew(STextBlock).Text(LOCTEXT("Veilleur", "LE VEILLEUR")).Font(Police("Bold", 12, 300)).ColorAndOpacity(OR)
 					]
+					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center).Padding(0, 0, 18, 0)
+					[
+						SNew(STextBlock).Font(Police("Bold", 13, 100)).ColorAndOpacity(VIOLET)
+						.Text_Lambda([this]() {
+							const AVespPlayerController* J = Joueur.Get();
+							return J ? Texte(FString::Printf(TEXT("CAPACITÉ %d / %d"), J->CapaciteUtilisee(), J->Capacite())) : FText::GetEmpty();
+						})
+					]
 					+ SHorizontalBox::Slot().AutoWidth().VAlign(VAlign_Center)
 					[
-						SNew(STextBlock).Font(Police("Bold", 16, 120)).ColorAndOpacity(VIOLET)
+						SNew(STextBlock).Font(Police("Bold", 13, 100)).ColorAndOpacity(OR_PALE)
 						.Text_Lambda([this]() {
 							const AVespPlayerController* J = Joueur.Get();
 							return Texte(FString::Printf(TEXT("%d SOUVENIRS"), J && J->Memoire ? J->Memoire->Souvenirs : 0));
 						})
 					]
 				]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 12)
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 6, 0, 10)
 				[
-					SNew(STextBlock).Font(Police("Italic", 12)).ColorAndOpacity(TEXTE).AutoWrapText(true)
-					.Text(LOCTEXT("VeilleurIntro", "Oswin garde ce que chaque vision a vu. Les Souvenirs se gagnent en route et ne se perdent jamais. Un don dure pour toutes les visions suivantes."))
+					SNew(STextBlock).Font(Police("Italic", 11)).ColorAndOpacity(TEXTE).AutoWrapText(true)
+					.Text(LOCTEXT("VeilleurIntro", "Oswin garde ce que chaque vision a vu. Une carte débloquée l'est pour toujours ; avant de partir, emporte celles qui tiennent dans ta capacité."))
 				]
-				+ SVerticalBox::Slot().AutoHeight()[Liste]
-				+ SVerticalBox::Slot().AutoHeight().Padding(0, 12, 0, 0)
+				+ SVerticalBox::Slot().AutoHeight().Padding(3, 0, 3, 4)[Chandelle]
+				+ SVerticalBox::Slot().AutoHeight()[Grille]
+				+ SVerticalBox::Slot().AutoHeight().Padding(0, 8, 0, 0)
 				[
 					SNew(STextBlock).Font(Police("Regular", 10)).ColorAndOpacity(DOUX).AutoWrapText(true)
-					.Text(LOCTEXT("VeilleurAide", "Clic ou 1 à 7 pour acheter  ·  manette : croix, puis (X)  ·  (Y) / ÉCHAP : fermer"))
+					.Text(LOCTEXT("VeilleurAide", "Clic : débloquer, emporter ou laisser une carte  ·  clavier : E  ·  manette : croix, puis (X)  ·  (Y) / ÉCHAP : fermer"))
 				]
 			]
 		];

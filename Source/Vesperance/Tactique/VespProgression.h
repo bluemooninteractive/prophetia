@@ -37,25 +37,28 @@ namespace VespSeuil
 	const TCHAR* NomVoie(EVespVoie Voie);
 }
 
-// ===================== Le Veilleur =====================
-// Entre deux visions, le Veilleur Oswin echange les Souvenirs (gagnes en route, gardes a la mort) contre des dons.
-// Un don dure pour toutes les visions suivantes : c'est ce qui rend la suivante un peu plus forte.
+// ===================== Le Veilleur : les cartes =====================
+// Entre deux visions, le Veilleur Oswin echange les Souvenirs (gagnes en route, gardes a la mort) contre des cartes.
+// Une carte debloquee le reste pour toujours ; avant chaque vision, on active celles qui tiennent dans la capacite
+// (3 au depart, +1 par chandelle achetee). C'est un choix de build, pas une simple accumulation de bonus.
 
-struct FVespDon
+struct FVespCarte
 {
 	const TCHAR* Id;
 	const TCHAR* Nom;
-	const TCHAR* Aide;		// ce que donne chaque rang
-	int32 RangMax;
-	int32 Prix[5];			// le prix de chaque rang
+	const TCHAR* Aide;		// ce qu'elle donne a chaque vision
+	int32 Cout;				// la place qu'elle prend dans la capacite
+	int32 Prix;				// en Souvenirs, pour la debloquer
 };
 
 namespace VespVeilleur
 {
-	constexpr int32 Nombre = 7;
-	const FVespDon& Don(int32 Index);
+	constexpr int32 Nombre = 12;
+	constexpr int32 CapaciteDeBase = 3;
+	constexpr int32 ChandellesMax = 5;
+	const FVespCarte& Carte(int32 Index);
 	int32 Index(const TCHAR* Id);
-	int32 Prix(int32 Index, int32 RangActuel);		// le prix du rang suivant (0 : deja au maximum)
+	int32 PrixChandelle(int32 Chandelles);		// le prix de la suivante (0 : toutes achetees)
 }
 
 // ===================== Le butin =====================

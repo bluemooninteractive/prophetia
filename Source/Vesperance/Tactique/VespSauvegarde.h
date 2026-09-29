@@ -17,7 +17,8 @@ class VESPERANCE_API UVespSauvegarde : public USaveGame
 
 public:
 	static constexpr int32 NombreDActes = 7;
-	static constexpr int32 NombreDeDons = 7;
+	static constexpr int32 NombreDeDons = 7;			// (l'ancien systeme : des rangs ; repris en cartes au chargement)
+	static constexpr int32 NombreDeCartes = 12;
 
 	// Le numero de la derniere vision lancee (0 : jamais joue)
 	UPROPERTY() int32 Visions = 0;
@@ -38,6 +39,10 @@ public:
 	UPROPERTY() int32 Souvenirs = 0;
 	UPROPERTY() int32 SouvenirsGagnes = 0;		// depuis la premiere vision
 	UPROPERTY() TArray<int32> Dons;
+	// Les cartes du Veilleur : debloquees pour toujours, et celles qu'on emporte ; la capacite grandit avec les chandelles
+	UPROPERTY() TArray<bool> CartesDebloquees;
+	UPROPERTY() TArray<bool> CartesActives;
+	UPROPERTY() int32 Chandelles = 0;
 	// Les repliques deja entendues (le Veilleur ne repete pas ses confidences d'une vision a l'autre)
 	UPROPERTY() TArray<FString> Entendues;
 	// La vraie fin : combien de fois une vision a accepte de se dissoudre dans le Voile
@@ -56,9 +61,13 @@ public:
 		MeilleursActes.SetNum(NombreDActes);
 		DerniersActes.SetNum(NombreDActes);
 		Dons.SetNum(NombreDeDons);
+		CartesDebloquees.SetNum(NombreDeCartes);
+		CartesActives.SetNum(NombreDeCartes);
 	}
 
 	int32 Don(int32 Index) const { return Dons.IsValidIndex(Index) ? Dons[Index] : 0; }
+	bool Debloquee(int32 Carte) const { return CartesDebloquees.IsValidIndex(Carte) && CartesDebloquees[Carte]; }
+	bool Active(int32 Carte) const { return Debloquee(Carte) && CartesActives.IsValidIndex(Carte) && CartesActives[Carte]; }
 
 	int32 GardiensDejaVaincus() const
 	{

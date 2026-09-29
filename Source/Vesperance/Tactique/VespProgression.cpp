@@ -57,28 +57,33 @@ const TCHAR* VespSeuil::NomVoie(EVespVoie Voie)
 	}
 }
 
-// ===================== Le Veilleur : les 7 dons =====================
+// ===================== Le Veilleur : les 12 cartes =====================
 
-static const FVespDon DONS[VespVeilleur::Nombre] = {
-	{TEXT("vigueur"), TEXT("Vigueur"), TEXT("+10 pv max au départ de chaque vision."), 5, {30, 60, 100, 150, 220}},
-	{TEXT("tranchant"), TEXT("Tranchant"), TEXT("+2 attaque au départ de chaque vision."), 3, {60, 140, 260, 0, 0}},
-	{TEXT("pierre"), TEXT("Peau de pierre"), TEXT("+1 défense au départ de chaque vision."), 3, {50, 120, 220, 0, 0}},
-	{TEXT("fiole"), TEXT("Fiole du Veilleur"), TEXT("+1 potion au départ de chaque vision."), 2, {80, 200, 0, 0, 0}},
-	{TEXT("bourse"), TEXT("Bourse d'éclats"), TEXT("+40 éclats au départ de chaque vision."), 3, {40, 90, 160, 0, 0}},
-	{TEXT("etoile"), TEXT("Étoile ancienne"), TEXT("+1 point du Seuil au départ de chaque vision."), 2, {120, 300, 0, 0, 0}},
-	{TEXT("souffle"), TEXT("Second souffle"), TEXT("Une fois par vision, le Veilleur retient la chute : AYLIS se relève avec la moitié de ses pv."), 1, {300, 0, 0, 0, 0}},
+static const FVespCarte CARTES[VespVeilleur::Nombre] = {
+	{TEXT("vigueur"), TEXT("Vigueur"), TEXT("+25 pv max."), 1, 30},
+	{TEXT("fiole"), TEXT("Fiole du Veilleur"), TEXT("+2 potions au départ."), 1, 40},
+	{TEXT("bourse"), TEXT("Bourse d'éclats"), TEXT("+80 éclats au départ."), 1, 40},
+	{TEXT("tranchant"), TEXT("Tranchant"), TEXT("+4 attaque."), 2, 80},
+	{TEXT("pierre"), TEXT("Peau de pierre"), TEXT("+2 défense."), 2, 70},
+	{TEXT("etoile"), TEXT("Étoile ancienne"), TEXT("+1 point du Seuil au départ."), 2, 120},
+	{TEXT("oeil"), TEXT("Œil du guetteur"), TEXT("+10 % de chances de critique."), 2, 90},
+	{TEXT("seve"), TEXT("Sève"), TEXT("+5 pv à chaque Haschen abattu."), 2, 100},
+	{TEXT("fortune"), TEXT("Fortune"), TEXT("+50 % d'éclats."), 2, 110},
+	{TEXT("fureur"), TEXT("Fureur"), TEXT("La rage monte deux fois plus vite."), 2, 120},
+	{TEXT("flamme"), TEXT("Flamme"), TEXT("Les coups d'AYLIS peuvent brûler."), 3, 150},
+	{TEXT("souffle"), TEXT("Second souffle"), TEXT("Une fois par vision, AYLIS se relève avec la moitié de ses pv."), 3, 250},
 };
 
-const FVespDon& VespVeilleur::Don(int32 Index)
+const FVespCarte& VespVeilleur::Carte(int32 Index)
 {
-	return DONS[FMath::Clamp(Index, 0, Nombre - 1)];
+	return CARTES[FMath::Clamp(Index, 0, Nombre - 1)];
 }
 
 int32 VespVeilleur::Index(const TCHAR* Id)
 {
 	for (int32 i = 0; i < Nombre; i++)
 	{
-		if (FCString::Strcmp(DONS[i].Id, Id) == 0)
+		if (FCString::Strcmp(CARTES[i].Id, Id) == 0)
 		{
 			return i;
 		}
@@ -86,13 +91,10 @@ int32 VespVeilleur::Index(const TCHAR* Id)
 	return -1;
 }
 
-int32 VespVeilleur::Prix(int32 Index, int32 RangActuel)
+int32 VespVeilleur::PrixChandelle(int32 Chandelles)
 {
-	if (Index < 0 || Index >= Nombre || RangActuel >= DONS[Index].RangMax)
-	{
-		return 0;
-	}
-	return DONS[Index].Prix[FMath::Clamp(RangActuel, 0, 4)];
+	static const int32 PRIX[ChandellesMax] = {60, 120, 200, 300, 450};
+	return Chandelles >= 0 && Chandelles < ChandellesMax ? PRIX[Chandelles] : 0;
 }
 
 // ===================== Le butin =====================

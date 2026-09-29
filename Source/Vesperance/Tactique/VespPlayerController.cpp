@@ -266,6 +266,19 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	PhotoAttente = 8.0f;
 	// -VespVeilleur (pour tester) : l'ecran titre s'ouvre sur le Veilleur, une photo, et on quitte
 	bTestVeilleur = bVeilleurOuvert = FParse::Param(FCommandLine::Get(), TEXT("VespVeilleur"));
+	if (bTestVeilleur && Memoire)
+	{
+		// (le test montre un Veilleur deja entame ; rien n'est sauvegarde)
+		Memoire->Souvenirs = 185;
+		Memoire->Chandelles = 1;
+		for (const TCHAR* Id : {TEXT("vigueur"), TEXT("fiole"), TEXT("tranchant"), TEXT("flamme")})
+		{
+			Memoire->CartesDebloquees[VespVeilleur::Index(Id)] = true;
+		}
+		Memoire->CartesActives[VespVeilleur::Index(TEXT("vigueur"))] = true;
+		Memoire->CartesActives[VespVeilleur::Index(TEXT("tranchant"))] = true;
+		SelectionDon = 11;
+	}
 	bTestOuverture = FParse::Param(FCommandLine::Get(), TEXT("VespOuverture"));
 	bTestOptions = bOptionsOuvertes = FParse::Param(FCommandLine::Get(), TEXT("VespOptions"));
 	FParse::Value(FCommandLine::Get(), TEXT("VespFin="), TestFin);
@@ -357,6 +370,18 @@ void AVespPlayerController::ChargerMemoire()
 		Memoire = Cast<UVespSauvegarde>(UGameplayStatics::CreateSaveGameObject(UVespSauvegarde::StaticClass()));
 	}
 	Memoire->Completer();
+	// L'ancienne sauvegarde avait des dons a rangs : chaque don achete devient sa carte, debloquee et active
+	static const TCHAR* ANCIENS_DONS[UVespSauvegarde::NombreDeDons] = {TEXT("vigueur"), TEXT("tranchant"), TEXT("pierre"), TEXT("fiole"), TEXT("bourse"), TEXT("etoile"), TEXT("souffle")};
+	for (int32 d = 0; d < UVespSauvegarde::NombreDeDons; d++)
+	{
+		const int32 c = VespVeilleur::Index(ANCIENS_DONS[d]);
+		if (Memoire->Dons[d] > 0 && c >= 0)
+		{
+			Memoire->CartesDebloquees[c] = true;
+			Memoire->CartesActives[c] = true;
+			Memoire->Dons[d] = 0;
+		}
+	}
 	NumeroVision = Memoire->Visions + 1;
 	UE_LOG(LogTemp, Display, TEXT("VESPERANCE memoire : %d visions, %d victoires, %d gardiens deja vaincus, %s de jeu"),
 	       Memoire->Visions, Memoire->Victoires, Memoire->GardiensDejaVaincus(), *UVespSauvegarde::Duree(Memoire->TempsDeJeu));
@@ -364,7 +389,7 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0 || bTestRecompenses)
+	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0 || bTestRecompenses || bTestVeilleur)
 	{
 		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
@@ -421,11 +446,21 @@ void AVespPlayerController::MemoriserLaChute()
 
 // ===================== Le Veilleur : les Souvenirs et les dons =====================
 
-static_assert(VespVeilleur::Nombre == UVespSauvegarde::NombreDeDons, "un rang par don dans la sauvegarde");
+static_assert(VespVeilleur::Nombre == UVespSauvegarde::NombreDeCartes, "une case par carte dans la sauvegarde");
 
-int32 AVespPlayerController::RangDon(int32 Index) const
+int32 AVespPlayerController::Capacite() const
 {
-	return Memoire ? Memoire->Don(Index) : 0;
+	return VespVeilleur::CapaciteDeBase + (Memoire ? FMath::Clamp(Memoire->Chandelles, 0, VespVeilleur::ChandellesMax) : 0);
+}
+
+int32 AVespPlayerController::CapaciteUtilisee() const
+{
+	int32 N = 0;
+	for (int32 i = 0; i < VespVeilleur::Nombre; i++)
+	{
+		N += Memoire && Memoire->Active(i) ? VespVeilleur::Carte(i).Cout : 0;
+	}
+	return N;
 }
 
 void AVespPlayerController::GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquoi)
@@ -442,45 +477,101 @@ void AVespPlayerController::GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquo
 	UE_LOG(LogTemp, Display, TEXT("VESPERANCE souvenirs : +%d (%s), %d dans cette vision, %d en reserve"), Quantite, Pourquoi, SouvenirsDeLaVision, Memoire->Souvenirs);
 }
 
+// Au depart d'une vision : les cartes actives, dans la limite de la capacite
 void AVespPlayerController::AppliquerDons()
 {
 	bSecondSouffle = false;
 	if (bModePhoto || !Memoire)
 	{
-		return;		// (les photos montrent AYLIS sans les dons)
+		return;		// (les photos montrent AYLIS sans les cartes)
 	}
-	auto Rang = [this](const TCHAR* Id) { return RangDon(VespVeilleur::Index(Id)); };
-	Aylis->Stats.PvMax += 10 * Rang(TEXT("vigueur"));
+	int32 Place = Capacite();
+	FString Emportees;
+	for (int32 i = 0; i < VespVeilleur::Nombre; i++)
+	{
+		const FVespCarte& C = VespVeilleur::Carte(i);
+		if (!Memoire->Active(i) || C.Cout > Place)
+		{
+			continue;
+		}
+		Place -= C.Cout;
+		Emportees += FString(C.Nom) + TEXT(", ");
+		const FString Id = C.Id;
+		if (Id == TEXT("vigueur")) { Aylis->Stats.PvMax += 25; }
+		else if (Id == TEXT("fiole")) { Potions += 2; }
+		else if (Id == TEXT("bourse")) { Eclats += 80; }
+		else if (Id == TEXT("tranchant")) { Aylis->Stats.Attaque += 4; }
+		else if (Id == TEXT("pierre")) { Aylis->Stats.Defense += 2; }
+		else if (Id == TEXT("etoile")) { PointsDeCompetence += 1; }
+		else if (Id == TEXT("oeil")) { Aylis->Stats.ChanceCritique += 10; }
+		else if (Id == TEXT("seve")) { bSeve = true; }
+		else if (Id == TEXT("fortune")) { bFortune = true; }
+		else if (Id == TEXT("fureur")) { bFureur = true; }
+		else if (Id == TEXT("flamme")) { bFlamme = true; }
+		else if (Id == TEXT("souffle")) { bSecondSouffle = true; }
+	}
 	Aylis->Stats.Pv = Aylis->Stats.PvMax;
-	Aylis->Stats.Attaque += 2 * Rang(TEXT("tranchant"));
-	Aylis->Stats.Defense += Rang(TEXT("pierre"));
-	Potions += Rang(TEXT("fiole"));
-	Eclats += 40 * Rang(TEXT("bourse"));
-	PointsDeCompetence += Rang(TEXT("etoile"));
-	bSecondSouffle = Rang(TEXT("souffle")) > 0;
-	UE_LOG(LogTemp, Display, TEXT("VESPERANCE dons : %d pv, %d attaque, %d defense, %d potions, %d eclats, %d points du Seuil%s"),
-	       Aylis->Stats.PvMax, Aylis->Stats.Attaque, Aylis->Stats.Defense, Potions, Eclats, PointsDeCompetence, bSecondSouffle ? TEXT(", second souffle") : TEXT(""));
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE cartes : %s(capacite %d, %d libre)"), Emportees.IsEmpty() ? TEXT("aucune ") : *Emportees, Capacite(), Place);
 }
 
-void AVespPlayerController::AcheterDon(int32 Index)
+void AVespPlayerController::ActionVeilleur(int32 Ligne)
 {
-	if (Phase != EVespPhase::Titre || !Memoire || Index < 0 || Index >= VespVeilleur::Nombre)
+	if (Phase != EVespPhase::Titre || !Memoire || Ligne < 0 || Ligne > VespVeilleur::Nombre)
 	{
 		return;
 	}
-	SelectionDon = Index;
-	const int32 Rang = Memoire->Don(Index);
-	const int32 Prix = VespVeilleur::Prix(Index, Rang);
-	if (Prix <= 0 || Memoire->Souvenirs < Prix)
+	SelectionDon = Ligne;
+	auto Refus = [this](const TCHAR* Pourquoi) {
+		UVespSons::Jouer2D(this, EVespSon::Survol, 0.5f, 0.7f);
+		UE_LOG(LogTemp, Display, TEXT("VESPERANCE veilleur : %s"), Pourquoi);
+	};
+	// Une chandelle : +1 de capacite
+	if (Ligne == 0)
 	{
-		UVespSons::Jouer2D(this, EVespSon::Survol, 0.5f, 0.7f);		// pas assez (ou deja au maximum)
+		const int32 Prix = VespVeilleur::PrixChandelle(Memoire->Chandelles);
+		if (Prix <= 0 || Memoire->Souvenirs < Prix)
+		{
+			Refus(TEXT("pas de chandelle"));
+			return;
+		}
+		Memoire->Souvenirs -= Prix;
+		Memoire->Chandelles++;
+		EcrireMemoire();
+		UVespSons::Jouer2D(this, EVespSon::Rune, 0.8f);
 		return;
 	}
-	Memoire->Souvenirs -= Prix;
-	Memoire->Dons[Index] = Rang + 1;
+	const int32 i = Ligne - 1;
+	const FVespCarte& C = VespVeilleur::Carte(i);
+	if (!Memoire->Debloquee(i))
+	{
+		// Debloquer la carte (et l'activer si elle tient dans la capacite)
+		if (Memoire->Souvenirs < C.Prix)
+		{
+			Refus(TEXT("pas assez de souvenirs"));
+			return;
+		}
+		Memoire->Souvenirs -= C.Prix;
+		Memoire->CartesDebloquees[i] = true;
+		Memoire->CartesActives[i] = CapaciteUtilisee() + C.Cout <= Capacite();
+		UVespSons::Jouer2D(this, EVespSon::Rune, 0.8f);
+		UE_LOG(LogTemp, Display, TEXT("VESPERANCE veilleur : carte %s debloquee pour %d souvenirs (reste %d)"), C.Nom, C.Prix, Memoire->Souvenirs);
+	}
+	else if (Memoire->Active(i))
+	{
+		Memoire->CartesActives[i] = false;
+		UVespSons::Jouer2D(this, EVespSon::Clic, 0.8f, 0.85f);
+	}
+	else
+	{
+		if (CapaciteUtilisee() + C.Cout > Capacite())
+		{
+			Refus(TEXT("capacite pleine"));
+			return;
+		}
+		Memoire->CartesActives[i] = true;
+		UVespSons::Jouer2D(this, EVespSon::Clic, 0.8f, 1.15f);
+	}
 	EcrireMemoire();
-	UVespSons::Jouer2D(this, EVespSon::Rune, 0.8f);
-	UE_LOG(LogTemp, Display, TEXT("VESPERANCE veilleur : %s rang %d pour %d souvenirs (reste %d)"), VespVeilleur::Don(Index).Nom, Rang + 1, Prix, Memoire->Souvenirs);
 }
 
 // ===================== Les options =====================
@@ -3318,9 +3409,9 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		else if (Phase == EVespPhase::Evenement && TempsPhase > 2.0f) { Photographier(TEXT("Fin2_Choix"), true); ChoisirEvenement(0); }
 		else if (Phase == EVespPhase::Victoire && TempsPhase > 2.5f) { Photographier(FString::Printf(TEXT("Fin%d_Ecran"), TestFin), true); Quitter(); return; }
 	}
-	if (bTestVeilleur && Phase == EVespPhase::Titre && TempsPhase > 30.0f)
+	if (bTestVeilleur && !bFinLancee && Phase == EVespPhase::Titre && TempsPhase > 30.0f)
 	{
-		bTestVeilleur = false;
+		bFinLancee = true;		// (le drapeau du test reste leve : rien n'est sauvegarde en quittant)
 		Photographier(TEXT("Veilleur"), true);
 		Quitter();
 		return;
@@ -3381,7 +3472,7 @@ void AVespPlayerController::PlayerTick(float Secondes)
 				}
 				return;
 			}
-			// Le Veilleur : Y ouvre et ferme ; 1 a 7, ou la croix et X, achetent un don
+			// Le Veilleur : Y ouvre et ferme ; la croix choisit, E / X (manette : X) achete ou active
 			if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Top))
 			{
 				bVeilleurOuvert = !bVeilleurOuvert;
@@ -3389,23 +3480,29 @@ void AVespPlayerController::PlayerTick(float Secondes)
 			}
 			if (bVeilleurOuvert)
 			{
-				const FKey Chiffres[VespVeilleur::Nombre] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four, EKeys::Five, EKeys::Six, EKeys::Seven};
-				for (int32 i = 0; i < VespVeilleur::Nombre; i++)
-				{
-					if (WasInputKeyJustPressed(Chiffres[i]))
-					{
-						AcheterDon(i);
-					}
-				}
+				// (la chandelle en haut, puis les cartes sur deux colonnes : haut / bas saute une ligne, gauche / droite change de colonne)
 				FIntPoint Direction;
-				if (DirectionPressee(Direction, Secondes) && Direction.Y != 0)
+				if (DirectionPressee(Direction, Secondes))
 				{
-					SelectionDon = (SelectionDon + Direction.Y + VespVeilleur::Nombre) % VespVeilleur::Nombre;
+					const int32 Lignes = VespVeilleur::Nombre + 1;
+					if (SelectionDon == 0)
+					{
+						SelectionDon = Direction.Y > 0 ? 1 : 0;
+					}
+					else if (Direction.Y != 0)
+					{
+						const int32 Suivante = SelectionDon + Direction.Y * 2;
+						SelectionDon = Suivante < 1 ? 0 : FMath::Min(Suivante, Lignes - 1);
+					}
+					else if (Direction.X != 0)
+					{
+						SelectionDon = FMath::Clamp(SelectionDon + Direction.X, 1, Lignes - 1);
+					}
 					UVespSons::Jouer2D(this, EVespSon::Survol);
 				}
-				if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Left))
+				if (WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Left) || WasInputKeyJustPressed(EKeys::E) || WasInputKeyJustPressed(EKeys::X))
 				{
-					AcheterDon(SelectionDon);
+					ActionVeilleur(SelectionDon);
 				}
 				if (WasInputKeyJustPressed(EKeys::Escape) || WasInputKeyJustPressed(EKeys::Gamepad_FaceButton_Right))
 				{

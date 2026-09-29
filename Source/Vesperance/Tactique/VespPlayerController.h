@@ -136,7 +136,9 @@ public:
 	void ContinuerApresLActe();
 	void Recommencer();
 	void ReprendreLaVision();				// l'ecran titre : la vision mise de cote reprend ou elle en etait
-	void AcheterDon(int32 Index);			// le Veilleur (ecran titre) : un rang de plus, contre des Souvenirs
+	void ActionVeilleur(int32 Ligne);		// le Veilleur (ecran titre) : 0 = une chandelle ; 1..12 = debloquer ou (des)activer une carte
+	int32 Capacite() const;					// la place pour les cartes (3 + les chandelles)
+	int32 CapaciteUtilisee() const;
 
 	static FString NomSalle(EVespSalle Salle, int32 Acte);
 	static FString AideSalle(EVespSalle Salle);
@@ -381,10 +383,9 @@ private:
 	int32 TestFin = 0;						// -VespFin=1 ou 2 : deroule cette fin a Karn, la photographie, puis on quitte (sans rien sauvegarder)
 	bool bFinLancee = false;
 	bool bTestVeilleur = false;			// -VespVeilleur : une photo du Veilleur, puis on quitte
-	int32 SelectionDon = 0;				// le don choisi a la manette
+	int32 SelectionDon = 0;				// la ligne du Veilleur choisie a la manette (0 : la chandelle, puis les cartes)
 	void GagnerSouvenirs(int32 Quantite, const TCHAR* Pourquoi);
-	void AppliquerDons();				// au depart d'une vision
-	int32 RangDon(int32 Index) const;
+	void AppliquerDons();				// au depart d'une vision : les cartes actives
 
 	// Les dialogues qui se souviennent (le document narratif) : l'ouverture d'une vision, le Veilleur au feu de camp,
 	// les gardiens qui savent s'ils ont deja tue AYLIS ou deja ete vaincus, la ligne de la chute
