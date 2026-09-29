@@ -31,6 +31,8 @@ struct FVespZone
 	int32 Type = 0;					// (int32) EVespSalle
 	FString Lettre;
 	FLinearColor Couleur = FLinearColor::White;
+	FString Recompense;				// ce que la clairiere rapporte (vide : rien d'annonce)
+	FLinearColor CouleurRecompense = FLinearColor::White;
 };
 
 // Un sentier entre deux clairieres
@@ -128,6 +130,7 @@ private:
 	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Orbes;
 	UPROPERTY() TArray<TObjectPtr<UPointLightComponent>> LumieresBalises;
 	UPROPERTY() TArray<TObjectPtr<UTextRenderComponent>> Lettres;
+	UPROPERTY() TArray<TObjectPtr<UTextRenderComponent>> Recompenses;	// le mot au-dessus de la lettre (une case par clairiere, vide si rien)
 	UPROPERTY() TArray<TObjectPtr<UPointLightComponent>> Lumieres;
 	UPROPERTY() TArray<TObjectPtr<UPointLightComponent>> Feux;		// les feux de camp (ils vacillent)
 	UPROPERTY() TArray<TObjectPtr<UStaticMeshComponent>> Eaux;		// les mares (un materiau d'eau par plan)

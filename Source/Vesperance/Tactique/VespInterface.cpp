@@ -131,6 +131,15 @@ public:
 			const FVector2D T(Mesure->Measure(Lettre, F));
 			FSlateDrawElement::MakeText(Elements, Couche + 4, Geo.ToPaintGeometry(FVector2f(T), FSlateLayoutTransform(FVector2f(P - T / 2.0f))),
 			                            Lettre, F, ESlateDrawEffect::None, FLinearColor::White);
+			// ce qu'elle rapporte, en petit dessous
+			if (N.Recompense != EVespRecompense::Aucune && !N.bVisite)
+			{
+				const FString Mot = AVespPlayerController::NomRecompense(N.Recompense);
+				const FSlateFontInfo FR = Police("Bold", 9, 60);
+				const FVector2D TR(Mesure->Measure(Mot, FR));
+				FSlateDrawElement::MakeText(Elements, Couche + 4, Geo.ToPaintGeometry(FVector2f(TR), FSlateLayoutTransform(FVector2f(P + FVector2D(-TR.X / 2.0f, R + 3.0f)))),
+				                            Mot, FR, ESlateDrawEffect::None, AVespPlayerController::CouleurRecompense(N.Recompense));
+			}
 		}
 		// AYLIS
 		if (J->Aylis)

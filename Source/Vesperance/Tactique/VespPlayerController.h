@@ -72,10 +72,23 @@ enum class EVespSalle : uint8
 	Tresor,			// au bout d'un embranchement : un coffre
 };
 
+// Ce qu'une clairiere de combat rapporte, annonce avant d'y entrer
+enum class EVespRecompense : uint8
+{
+	Aucune,
+	Rune,			// le choix d'une rune parmi 3
+	Eclats,			// une bourse d'eclats
+	Objet,			// un objet (rare ou mieux pour une elite)
+	Fiole,			// une potion, et un grand soin
+	Etoile,			// un point du Seuil
+	Souvenirs,		// des Souvenirs pour le Veilleur
+};
+
 // Une salle sur la carte de la route
 struct FVespNoeud
 {
 	EVespSalle Type = EVespSalle::Combat;
+	EVespRecompense Recompense = EVespRecompense::Aucune;
 	int32 Etage = 0;
 	FVector Centre = FVector::ZeroVector;	// sa place dans le monde
 	TArray<int32> Suivants;			// les clairieres reliees par un sentier
@@ -129,6 +142,8 @@ public:
 	static FString AideSalle(EVespSalle Salle);
 	static FString LettreSalle(EVespSalle Salle);
 	static FLinearColor CouleurSalle(EVespSalle Salle);
+	static FString NomRecompense(EVespRecompense R);
+	static FLinearColor CouleurRecompense(EVespRecompense R);
 	static FString NomRune(int32 Rune);
 	static FString AideRune(int32 Rune);
 	static FString Romain(int32 Nombre);
@@ -354,7 +369,8 @@ private:
 	int32 GraineCarte = 0;				// la carte de l'acte en cours (clairieres, sentiers)
 	int32 GraineCarteImposee = 0;		// a la reprise : la carte a refaire a l'identique
 	FRandomStream HasardCarte;
-	int32 TestReprise = 0;				// -VespReprise=1 (met une vision de cote) puis =2 (la reprend) ; un emplacement a part
+	int32 TestReprise = 0;
+	bool bTestRecompenses = false;		// -VespRecompenses : photographie les balises et la carte, puis on quitte				// -VespReprise=1 (met une vision de cote) puis =2 (la reprend) ; un emplacement a part
 	const TCHAR* EmplacementPartie() const { return TestReprise > 0 ? TEXT("VesperancePartieTest") : TEXT("VesperancePartie"); }
 	void SauverPartie();
 	void EffacerPartie();

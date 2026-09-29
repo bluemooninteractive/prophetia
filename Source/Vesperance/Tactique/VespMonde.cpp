@@ -593,6 +593,7 @@ void AVespMonde::Vider()
 	Detruire(Orbes);
 	Detruire(LumieresBalises);
 	Detruire(Lettres);
+	Detruire(Recompenses);
 	Detruire(Lumieres);
 	Detruire(Feux);
 	Detruire(Eaux);
@@ -682,6 +683,22 @@ void AVespMonde::AjouterBalise(int32 Index)
 	T->SetTextRenderColor(Z.Couleur.ToFColor(true));
 	T->SetText(FText::FromString(Z.Lettre));
 	Lettres.Add(T);
+
+	// Ce que la clairiere rapporte, en petit au-dessus de la lettre (on choisit son chemin en le voyant)
+	UTextRenderComponent* R = nullptr;
+	if (!Z.Recompense.IsEmpty())
+	{
+		R = NewObject<UTextRenderComponent>(this);
+		R->SetupAttachment(Racine);
+		R->RegisterComponent();
+		R->SetWorldLocation(Haut + FVector(0, 0, 205.0f));
+		R->SetHorizontalAlignment(EHTA_Center);
+		R->SetVerticalAlignment(EVRTA_TextCenter);
+		R->SetWorldSize(48.0f);
+		R->SetTextRenderColor(Z.CouleurRecompense.ToFColor(true));
+		R->SetText(FText::FromString(Z.Recompense));
+	}
+	Recompenses.Add(R);
 
 	// Les accessoires de la clairiere (hors du centre, ou une arene pourrait apparaitre)
 	const FVector C = Z.Centre;
@@ -1279,6 +1296,10 @@ void AVespMonde::MarquerZoneFaite(int32 Zone)
 	}
 	Orbes[Zone]->SetVisibility(false);
 	Lettres[Zone]->SetVisibility(false);
+	if (Recompenses.IsValidIndex(Zone) && Recompenses[Zone])
+	{
+		Recompenses[Zone]->SetVisibility(false);
+	}
 	LumieresBalises[Zone]->SetIntensity(IntensitesBalises[Zone] * 0.2f);
 	AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, Orbes[Zone]->GetComponentLocation(), FVector::UpVector, Zones[Zone].Couleur);
 }
@@ -1289,16 +1310,23 @@ void AVespMonde::CacherBalise(int32 Zone, bool bCachee)
 	{
 		Orbes[Zone]->SetVisibility(!bCachee);
 		Lettres[Zone]->SetVisibility(!bCachee);
+		if (Recompenses.IsValidIndex(Zone) && Recompenses[Zone])
+		{
+			Recompenses[Zone]->SetVisibility(!bCachee);
+		}
 	}
 }
 
 void AVespMonde::OrienterTextes(const FVector& Camera)
 {
-	for (UTextRenderComponent* T : Lettres)
+	for (const TArray<TObjectPtr<UTextRenderComponent>>* Textes : {&Lettres, &Recompenses})
 	{
-		if (T)
+		for (UTextRenderComponent* T : *Textes)
 		{
-			T->SetWorldRotation((Camera - T->GetComponentLocation()).Rotation());
+			if (T)
+			{
+				T->SetWorldRotation((Camera - T->GetComponentLocation()).Rotation());
+			}
 		}
 	}
 }

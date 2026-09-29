@@ -270,6 +270,7 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	bTestOptions = bOptionsOuvertes = FParse::Param(FCommandLine::Get(), TEXT("VespOptions"));
 	FParse::Value(FCommandLine::Get(), TEXT("VespFin="), TestFin);
 	FParse::Value(FCommandLine::Get(), TEXT("VespReprise="), TestReprise);
+	bTestRecompenses = FParse::Param(FCommandLine::Get(), TEXT("VespRecompenses"));
 	if (!bModePhoto && !bTestOuverture && TestFin == 0 && !bTestOptions)
 	{
 		PartieSuspendue = Cast<UVespPartie>(UGameplayStatics::LoadGameFromSlot(EmplacementPartie(), 0));
@@ -363,7 +364,7 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0)
+	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0 || bTestRecompenses)
 	{
 		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
@@ -690,6 +691,53 @@ FLinearColor AVespPlayerController::CouleurSalle(EVespSalle S)
 	}
 }
 
+FString AVespPlayerController::NomRecompense(EVespRecompense R)
+{
+	switch (R)
+	{
+		case EVespRecompense::Rune: return TEXT("RUNE");
+		case EVespRecompense::Eclats: return TEXT("ÉCLATS");
+		case EVespRecompense::Objet: return TEXT("OBJET");
+		case EVespRecompense::Fiole: return TEXT("FIOLE");
+		case EVespRecompense::Etoile: return TEXT("ÉTOILE");
+		case EVespRecompense::Souvenirs: return TEXT("SOUVENIRS");
+		default: return FString();
+	}
+}
+
+FLinearColor AVespPlayerController::CouleurRecompense(EVespRecompense R)
+{
+	switch (R)
+	{
+		case EVespRecompense::Rune: return FLinearColor(0.73f, 0.55f, 1.0f);
+		case EVespRecompense::Eclats: return FLinearColor(0.95f, 0.8f, 0.35f);
+		case EVespRecompense::Objet: return FLinearColor(0.45f, 0.66f, 1.0f);
+		case EVespRecompense::Fiole: return FLinearColor(0.95f, 0.45f, 0.5f);
+		case EVespRecompense::Etoile: return FLinearColor(0.7f, 0.92f, 1.0f);
+		case EVespRecompense::Souvenirs: return FLinearColor(0.82f, 0.74f, 1.0f);
+		default: return FLinearColor::White;
+	}
+}
+
+// La recompense d'une clairiere de combat (tiree avec la carte : une vision reprise retrouve les memes)
+static EVespRecompense TirerRecompense(bool bElite, FRandomStream& Hasard)
+{
+	// rune, eclats, objet, fiole, etoile, souvenirs
+	static const int32 POIDS[6] = {38, 18, 16, 12, 7, 9};
+	static const int32 POIDS_ELITE[6] = {30, 14, 26, 10, 12, 8};
+	const int32* P = bElite ? POIDS_ELITE : POIDS;
+	int32 Tirage = Hasard.RandRange(0, 99);
+	for (int32 i = 0; i < 6; i++)
+	{
+		if (Tirage < P[i])
+		{
+			return (EVespRecompense)(i + 1);
+		}
+		Tirage -= P[i];
+	}
+	return EVespRecompense::Rune;
+}
+
 FString AVespPlayerController::Romain(int32 Nombre)
 {
 	static const TCHAR* R[] = {TEXT("I"), TEXT("II"), TEXT("III"), TEXT("IV"), TEXT("V"), TEXT("VI"), TEXT("VII")};
@@ -872,6 +920,15 @@ void AVespPlayerController::GenererMonde()
 	}
 	Noeuds[0].bVisite = true;
 
+	// Chaque clairiere de combat annonce sa recompense
+	for (FVespNoeud& N : Noeuds)
+	{
+		if (N.Type == EVespSalle::Combat || N.Type == EVespSalle::Elite)
+		{
+			N.Recompense = TirerRecompense(N.Type == EVespSalle::Elite, HasardCarte);
+		}
+	}
+
 	// On construit le monde (c'est le chargement de l'acte)
 	TArray<FVespZone> Zones;
 	TArray<FVespCouloir> Couloirs;
@@ -886,6 +943,8 @@ void AVespPlayerController::GenererMonde()
 		Z.Lettre = LettreSalle(N.Type);
 		Z.Couleur = CouleurSalle(N.Type);
 		Z.Rayon = N.Rayon;
+		Z.Recompense = NomRecompense(N.Recompense);
+		Z.CouleurRecompense = CouleurRecompense(N.Recompense);
 		Zones.Add(Z);
 		FVespLieu L;
 		L.Centre = N.Centre;
@@ -1412,20 +1471,63 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 		TempsPhase = 0.0f;
 		return;
 	}
-	// Des eclats, AYLIS reprend son souffle, puis choisit une rune
-	const int32 Gain = N.Type == EVespSalle::Elite ? FMath::RandRange(32, 42) + Acte * 6 : FMath::RandRange(12, 18) + Acte * 3;
+	// Toujours : quelques eclats, et AYLIS reprend son souffle. Puis la recompense annoncee par la balise.
+	const bool bElite = N.Type == EVespSalle::Elite;
+	const int32 Gain = bElite ? FMath::RandRange(16, 22) + Acte * 3 : FMath::RandRange(6, 10) + Acte * 2;
 	GagnerEclats(Gain, Aylis->GetActorLocation());
-	GagnerSouvenirs(N.Type == EVespSalle::Elite ? 5 : 2, TEXT("clairiere"));
+	GagnerSouvenirs(bElite ? 5 : 2, TEXT("clairiere"));
 	ParlerEnRoute(CLAIRIERE_LIBEREE, UE_ARRAY_COUNT(CLAIRIERE_LIBEREE));
 	const int32 Soin = Aylis->Stats.PvMax / 6;
 	Aylis->Soigner(Soin);
 	Aylis->Jouer(EVespGeste::Victoire, 1.0f, true);
-	if (HasardButin.FRand() < 0.35f)
+	const auto Eclats1 = [this](int32 G) { return bFortune ? G * 3 / 2 : G; };
+	const FString Base = FString::Printf(TEXT("La clairière est libérée ! +%d éclats, +%d pv."), Eclats1(Gain), Soin);
+	EVespRecompense R = N.Recompense;
+	if (R == EVespRecompense::Souvenirs && !bSouvenirsPossibles)
 	{
-		LacherButin(N.Centre, N.Type == EVespSalle::Elite ? 1 : 0);
+		R = EVespRecompense::Eclats;		// (une vision commencee plus loin ne rapporte pas de Souvenirs)
 	}
-	MessageRoute = FString::Printf(TEXT("La clairière est libérée ! +%d éclats, et AYLIS reprend son souffle : +%d pv."), bFortune ? Gain * 3 / 2 : Gain, Soin);
-	ProposerRunes();
+	switch (R)
+	{
+		case EVespRecompense::Eclats:
+		{
+			const int32 Bourse = bElite ? 60 + Acte * 10 : 35 + Acte * 6;
+			GagnerEclats(Bourse, N.Centre);
+			MessageRoute = Base + FString::Printf(TEXT("  Récompense : +%d éclats."), Eclats1(Bourse));
+			break;
+		}
+		case EVespRecompense::Objet:
+			LacherButin(N.Centre, bElite ? 2 : 1);
+			MessageRoute = Base + TEXT("  Récompense : un objet attend au centre de la clairière.");
+			break;
+		case EVespRecompense::Fiole:
+		{
+			Potions++;
+			const int32 Grand = Aylis->Stats.PvMax * 30 / 100;
+			Aylis->Soigner(Grand);
+			UVespSons::Jouer(this, EVespSon::Potion, Aylis->GetActorLocation());
+			MessageRoute = Base + FString::Printf(TEXT("  Récompense : +1 potion et +%d pv."), Grand);
+			break;
+		}
+		case EVespRecompense::Etoile:
+			PointsDeCompetence++;
+			UVespSons::Jouer2D(this, EVespSon::Niveau, 0.8f);
+			AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Aylis->GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, FLinearColor(0.7f, 0.92f, 1.0f));
+			MessageRoute = Base + TEXT("  Récompense : une étoile s'éveille, +1 point du Seuil (I pour l'allumer).");
+			break;
+		case EVespRecompense::Souvenirs:
+		{
+			const int32 S = bElite ? 15 : 8;
+			GagnerSouvenirs(S, TEXT("recompense"));
+			MessageRoute = Base + FString::Printf(TEXT("  Récompense : +%d Souvenirs pour le Veilleur."), S);
+			break;
+		}
+		default:		// une rune (et les clairieres sans recompense annoncee)
+			MessageRoute = Base;
+			ProposerRunes();
+			return;
+	}
+	RetourExploration();
 }
 
 // L'ambiance de l'acte : la brume, la lune, le ciel, les sons, et le monde lui-meme
@@ -1897,7 +1999,7 @@ FString AVespPlayerController::TexteDeLaFin() const
 
 void AVespPlayerController::SauverPartie()
 {
-	if (!bVisionEnCours || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || !IsValid(Aylis) || !Monde || !Combat)
+	if (!bVisionEnCours || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || bTestRecompenses || !IsValid(Aylis) || !Monde || !Combat)
 	{
 		return;
 	}
@@ -3120,6 +3222,29 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
 		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f && LigneDialogue < 2) { UE_LOG(LogTemp, Display, TEXT("VESPERANCE test : %s / %s"), *Orateurs[LigneDialogue], *Repliques[LigneDialogue]); Photographier(FString::Printf(TEXT("Ouverture%d"), LigneDialogue), true); Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
 		else if (Phase == EVespPhase::Dialogue && LigneDialogue >= 2) { Quitter(); return; }
+	}
+	if (bTestRecompenses)
+	{
+		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(1);
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
+		else if (Phase == EVespPhase::Dialogue && TempsPhase > 0.5f) { Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Exploration && !bFinLancee && TempsPhase > 2.0f)
+		{
+			// AYLIS devant la premiere fourche : les clairieres suivantes et leurs recompenses
+			bFinLancee = true;
+			Aylis->Teleporter(FMath::Lerp(Noeuds[2].Centre, Noeuds[3].Centre, 0.5f));
+			DecalageCamera *= 2.4f;		// (le test recule la camera pour voir les balises des deux clairieres)
+			bCaleCamera = true;
+			TempsPhase = 0.0f;
+			FString Liste;
+			for (const FVespNoeud& N : Noeuds)
+			{
+				Liste += FString::Printf(TEXT("%s%s "), *LettreSalle(N.Type), N.Recompense != EVespRecompense::Aucune ? *(TEXT(":") + NomRecompense(N.Recompense)) : TEXT(""));
+			}
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE test recompenses : %s"), *Liste);
+		}
+		else if (Phase == EVespPhase::Exploration && bFinLancee && !bCarteOuverte && TempsPhase > 2.5f) { Photographier(TEXT("Recompenses_Monde"), true); bCarteOuverte = true; TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Exploration && bCarteOuverte && TempsPhase > 1.5f) { Photographier(TEXT("Recompenses_Carte"), true); Quitter(); return; }
 	}
 	if (TestReprise == 1)
 	{
