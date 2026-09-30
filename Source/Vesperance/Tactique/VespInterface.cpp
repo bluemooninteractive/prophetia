@@ -8,6 +8,7 @@
 #include "VespMenu.h"
 #include "VespOptions.h"
 #include "VespPartie.h"
+#include "VespMaitres.h"
 #include "Brushes/SlateRoundedBoxBrush.h"
 #include "Styling/CoreStyle.h"
 #include "Widgets/SOverlay.h"
@@ -135,11 +136,11 @@ public:
 			// ce qu'elle rapporte, en petit dessous
 			if (N.Recompense != EVespRecompense::Aucune && !N.bVisite)
 			{
-				const FString Mot = AVespPlayerController::NomRecompense(N.Recompense);
+				const FString Mot = AVespPlayerController::EtiquetteRecompense(N);
 				const FSlateFontInfo FR = Police("Bold", 9, 60);
 				const FVector2D TR(Mesure->Measure(Mot, FR));
 				FSlateDrawElement::MakeText(Elements, Couche + 4, Geo.ToPaintGeometry(FVector2f(TR), FSlateLayoutTransform(FVector2f(P + FVector2D(-TR.X / 2.0f, R + 3.0f)))),
-				                            Mot, FR, ESlateDrawEffect::None, AVespPlayerController::CouleurRecompense(N.Recompense));
+				                            Mot, FR, ESlateDrawEffect::None, AVespPlayerController::CouleurDeLaRecompense(N));
 			}
 		}
 		// AYLIS
@@ -916,7 +917,7 @@ TSharedRef<SWidget> SVespInterface::FicheAylis()
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
 				[
-					Pastille(TAttribute<FText>::CreateLambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("RUNES %d"), Joueur->Runes.Num())) : FText::GetEmpty(); }),
+					Pastille(TAttribute<FText>::CreateLambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("DONS %d"), Joueur->DonsPris.Num())) : FText::GetEmpty(); }),
 					         VIOLET, EVisibility::Visible)
 				]
 				+ SHorizontalBox::Slot().AutoWidth().Padding(0, 0, 6, 0)
@@ -1261,21 +1262,22 @@ TSharedRef<SWidget> SVespInterface::CoucheRoute()
 
 TSharedRef<SWidget> SVespInterface::CoucheRunes()
 {
+	// Un maitre apparait et propose trois dons (ou Liss, trois pactes)
 	TSharedRef<SHorizontalBox> Cartes = SNew(SHorizontalBox);
 	for (int32 i = 0; i < 3; i++)
 	{
-		auto Rune = [this, i]() { return Joueur.IsValid() && Joueur->RunesProposees.IsValidIndex(i) ? Joueur->RunesProposees[i] : -1; };
+		auto Offre = [this, i]() { return Joueur.IsValid() && Joueur->OffresDons.IsValidIndex(i); };
 		Cartes->AddSlot().AutoWidth().Padding(14, 0)
 		[
 			CarteCliquable(
-				TAttribute<FText>::CreateLambda([Rune]() { return Rune() >= 0 ? Texte(AVespPlayerController::NomRune(Rune())) : FText::GetEmpty(); }),
-				TAttribute<FText>::CreateLambda([Rune]() { return Rune() >= 0 ? Texte(AVespPlayerController::AideRune(Rune())) : FText::GetEmpty(); }),
-				FText::GetEmpty(),
-				[Rune]() { return Rune() >= 4 ? FLinearColor(0.95f, 0.7f, 0.35f) : VIOLET; },
+				TAttribute<FText>::CreateLambda([this, i]() { return Joueur.IsValid() ? Texte(Joueur->TitreOffre(i)) : FText::GetEmpty(); }),
+				TAttribute<FText>::CreateLambda([this, i]() { return Joueur.IsValid() ? Texte(Joueur->TexteOffre(i)) : FText::GetEmpty(); }),
+				TAttribute<FText>::CreateLambda([this, i]() { return Joueur.IsValid() ? Texte(Joueur->PiedOffre(i)) : FText::GetEmpty(); }),
+				[this, i]() { return Joueur.IsValid() ? Joueur->CouleurOffre(i) : VIOLET; },
 				true,
-				TAttribute<EVisibility>::CreateLambda([this, Rune]() { return VisibleSi(Rune() >= 0); }),
+				TAttribute<EVisibility>::CreateLambda([this, Offre]() { return VisibleSi(Offre()); }),
 				[this, i]() { if (Joueur.IsValid()) Joueur->ChoisirRune(i); },
-				i, 260, 320)
+				i, 300, 430)
 		];
 	}
 	return SNew(SBorder).BorderImage(&Voile).HAlign(HAlign_Center).VAlign(VAlign_Center)
@@ -1284,10 +1286,19 @@ TSharedRef<SWidget> SVespInterface::CoucheRunes()
 		SNew(SVerticalBox)
 		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center)
 		[
-			EnTete(LOCTEXT("TitreRunes1", "LA PROPHÉTIE T'OFFRE"), LOCTEXT("TitreRunes2", "UNE RUNE"),
-			       LOCTEXT("AideRunes", "AYLIS la garde jusqu'a la fin de la route. Les runes dorees sont uniques."))
+			SNew(STextBlock).Font(Police("Bold", 13, 300))
+			.ColorAndOpacity_Lambda([this]() { return FSlateColor(Joueur.IsValid() ? VespMaitres::Couleur(Joueur->MaitreOffrant) : OR); })
+			.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->EnteteOffre()) : FText::GetEmpty(); })
 		]
-		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 10, 0, 30)
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 10, 0, 0)
+		[
+			SNew(SBox).MaxDesiredWidth(900)
+			[
+				SNew(STextBlock).Font(Police("Italic", 20)).ColorAndOpacity(TEXTE).AutoWrapText(true).Justification(ETextJustify::Center)
+				.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(FString::Printf(TEXT("« %s »"), *Joueur->RepliqueOffre)) : FText::GetEmpty(); })
+			]
+		]
+		+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 12, 0, 26)
 		[
 			SNew(STextBlock).Font(Police("Italic", 13)).ColorAndOpacity(FLinearColor(0.55f, 0.9f, 0.62f))
 			.Text_Lambda([this]() { return Joueur.IsValid() ? Texte(Joueur->MessageRoute) : FText::GetEmpty(); })
@@ -1533,7 +1544,7 @@ TSharedRef<SWidget> SVespInterface::CoucheNouvelActe()
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 22, 0, 0)
 			[
 				SNew(STextBlock).Font(Police("Italic", 14)).ColorAndOpacity(FLinearColor(0.55f, 0.9f, 0.62f))
-				.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->Acte > 1 && !Joueur->bReprise && Joueur->Runes.Num() + Joueur->HaschenVaincus > 0); })
+				.Visibility_Lambda([this]() { return VisibleSi(Joueur.IsValid() && Joueur->Acte > 1 && !Joueur->bReprise && Joueur->DonsPris.Num() + Joueur->HaschenVaincus > 0); })
 				.Text(LOCTEXT("Forces", "AYLIS reprend des forces : tous les pv, +6 pv max, +1 attaque, et une potion."))
 			]
 			+ SVerticalBox::Slot().AutoHeight().HAlign(HAlign_Center).Padding(0, 34, 0, 0)

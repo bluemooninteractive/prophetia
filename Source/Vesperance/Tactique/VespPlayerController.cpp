@@ -31,6 +31,8 @@
 #include "GameFramework/GameUserSettings.h"
 #include "VespReglages.h"
 #include "VespPartie.h"
+#include "VespMaitres.h"
+#include "VespTexte.h"
 #include "UnrealClient.h"
 #include "ImageUtils.h"
 #include "Misc/FileHelper.h"
@@ -284,6 +286,7 @@ void AVespPlayerController::Commencer(AVespMonde* LeMonde, AVespCombat* LeCombat
 	FParse::Value(FCommandLine::Get(), TEXT("VespFin="), TestFin);
 	FParse::Value(FCommandLine::Get(), TEXT("VespReprise="), TestReprise);
 	bTestRecompenses = FParse::Param(FCommandLine::Get(), TEXT("VespRecompenses"));
+	EtapeTestMaitres = FParse::Param(FCommandLine::Get(), TEXT("VespMaitres")) ? 0 : -1;
 	if (!bModePhoto && !bTestOuverture && TestFin == 0 && !bTestOptions)
 	{
 		PartieSuspendue = Cast<UVespPartie>(UGameplayStatics::LoadGameFromSlot(EmplacementPartie(), 0));
@@ -389,7 +392,7 @@ void AVespPlayerController::ChargerMemoire()
 
 void AVespPlayerController::EcrireMemoire()
 {
-	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0 || bTestRecompenses || bTestVeilleur)
+	if (!Memoire || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || TestReprise > 0 || bTestRecompenses || bTestVeilleur || EtapeTestMaitres >= 0)
 	{
 		return;		// (les photos et les tests ne comptent pas comme des visions)
 	}
@@ -741,13 +744,13 @@ FString AVespPlayerController::AideSalle(EVespSalle S)
 {
 	switch (S)
 	{
-		case EVespSalle::Combat: return TEXT("Des Haschen, parfois en plusieurs vagues. Des éclats et une rune à la fin.");
+		case EVespSalle::Combat: return TEXT("Des Haschen, parfois en plusieurs vagues. À la fin : des éclats, et la récompense annoncée sur la balise.");
 		case EVespSalle::Elite: return TEXT("Un Haschen d'élite et son escorte. Dur... mais beaucoup d'éclats.");
 		case EVespSalle::Repos: return TEXT("Un feu de camp : +60% pv et une potion.");
-		case EVespSalle::Marchand: return TEXT("Un marchand ambulant. Des potions, des runes... contre des éclats.");
+		case EVespSalle::Marchand: return TEXT("Un marchand ambulant. Des potions, des dons de maîtres... contre des éclats.");
 		case EVespSalle::Evenement: return TEXT("La vision est trouble. Une rencontre, un trésor... ou un piège.");
 		case EVespSalle::Depart: return TEXT("Le début de la route.");
-		case EVespSalle::Tresor: return TEXT("Un coffre, au bout du chemin : des éclats et une rune.");
+		case EVespSalle::Tresor: return TEXT("Un coffre, au bout du chemin : des éclats, et un maître se manifeste.");
 		default: return TEXT("Le gardien de cette terre.");
 	}
 }
@@ -792,6 +795,7 @@ FString AVespPlayerController::NomRecompense(EVespRecompense R)
 		case EVespRecompense::Fiole: return TEXT("FIOLE");
 		case EVespRecompense::Etoile: return TEXT("ÉTOILE");
 		case EVespRecompense::Souvenirs: return TEXT("SOUVENIRS");
+		case EVespRecompense::Felure: return TEXT("FÊLURE");
 		default: return FString();
 	}
 }
@@ -806,19 +810,34 @@ FLinearColor AVespPlayerController::CouleurRecompense(EVespRecompense R)
 		case EVespRecompense::Fiole: return FLinearColor(0.95f, 0.45f, 0.5f);
 		case EVespRecompense::Etoile: return FLinearColor(0.7f, 0.92f, 1.0f);
 		case EVespRecompense::Souvenirs: return FLinearColor(0.82f, 0.74f, 1.0f);
+		case EVespRecompense::Felure: return VespMaitres::Couleur(VespMaitres::Liss);
 		default: return FLinearColor::White;
 	}
+}
+
+FString AVespPlayerController::EtiquetteRecompense(const FVespNoeud& N)
+{
+	if (N.Recompense == EVespRecompense::Rune && N.Maitre >= 0)
+	{
+		return VespMajuscules(VespMaitres::Nom(N.Maitre));
+	}
+	return N.Recompense == EVespRecompense::Felure ? FString(TEXT("LISS")) : NomRecompense(N.Recompense);
+}
+
+FLinearColor AVespPlayerController::CouleurDeLaRecompense(const FVespNoeud& N)
+{
+	return N.Recompense == EVespRecompense::Rune && N.Maitre >= 0 ? VespMaitres::Couleur(N.Maitre) : CouleurRecompense(N.Recompense);
 }
 
 // La recompense d'une clairiere de combat (tiree avec la carte : une vision reprise retrouve les memes)
 static EVespRecompense TirerRecompense(bool bElite, FRandomStream& Hasard)
 {
-	// rune, eclats, objet, fiole, etoile, souvenirs
-	static const int32 POIDS[6] = {38, 18, 16, 12, 7, 9};
-	static const int32 POIDS_ELITE[6] = {30, 14, 26, 10, 12, 8};
+	// un maitre, eclats, objet, fiole, etoile, souvenirs, la Felure
+	static const int32 POIDS[7] = {38, 13, 16, 12, 7, 9, 5};
+	static const int32 POIDS_ELITE[7] = {30, 9, 26, 10, 12, 8, 5};
 	const int32* P = bElite ? POIDS_ELITE : POIDS;
 	int32 Tirage = Hasard.RandRange(0, 99);
-	for (int32 i = 0; i < 6; i++)
+	for (int32 i = 0; i < 7; i++)
 	{
 		if (Tirage < P[i])
 		{
@@ -834,22 +853,6 @@ FString AVespPlayerController::Romain(int32 Nombre)
 	static const TCHAR* R[] = {TEXT("I"), TEXT("II"), TEXT("III"), TEXT("IV"), TEXT("V"), TEXT("VI"), TEXT("VII")};
 	return R[FMath::Clamp(Nombre, 1, 7) - 1];
 }
-
-// Les runes de prophetie : Vigueur, Tranchant et Pierre se cumulent ; Vent deux fois au plus ; les autres une seule fois
-static const TCHAR* NOMS_RUNES[] = {TEXT("Vigueur"), TEXT("Tranchant"), TEXT("Pierre"), TEXT("Vent"), TEXT("Flamme"), TEXT("Seve"),
-                                    TEXT("Fureur"), TEXT("Épines"), TEXT("Sangsue"), TEXT("Précision"), TEXT("Fortune"), TEXT("Rempart"),
-                                    TEXT("Pied sur"), TEXT("Givre")};
-static const TCHAR* AIDES_RUNES[] = {TEXT("+8 pv max"), TEXT("+2 attaque"), TEXT("+1 défense"), TEXT("+12% de vitesse, et l'esquive porte plus loin"),
-                                     TEXT("Tes coups ont 1 chance sur 3 de bruler"), TEXT("+5 pv a chaque Haschen abattu"),
-                                     TEXT("La rage monte 2 fois plus vite"), TEXT("Qui touche AYLIS au contact se blesse"),
-                                     TEXT("+1 pv a chaque coup porte"), TEXT("+12% de chances de critique"),
-                                     TEXT("+50% d'éclats"), TEXT("La garde retient bien plus de dégâts"),
-                                     TEXT("Les pièges, les flaques et les éruptions n'atteignent plus AYLIS"),
-                                     TEXT("Tes coups ont 1 chance sur 4 de geler")};
-static constexpr int32 NOMBRE_RUNES = 14;
-
-FString AVespPlayerController::NomRune(int32 Rune) { return NOMS_RUNES[FMath::Clamp(Rune, 0, NOMBRE_RUNES - 1)]; }
-FString AVespPlayerController::AideRune(int32 Rune) { return AIDES_RUNES[FMath::Clamp(Rune, 0, NOMBRE_RUNES - 1)]; }
 
 FString AVespPlayerController::NomDuLieu() const
 {
@@ -877,7 +880,7 @@ struct FVespTexteEvenement
 static const FVespTexteEvenement EVENEMENTS[] = {
 	{TEXT("L'autel oublié"),
 	 TEXT("Une pierre couverte de runes, a moitié avalee par la mousse. Une voix murmure : du sang contre une vision."),
-	 {TEXT("Offrir son sang"), TEXT("Passer son chemin")}, {TEXT("-8 pv, une rune au hasard"), TEXT("Rien ne se passe")}, 1, 7},
+	 {TEXT("Offrir son sang"), TEXT("Passer son chemin")}, {TEXT("-8 pv, un don au hasard"), TEXT("Rien ne se passe")}, 1, 7},
 	{TEXT("La source claire"),
 	 TEXT("Une eau si pure qu'elle brille dans la nuit. Les feux follets tournent autour sans oser la toucher."),
 	 {TEXT("Boire"), TEXT("Remplir une fiole")}, {TEXT("+35% pv"), TEXT("+1 potion")}, 1, 7},
@@ -889,7 +892,7 @@ static const FVespTexteEvenement EVENEMENTS[] = {
 	 {TEXT("L'ouvrir"), TEXT("Le laisser")}, {TEXT("Une chance sur deux : 45 éclats... ou une embuscade"), TEXT("Rien ne se passe")}, 1, 7},
 	{TEXT("Le colporteur des brumes"),
 	 TEXT("Une silhouette encapuchonnee sort du brouillard. Elle tend une main pleine de runes et reclame tes potions."),
-	 {TEXT("Échanger 2 potions"), TEXT("Refuser")}, {TEXT("-2 potions, une rune au hasard"), TEXT("La silhouette disparaît")}, 1, 7},
+	 {TEXT("Échanger 2 potions"), TEXT("Refuser")}, {TEXT("-2 potions, un don au hasard"), TEXT("La silhouette disparaît")}, 1, 7},
 	{TEXT("Les pendus"),
 	 TEXT("Des cordes grincent au-dessus du sentier. L'un des pendus ouvre les yeux et murmure le nom d'AYLIS."),
 	 {TEXT("Écouter"), TEXT("Couper la corde")}, {TEXT("-10 pv, +2 attaque"), TEXT("+30 éclats")}, 2, 3},
@@ -910,7 +913,7 @@ static const FVespTexteEvenement EVENEMENTS[] = {
 	 {TEXT("Tremper l'épée"), TEXT("Refroidir l'autel")}, {TEXT("-12 pv, +3 attaque"), TEXT("+1 défense")}, 6, 6},
 	{TEXT("Le miroir du Voile"),
 	 TEXT("Une flaque d'argent reflete AYLIS... mais le reflet sourit, et tend la main."),
-	 {TEXT("Toucher le reflet"), TEXT("Briser le miroir")}, {TEXT("Une chance sur deux : une rune... ou des échos"), TEXT("+40 éclats")}, 7, 7},
+	 {TEXT("Toucher le reflet"), TEXT("Briser le miroir")}, {TEXT("Une chance sur deux : un don... ou des échos"), TEXT("+40 éclats")}, 7, 7},
 	{TEXT("La statue d'Ashka"),
 	 TEXT("Une statue de la cheffe de guerre, couronnée d'épines. À ses pieds, des offrandes de ses guerriers."),
 	 {TEXT("Prendre les offrandes"), TEXT("Briser la statue")}, {TEXT("+35 éclats, -6 pv"), TEXT("+1 attaque")}, 4, 5},
@@ -1017,6 +1020,7 @@ void AVespPlayerController::GenererMonde()
 		if (N.Type == EVespSalle::Combat || N.Type == EVespSalle::Elite)
 		{
 			N.Recompense = TirerRecompense(N.Type == EVespSalle::Elite, HasardCarte);
+			N.Maitre = N.Recompense == EVespRecompense::Rune ? HasardCarte.RandRange(0, VespMaitres::Nombre - 1) : -1;
 		}
 	}
 
@@ -1034,8 +1038,8 @@ void AVespPlayerController::GenererMonde()
 		Z.Lettre = LettreSalle(N.Type);
 		Z.Couleur = CouleurSalle(N.Type);
 		Z.Rayon = N.Rayon;
-		Z.Recompense = NomRecompense(N.Recompense);
-		Z.CouleurRecompense = CouleurRecompense(N.Recompense);
+		Z.Recompense = EtiquetteRecompense(N);
+		Z.CouleurRecompense = CouleurDeLaRecompense(N);
 		Zones.Add(Z);
 		FVespLieu L;
 		L.Centre = N.Centre;
@@ -1094,8 +1098,8 @@ void AVespPlayerController::Declencher(int32 Zone)
 			Aylis->Jouer(EVespGeste::Interagir, 1.2f);
 			LacherButin(N.Centre + FVector(0, 0, 40), 1);
 			AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, N.Centre + FVector(0, 0, 80), FVector::UpVector, FLinearColor(1.0f, 0.85f, 0.4f));
-			MessageRoute = FString::Printf(TEXT("Le coffre s'ouvre : +%d éclats... et une rune."), Gain);
-			ProposerRunes();
+			MessageRoute = FString::Printf(TEXT("Le coffre s'ouvre : +%d éclats... et un maître se manifeste."), Gain);
+			ProposerDons(FMath::RandRange(0, VespMaitres::Nombre - 1), false);
 			return;
 		}
 		default:
@@ -1123,52 +1127,24 @@ FString AVespPlayerController::Invite() const
 
 // ===================== Le marchand =====================
 
-bool AVespPlayerController::RunePossible(int32 R) const
-{
-	if (R < 3)
-	{
-		return true;
-	}
-	if (R == 3)
-	{
-		int32 Deja = 0;
-		for (int32 X : Runes)
-		{
-			Deja += X == 3 ? 1 : 0;
-		}
-		return Deja < 2;
-	}
-	return !Runes.Contains(R);
-}
-
-int32 AVespPlayerController::RuneAuHasard() const
-{
-	TArray<int32> Possibles;
-	for (int32 R = 0; R < NOMBRE_RUNES; R++)
-	{
-		if (RunePossible(R))
-		{
-			Possibles.Add(R);
-		}
-	}
-	return Possibles[FMath::RandRange(0, Possibles.Num() - 1)];
-}
-
 void AVespPlayerController::OuvrirMarchand()
 {
 	Offres.Reset();
-	auto Ajouter = [this](const FString& Nom, const FString& Aide, int32 Prix, int32 Genre, int32 R = 0) {
+	auto Ajouter = [this](const FString& Nom, const FString& Aide, int32 Prix, int32 Genre, int32 R = 0, int32 Rarete = 0) {
 		FVespOffre O;
 		O.Nom = Nom;
 		O.Aide = Aide;
 		O.Prix = Prix + Acte * 4 + FMath::RandRange(-3, 3);
 		O.Genre = Genre;
 		O.Rune = R;
+		O.Rarete = Rarete;
 		Offres.Add(O);
 	};
-	const int32 R = RuneAuHasard();
+	int32 Don = 0, Rarete = 0;
+	DonAuHasard(Don, Rarete);
+	const VespMaitres::FDon& DM = VespMaitres::Don(Don);
 	Ajouter(TEXT("Potion"), TEXT("+1 potion (40% des pv)"), 16, 0);
-	Ajouter(TEXT("Rune de ") + NomRune(R), AideRune(R), 42, 1, R);
+	Ajouter(FString::Printf(TEXT("%s (%s)"), DM.Nom, VespMaitres::Nom(DM.Maitre)), VespMaitres::Description(Don, Rarete), 42 + Rarete * 18, 1, Don, Rarete);
 	TArray<int32> Autres = {2, 3, 4, 5};
 	for (int32 k = 0; k < 2; k++)
 	{
@@ -1217,7 +1193,7 @@ void AVespPlayerController::AcheterOffre(int32 Numero)
 	switch (O.Genre)
 	{
 		case 0: Potions++; break;
-		case 1: AppliquerRune(O.Rune); break;
+		case 1: PrendreDon(O.Rune, O.Rarete); break;
 		case 2: Aylis->Soigner(Aylis->Stats.PvMax / 2); break;
 		case 3: Aylis->Stats.Attaque += 1; break;
 		case 4: Aylis->Stats.PvMax += 6; Aylis->Soigner(6); break;
@@ -1273,9 +1249,11 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 	const FVector Ici = Aylis->GetActorLocation() + FVector(0, 0, 100);
 	auto PerdrePv = [this](int32 N) { Aylis->Stats.Pv = FMath::Max(1, Aylis->Stats.Pv - N); };
 	auto RuneOfferte = [this](const TCHAR* Debut) {
-		const int32 R = RuneAuHasard();
-		AppliquerRune(R);
-		MessageRoute = FString::Printf(TEXT("%s la rune %s : %s."), Debut, *NomRune(R), *AideRune(R));
+		int32 Don = 0, Rarete = 0;
+		DonAuHasard(Don, Rarete);
+		PrendreDon(Don, Rarete);
+		const VespMaitres::FDon& DM = VespMaitres::Don(Don);
+		MessageRoute = FString::Printf(TEXT("%s le don « %s » de %s : %s"), Debut, DM.Nom, VespMaitres::Nom(DM.Maitre), *VespMaitres::Description(Don, Rarete));
 	};
 	auto Embuscade = [this](bool bElite) {
 		Combat->Embuscade(Aylis->GetActorLocation(), bElite);
@@ -1395,9 +1373,14 @@ void AVespPlayerController::ChoisirEvenement(int32 Choix)
 
 // ===================== Les combats (ce que le combat nous annonce) =====================
 
+int32 AVespPlayerController::EclatsAvecBonus(int32 Quantite) const
+{
+	return FMath::RoundToInt(Quantite * (1.0f + (bFortune ? 0.5f : 0.0f) + ValeurDon(TEXT("a_passif")) / 100.0f));
+}
+
 void AVespPlayerController::GagnerEclats(int32 Quantite, const FVector& Ou)
 {
-	const int32 Gain = bFortune ? Quantite * 3 / 2 : Quantite;
+	const int32 Gain = EclatsAvecBonus(Quantite);
 	Eclats += Gain;
 	UVespSons::Jouer(this, EVespSon::Eclats, Ou, 0.6f);
 }
@@ -1445,6 +1428,10 @@ void AVespPlayerController::QuandHaschenTombe(AVespUnite* H, int32 Categorie)
 	if (bSeve)
 	{
 		Aylis->Soigner(5);
+	}
+	if (const float Seve = ValeurDon(TEXT("o_passif")))
+	{
+		Aylis->Soigner(FMath::RoundToInt(Seve * MultSoins()));
 	}
 	AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, H->GetActorLocation() + FVector(0, 0, 60), FVector::UpVector, FLinearColor(1.0f, 0.82f, 0.4f));
 	// Parfois, une fiole roule au sol
@@ -1562,17 +1549,23 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 		TempsPhase = 0.0f;
 		return;
 	}
+	// Le pacte de Liss : une clairiere de moins avant le bonus
+	PacteTenu.Reset();
+	if (ClairieresMaudites > 0 && --ClairieresMaudites == 0)
+	{
+		TenirPacte();
+	}
 	// Toujours : quelques eclats, et AYLIS reprend son souffle. Puis la recompense annoncee par la balise.
 	const bool bElite = N.Type == EVespSalle::Elite;
 	const int32 Gain = bElite ? FMath::RandRange(16, 22) + Acte * 3 : FMath::RandRange(6, 10) + Acte * 2;
 	GagnerEclats(Gain, Aylis->GetActorLocation());
 	GagnerSouvenirs(bElite ? 5 : 2, TEXT("clairiere"));
 	ParlerEnRoute(CLAIRIERE_LIBEREE, UE_ARRAY_COUNT(CLAIRIERE_LIBEREE));
-	const int32 Soin = Aylis->Stats.PvMax / 6;
+	const int32 Soin = FMath::RoundToInt(Aylis->Stats.PvMax / 6 * MultSoins());
 	Aylis->Soigner(Soin);
 	Aylis->Jouer(EVespGeste::Victoire, 1.0f, true);
-	const auto Eclats1 = [this](int32 G) { return bFortune ? G * 3 / 2 : G; };
-	const FString Base = FString::Printf(TEXT("La clairière est libérée ! +%d éclats, +%d pv."), Eclats1(Gain), Soin);
+	const auto Eclats1 = [this](int32 G) { return EclatsAvecBonus(G); };
+	const FString Base = FString::Printf(TEXT("La clairière est libérée ! +%d éclats, +%d pv.%s"), Eclats1(Gain), Soin, *PacteTenu);
 	EVespRecompense R = N.Recompense;
 	if (R == EVespRecompense::Souvenirs && !bSouvenirsPossibles)
 	{
@@ -1613,9 +1606,13 @@ void AVespPlayerController::QuandClairiereLiberee(int32 Zone)
 			MessageRoute = Base + FString::Printf(TEXT("  Récompense : +%d Souvenirs pour le Veilleur."), S);
 			break;
 		}
-		default:		// une rune (et les clairieres sans recompense annoncee)
+		case EVespRecompense::Felure:
 			MessageRoute = Base;
-			ProposerRunes();
+			ProposerPactes();
+			return;
+		default:		// un maitre (et les clairieres sans recompense annoncee : un maitre au hasard)
+			MessageRoute = Base;
+			ProposerDons(N.Maitre >= 0 ? N.Maitre : FMath::RandRange(0, VespMaitres::Nombre - 1), bElite);
 			return;
 	}
 	RetourExploration();
@@ -1676,63 +1673,368 @@ void AVespPlayerController::ContinuerApresLActe()
 	}
 }
 
-void AVespPlayerController::ProposerRunes()
+// ===================== Les maitres des elements =====================
+
+int32 AVespPlayerController::RareteDon(const TCHAR* Id) const
 {
-	TArray<int32> Possibles;
-	for (int32 R = 0; R < NOMBRE_RUNES; R++)
-	{
-		if (RunePossible(R))
-		{
-			Possibles.Add(R);
-		}
-	}
-	RunesProposees.Reset();
-	while (RunesProposees.Num() < 3 && Possibles.Num() > 0)
-	{
-		const int32 i = FMath::RandRange(0, Possibles.Num() - 1);
-		RunesProposees.Add(Possibles[i]);
-		Possibles.RemoveAt(i);
-	}
-	SelectionMenu = 0;
-	Phase = EVespPhase::ChoixRune;
-	TempsPhase = 0.0f;
+	const int32 k = DonsPris.Find(VespMaitres::Index(Id));
+	return k != INDEX_NONE && RaretesDons.IsValidIndex(k) ? RaretesDons[k] : -1;
 }
 
-void AVespPlayerController::AppliquerRune(int32 R)
+float AVespPlayerController::ValeurDon(const TCHAR* Id) const
 {
-	Runes.Add(R);
-	FVespStats& S = Aylis->Stats;
-	switch (R)
+	const int32 R = RareteDon(Id);
+	return R >= 0 ? VespMaitres::Don(VespMaitres::Index(Id)).Valeurs[R] : 0.0f;
+}
+
+// Plus loin sur la route, et contre une elite, les dons sont plus souvent rares
+int32 AVespPlayerController::TirerRarete(bool bElite) const
+{
+	const int32 Bonus = (Acte - 1) * 3 + (bElite ? 12 : 0);
+	const int32 Heroique = 2 + Bonus / 4;
+	const int32 Epique = Heroique + 8 + Bonus / 2;
+	const int32 Rare = Epique + 25 + Bonus / 2;
+	const int32 Tirage = FMath::RandRange(0, 99);
+	return Tirage < Heroique ? 3 : (Tirage < Epique ? 2 : (Tirage < Rare ? 1 : 0));
+}
+
+void AVespPlayerController::DonAuHasard(int32& Don, int32& Rarete) const
+{
+	TArray<int32> Possibles;
+	for (int32 d = 0; d < VespMaitres::NombreDons(); d++)
 	{
-		case 0: S.PvMax += 8; Aylis->Soigner(8); break;
-		case 1: S.Attaque += 2; break;
-		case 2: S.Defense += 1; break;
-		case 3: BonusVitesse += 0.12f; break;
-		case 4: bFlamme = true; break;
-		case 5: bSeve = true; break;
-		case 6: bFureur = true; break;
-		case 7: Combat->bEpines = true; break;
-		case 8: bSangsue = true; break;
-		case 9: S.ChanceCritique += 12; break;
-		case 10: bFortune = true; break;
-		case 11: Combat->BonusParade = 1.0f; break;
-		case 12: bPiedSur = true; Combat->bPiedSur = true; break;
-		default: bGivre = true; break;
+		if (VespMaitres::Don(d).Maitre2 < 0 && RareteDon(VespMaitres::Don(d).Id) < VespMaitres::Raretes - 1)
+		{
+			Possibles.Add(d);
+		}
 	}
+	Don = Possibles.Num() > 0 ? Possibles[FMath::RandRange(0, Possibles.Num() - 1)] : 0;
+	Rarete = FMath::Max(TirerRarete(false), FMath::Min(RareteDon(VespMaitres::Don(Don).Id) + 1, VespMaitres::Raretes - 1));
+}
+
+// Un maitre apparait (par projection) et propose trois dons
+void AVespPlayerController::ProposerDons(int32 Maitre, bool bElite)
+{
+	const int32 M = FMath::Clamp(Maitre, 0, VespMaitres::Nombre - 1);
+	auto ADesDonsDe = [this](int32 Qui) {
+		for (int32 d : DonsPris)
+		{
+			if (VespMaitres::Don(d).Maitre == Qui && VespMaitres::Don(d).Maitre2 < 0)
+			{
+				return true;
+			}
+		}
+		return false;
+	};
+	TArray<int32> Simples, Doubles;
+	for (int32 d = 0; d < VespMaitres::NombreDons(); d++)
+	{
+		const VespMaitres::FDon& Don = VespMaitres::Don(d);
+		if (RareteDon(Don.Id) >= VespMaitres::Raretes - 1)
+		{
+			continue;		// deja au plus haut
+		}
+		if (Don.Maitre2 < 0 && Don.Maitre == M)
+		{
+			Simples.Add(d);
+		}
+		else if (Don.Maitre2 >= 0 && (Don.Maitre == M || Don.Maitre2 == M) && ADesDonsDe(Don.Maitre) && ADesDonsDe(Don.Maitre2))
+		{
+			Doubles.Add(d);
+		}
+	}
+	OffresDons.Reset();
+	OffresRaretes.Reset();
+	if (Doubles.Num() > 0 && FMath::RandBool())
+	{
+		OffresDons.Add(Doubles[FMath::RandRange(0, Doubles.Num() - 1)]);
+	}
+	while (OffresDons.Num() < 3 && Simples.Num() > 0)
+	{
+		const int32 k = FMath::RandRange(0, Simples.Num() - 1);
+		OffresDons.Add(Simples[k]);
+		Simples.RemoveAt(k);
+	}
+	for (int32 d : OffresDons)
+	{
+		// un don deja pris revient un cran plus haut
+		OffresRaretes.Add(FMath::Max(TirerRarete(bElite), FMath::Min(RareteDon(VespMaitres::Don(d).Id) + 1, VespMaitres::Raretes - 1)));
+	}
+	if (OffresDons.Num() == 0)
+	{
+		GagnerEclats(40 + Acte * 8, Aylis->GetActorLocation());		// (tout est deja au plus haut)
+		RetourExploration();
+		return;
+	}
+	MaitreOffrant = M;
+	RepliqueOffre = VespMaitres::Replique(M);
+	SelectionMenu = 0;
+	bSelectionVisible = false;
+	Phase = EVespPhase::ChoixRune;
+	TempsPhase = 0.0f;
+	// La projection : une colonne de lumiere a la couleur du maitre
+	const FLinearColor C = VespMaitres::Couleur(M);
+	AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Buff"), Aylis->GetActorLocation(), FRotator::ZeroRotator, 1.4f);
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Aylis->GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, C);
+	Aylis->Surbrillance(0.6f, C);
+	UVespSons::Jouer2D(this, EVespSon::Rune, 0.9f, 0.9f);
+}
+
+// Liss, la Felure, propose trois pactes : une malediction pendant quelques clairieres, puis un bonus
+void AVespPlayerController::ProposerPactes()
+{
+	OffresDons.Reset();
+	OffresRaretes.Reset();
+	TArray<int32> Maledictions = {0, 1, 2};
+	TArray<int32> Bonus = {0, 1, 2, 3, 4};
+	for (int32 k = 0; k < 3; k++)
+	{
+		const int32 M = Maledictions[FMath::RandRange(0, Maledictions.Num() - 1)];
+		const int32 B = Bonus[FMath::RandRange(0, Bonus.Num() - 1)];
+		Maledictions.Remove(M);
+		Bonus.Remove(B);
+		OffresDons.Add(M * 10 + B);
+		OffresRaretes.Add(0);
+	}
+	MaitreOffrant = VespMaitres::Liss;
+	RepliqueOffre = VespMaitres::Replique(VespMaitres::Liss);
+	SelectionMenu = 0;
+	bSelectionVisible = false;
+	Phase = EVespPhase::ChoixRune;
+	TempsPhase = 0.0f;
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Aylis->GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, VespMaitres::Couleur(VespMaitres::Liss));
+	UVespSons::Jouer2D(this, EVespSon::Annonce, 0.7f, 0.8f);
+}
+
+void AVespPlayerController::PrendreDon(int32 Don, int32 Rarete)
+{
+	if (Don < 0 || Don >= VespMaitres::NombreDons())
+	{
+		return;
+	}
+	const VespMaitres::FDon& D = VespMaitres::Don(Don);
+	const float VentAvant = ValeurDon(TEXT("v_passif"));
+	const int32 Deja = DonsPris.Find(Don);
+	if (Deja != INDEX_NONE)
+	{
+		RaretesDons[Deja] = FMath::Max(RaretesDons[Deja], Rarete);		// le meme don : il monte d'un cran
+	}
+	else
+	{
+		// Un seul don par geste : le nouveau remplace l'ancien
+		if (D.Geste < VespMaitres::GestesUniques)
+		{
+			for (int32 k = DonsPris.Num() - 1; k >= 0; k--)
+			{
+				if (VespMaitres::Don(DonsPris[k]).Geste == D.Geste)
+				{
+					DonsPris.RemoveAt(k);
+					RaretesDons.RemoveAt(k);
+				}
+			}
+		}
+		DonsPris.Add(Don);
+		RaretesDons.Add(FMath::Clamp(Rarete, 0, VespMaitres::Raretes - 1));
+	}
+	BonusVitesse += (ValeurDon(TEXT("v_passif")) - VentAvant) / 100.0f;
+	RecalculerDons();
 	UVespSons::Jouer2D(this, EVespSon::Rune);
-	AVespEffet::Jouer(GetWorld(), EVespEffet::Soin, Aylis->GetActorLocation(), FVector::UpVector, FLinearColor(0.7f, 0.5f, 1.0f));
+	Aylis->Surbrillance(0.5f, VespMaitres::Couleur(D.Maitre));
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Soin, Aylis->GetActorLocation(), FVector::UpVector, VespMaitres::Couleur(D.Maitre));
+}
+
+void AVespPlayerController::RecalculerDons()
+{
+	if (!Combat)
+	{
+		return;
+	}
+	Combat->BonusContreBrules = ValeurDon(TEXT("b_passif")) / 100.0f;
+	Combat->BonusFenetreParade = ValeurDon(TEXT("i_passif")) / 1000.0f;
+	Combat->PuissanceVapeur = ValeurDon(TEXT("d_vapeur")) / 100.0f;
+	Combat->bCritiquesBrulent = RareteDon(TEXT("d_radieuse")) >= 0;
+	Combat->BonusCritiques = ValeurDon(TEXT("d_radieuse")) / 100.0f;
+	Combat->bSansCritique = Malediction == 2;
+	Combat->MultDegatsAylis = Malediction == 0 ? 1.3f : 1.0f;
+}
+
+// Le pacte arrive a son terme : la malediction s'en va, le bonus arrive
+void AVespPlayerController::TenirPacte()
+{
+	switch (BonusPromis)
+	{
+		case 0: Aylis->Stats.PvMax += 30; Aylis->Soigner(30); break;
+		case 1: Aylis->Stats.Attaque += 5; break;
+		case 2: PointsDeCompetence += 2; break;
+		case 3: GagnerEclats(150, Aylis->GetActorLocation()); break;
+		case 4:
+		{
+			int32 Don = 0, Rarete = 0;
+			DonAuHasard(Don, Rarete);
+			PrendreDon(Don, VespMaitres::Raretes - 1);
+			break;
+		}
+		default: break;
+	}
+	PacteTenu = FString::Printf(TEXT("  Liss tient parole : %s."), VespMaitres::Bonus(BonusPromis));
+	Malediction = -1;
+	BonusPromis = -1;
+	RecalculerDons();
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Aylis->GetActorLocation() + FVector(0, 0, 10), FVector::UpVector, VespMaitres::Couleur(VespMaitres::Liss));
+	UVespSons::Jouer2D(this, EVespSon::Niveau, 0.8f);
 }
 
 void AVespPlayerController::ChoisirRune(int32 Numero)
 {
-	if (Phase != EVespPhase::ChoixRune || !RunesProposees.IsValidIndex(Numero))
+	if (Phase != EVespPhase::ChoixRune || !OffresDons.IsValidIndex(Numero))
 	{
 		return;
 	}
-	const int32 R = RunesProposees[Numero];
-	AppliquerRune(R);
-	MessageRoute = FString::Printf(TEXT("Rune %s : %s."), *NomRune(R), *AideRune(R));
+	if (MaitreOffrant == VespMaitres::Liss)
+	{
+		const int32 Code = OffresDons[Numero];
+		Malediction = Code / 10;
+		BonusPromis = Code % 10;
+		ClairieresMaudites = VespMaitres::DureePacte;
+		RecalculerDons();
+		MessageRoute = FString::Printf(TEXT("Pacte avec Liss : %s pendant %d clairières, puis %s."), VespMaitres::Malediction(Malediction),
+		                               VespMaitres::DureePacte, VespMaitres::Bonus(BonusPromis));
+	}
+	else
+	{
+		const int32 Don = OffresDons[Numero];
+		PrendreDon(Don, OffresRaretes[Numero]);
+		MessageRoute = FString::Printf(TEXT("%s (%s) : %s"), VespMaitres::Don(Don).Nom, VespMaitres::NomRarete(OffresRaretes[Numero]), *VespMaitres::Description(Don, OffresRaretes[Numero]));
+	}
 	RetourExploration();
+}
+
+// Ce que l'ecran de choix affiche
+FString AVespPlayerController::EnteteOffre() const
+{
+	return FString::Printf(TEXT("%s  ·  %s"), *VespMajuscules(VespMaitres::Nom(MaitreOffrant)), *VespMajuscules(VespMaitres::Titre(MaitreOffrant)));
+}
+
+FString AVespPlayerController::TitreOffre(int32 i) const
+{
+	if (!OffresDons.IsValidIndex(i))
+	{
+		return FString();
+	}
+	return MaitreOffrant == VespMaitres::Liss ? FString::Printf(TEXT("Pacte : %s"), VespMaitres::Malediction(OffresDons[i] / 10)) : FString(VespMaitres::Don(OffresDons[i]).Nom);
+}
+
+FString AVespPlayerController::TexteOffre(int32 i) const
+{
+	if (!OffresDons.IsValidIndex(i))
+	{
+		return FString();
+	}
+	if (MaitreOffrant == VespMaitres::Liss)
+	{
+		return FString::Printf(TEXT("Pendant %d clairières : %s\nPuis : %s."), VespMaitres::DureePacte, VespMaitres::AideMalediction(OffresDons[i] / 10), VespMaitres::Bonus(OffresDons[i] % 10));
+	}
+	const int32 d = OffresDons[i];
+	const VespMaitres::FDon& Don = VespMaitres::Don(d);
+	FString T = VespMaitres::Description(d, OffresRaretes[i]);
+	const int32 Deja = RareteDon(Don.Id);
+	if (Deja >= 0)
+	{
+		T += FString::Printf(TEXT("\n(Amélioration : %s → %s.)"), VespMaitres::NomRarete(Deja), VespMaitres::NomRarete(OffresRaretes[i]));
+	}
+	else if (Don.Geste < VespMaitres::GestesUniques)
+	{
+		for (int32 p : DonsPris)
+		{
+			if (VespMaitres::Don(p).Geste == Don.Geste)
+			{
+				T += FString::Printf(TEXT("\n(Remplace « %s ».)"), VespMaitres::Don(p).Nom);
+			}
+		}
+	}
+	return T;
+}
+
+FString AVespPlayerController::PiedOffre(int32 i) const
+{
+	if (!OffresDons.IsValidIndex(i))
+	{
+		return FString();
+	}
+	if (MaitreOffrant == VespMaitres::Liss)
+	{
+		return TEXT("PACTE");
+	}
+	const VespMaitres::FDon& Don = VespMaitres::Don(OffresDons[i]);
+	return FString::Printf(TEXT("%s  ·  %s%s"), VespMaitres::NomGeste(Don.Geste), VespMaitres::NomRarete(OffresRaretes[i]),
+	                       Don.Maitre2 >= 0 ? TEXT("  ·  DOUBLE") : TEXT(""));
+}
+
+FLinearColor AVespPlayerController::CouleurOffre(int32 i) const
+{
+	if (MaitreOffrant == VespMaitres::Liss || !OffresRaretes.IsValidIndex(i))
+	{
+		return VespMaitres::Couleur(VespMaitres::Liss);
+	}
+	return OffresRaretes[i] == 0 ? VespMaitres::Couleur(MaitreOffrant) : VespButin::CouleurRarete((EVespRarete)OffresRaretes[i]);
+}
+
+// Un eclair (Velka) : il frappe tout autour d'un point
+int32 AVespPlayerController::Foudre(const FVector& Centre, float Rayon, float Puissance)
+{
+	FVespCoup C = CoupDeBase();
+	C.Origine = Centre;
+	C.Portee = Rayon;
+	C.DemiAngle = 180.0f;
+	C.Puissance = Puissance;
+	C.Poussee = 150.0f;
+	C.Couleur = VespMaitres::Couleur(VespMaitres::Velka);
+	const int32 Touches = Combat->FrappeDAylis(C);
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Critique, Centre + FVector(0, 0, 70), FVector::UpVector, C.Couleur, 0.05f);
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Etincelles, Centre + FVector(0, 0, 40), FVector::UpVector, C.Couleur);
+	UVespSons::Jouer(this, EVespSon::Tonnerre, Centre, 0.45f, 1.4f);
+	if (const float Pluie = ValeurDon(TEXT("d_pluie")))
+	{
+		Aylis->Soigner(FMath::RoundToInt(Touches * Pluie * MultSoins()));
+	}
+	return Touches;
+}
+
+// La foudre tombe sur les Haschen les plus proches d'AYLIS
+void AVespPlayerController::FoudreSurProches(int32 Nombre, float Portee, float Puissance)
+{
+	const FVector Ici = Aylis->GetActorLocation();
+	TArray<AVespUnite*> Cibles;
+	for (const FVespHaschen& H : Combat->GetHaschen())
+	{
+		AVespUnite* U = H.U.Get();
+		if (U && U->EstDebout() && !U->IsHidden() && H.Etat != EVespIntention::Surgir && FVector::Dist2D(U->GetActorLocation(), Ici) < Portee)
+		{
+			Cibles.Add(U);
+		}
+	}
+	Cibles.Sort([&Ici](const AVespUnite& A, const AVespUnite& B) { return FVector::DistSquared2D(A.GetActorLocation(), Ici) < FVector::DistSquared2D(B.GetActorLocation(), Ici); });
+	for (int32 k = 0; k < Cibles.Num() && k < Nombre; k++)
+	{
+		Foudre(Cibles[k]->GetActorLocation(), 110.0f, Puissance);
+	}
+}
+
+// Une gerbe (feu, givre) : un cercle qui frappe et porte un effet
+int32 AVespPlayerController::Gerbe(const FVector& Centre, float Rayon, float Puissance, int32 Effet, const FLinearColor& Couleur)
+{
+	FVespCoup C = CoupDeBase();
+	C.Origine = Centre;
+	C.Portee = Rayon;
+	C.DemiAngle = 180.0f;
+	C.Puissance = Puissance;
+	C.bPeutCritiquer = false;
+	C.Poussee = 300.0f;
+	C.Effet = Effet;
+	C.ChanceEffet = Effet != 0 ? 1.0f : 0.0f;
+	C.Couleur = Couleur;
+	AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Centre + FVector(0, 0, 10), FVector::UpVector, Couleur);
+	return Combat->FrappeDAylis(C);
 }
 
 // Le boss parle avant le combat (toujours sans genre pour AYLIS)
@@ -1982,7 +2284,7 @@ void AVespPlayerController::ParlerAuVeilleur()
 	}
 	EcrireMemoire();
 	Dire(Qui, Quoi, [this]() {
-		const int32 Soin = Aylis->Stats.PvMax * 60 / 100;
+		const int32 Soin = FMath::RoundToInt(Aylis->Stats.PvMax * 0.6f * MultSoins());
 		Aylis->Soigner(Soin);
 		Potions++;
 		UVespSons::Jouer(this, EVespSon::Soin, Aylis->GetActorLocation());
@@ -2090,7 +2392,7 @@ FString AVespPlayerController::TexteDeLaFin() const
 
 void AVespPlayerController::SauverPartie()
 {
-	if (!bVisionEnCours || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || bTestRecompenses || !IsValid(Aylis) || !Monde || !Combat)
+	if (!bVisionEnCours || bModePhoto || bTestOuverture || TestFin > 0 || bTestOptions || bTestRecompenses || EtapeTestMaitres >= 0 || !IsValid(Aylis) || !Monde || !Combat)
 	{
 		return;
 	}
@@ -2117,7 +2419,11 @@ void AVespPlayerController::SauverPartie()
 	P->PointsDeCompetence = PointsDeCompetence;
 	P->HaschenVaincus = HaschenVaincus;
 	P->BonusVitesse = BonusVitesse;
-	P->Runes = Runes;
+	P->DonsPris = DonsPris;
+	P->RaretesDons = RaretesDons;
+	P->Malediction = Malediction;
+	P->ClairieresMaudites = ClairieresMaudites;
+	P->BonusPromis = BonusPromis;
 	const bool Effets[8] = {bFlamme, bSeve, bFureur, bSangsue, bFortune, bGivre, bPiedSur, Combat->bEpines};
 	for (int32 b = 0; b < 8; b++)
 	{
@@ -2179,7 +2485,12 @@ void AVespPlayerController::ReprendreLaVision()
 	PointsDeCompetence = P->PointsDeCompetence;
 	HaschenVaincus = P->HaschenVaincus;
 	BonusVitesse = P->BonusVitesse;
-	Runes = P->Runes;
+	DonsPris = P->DonsPris;
+	RaretesDons = P->RaretesDons;
+	RaretesDons.SetNum(DonsPris.Num());
+	Malediction = P->Malediction;
+	ClairieresMaudites = P->ClairieresMaudites;
+	BonusPromis = P->BonusPromis;
 	bool* Effets[7] = {&bFlamme, &bSeve, &bFureur, &bSangsue, &bFortune, &bGivre, &bPiedSur};
 	for (int32 b = 0; b < 7; b++)
 	{
@@ -2188,6 +2499,7 @@ void AVespPlayerController::ReprendreLaVision()
 	Combat->bPiedSur = bPiedSur;
 	Combat->bEpines = (P->EffetsDesRunes & (1 << 7)) != 0;
 	Combat->BonusParade = P->BonusParade;
+	RecalculerDons();
 	Seuil = P->Seuil;
 	Seuil.SetNum(VespSeuil::Nombre);
 	Sac.Reset();
@@ -2235,8 +2547,8 @@ void AVespPlayerController::ReprendreLaVision()
 	PartieSuspendue = nullptr;
 	Phase = EVespPhase::NouvelActe;			// le titre de l'acte, puis la route
 	TempsPhase = 0.0f;
-	UE_LOG(LogTemp, Display, TEXT("VESPERANCE reprise : vision %d, acte %s, %d clairieres deja faites, niveau %d, %d eclats, %d runes, %s de route"),
-	       NumeroVision, *Romain(Acte), Faites, Niveau, Eclats, Runes.Num(), *UVespSauvegarde::Duree(ChronoPartie));
+	UE_LOG(LogTemp, Display, TEXT("VESPERANCE reprise : vision %d, acte %s, %d clairieres deja faites, niveau %d, %d eclats, %d dons, %s de route"),
+	       NumeroVision, *Romain(Acte), Faites, Niveau, Eclats, DonsPris.Num(), *UVespSauvegarde::Duree(ChronoPartie));
 }
 
 void AVespPlayerController::Recommencer()
@@ -2372,6 +2684,29 @@ void AVespPlayerController::Esquiver(const FVector& Direction)
 	bCoupSuivant = false;
 	UVespSons::Jouer(this, EVespSon::Esquive, Aylis->GetActorLocation(), 0.8f);
 	AVespEffet::Jouer(GetWorld(), EVespEffet::Poussiere, Aylis->GetActorLocation(), FVector::UpVector, FLinearColor(0.45f, 0.45f, 0.7f));
+	// Les dons d'esquive des maitres
+	const FVector Depart = Aylis->GetActorLocation();
+	if (const float Braise = ValeurDon(TEXT("b_esquive")))
+	{
+		Gerbe(Depart, 220.0f, Braise / 100.0f, VespEffetCoup::Brulure, VespMaitres::Couleur(VespMaitres::Brann));
+	}
+	if (const float Givre = ValeurDon(TEXT("i_esquive")))
+	{
+		Gerbe(Depart, 240.0f, Givre / 100.0f, VespEffetCoup::Gel, VespMaitres::Couleur(VespMaitres::Isaure));
+	}
+	if (const float Leger = ValeurDon(TEXT("o_esquive")))
+	{
+		Aylis->Soigner(FMath::RoundToInt(Leger * MultSoins()));
+	}
+	if (const float Bond = ValeurDon(TEXT("v_esquive")))
+	{
+		RechargeEsquive = FMath::Max(0.25f, RechargeEsquive - Bond / 1000.0f);
+	}
+	if (const float Presage = ValeurDon(TEXT("a_esquive")))
+	{
+		PresageAube = 1.5f;
+		BonusPresage = Presage;
+	}
 	// L'Eveil : l'esquive laisse une onde qui blesse, et revient plus vite
 	if (Talent(TEXT("eveil")))
 	{
@@ -2465,7 +2800,7 @@ void AVespPlayerController::Pouvoir(int32 N)
 }
 
 // Les effets que portent tous les coups : les runes, et les pouvoirs des objets (on garde le plus fort)
-FVespCoup AVespPlayerController::CoupDeBase() const
+FVespCoup AVespPlayerController::CoupDeBase(int32 GesteDuCoup) const
 {
 	FVespCoup C;
 	C.Couleur = FLinearColor(0.55f, 0.7f, 1.0f);
@@ -2478,6 +2813,16 @@ FVespCoup AVespPlayerController::CoupDeBase() const
 	};
 	if (bFlamme) Proposer(VespEffetCoup::Brulure, 0.33f);
 	if (bGivre) Proposer(VespEffetCoup::Gel, 0.25f);
+	if (GesteDuCoup == VespMaitres::Attaque)
+	{
+		Proposer(VespEffetCoup::Brulure, ValeurDon(TEXT("b_attaque")) / 100.0f);
+		Proposer(VespEffetCoup::Gel, ValeurDon(TEXT("i_attaque")) / 100.0f);
+		C.BonusCritique += FMath::RoundToInt(ValeurDon(TEXT("a_attaque")));
+	}
+	else if (GesteDuCoup == VespMaitres::Lourde)
+	{
+		C.BonusCritique += FMath::RoundToInt(ValeurDon(TEXT("a_lourde")));
+	}
 	for (int32 e = 0; e < (int32)EVespEmplacement::Nombre; e++)
 	{
 		if (bEquipe[e])
@@ -2827,6 +3172,7 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 {
 	TempsGeste += Secondes;
 	RechargeEsquive = FMath::Max(0.0f, RechargeEsquive - Secondes);
+	PresageAube = FMath::Max(0.0f, PresageAube - Secondes);
 	FinCombo = FMath::Max(0.0f, FinCombo - Secondes);
 	switch (Geste)
 	{
@@ -2843,7 +3189,7 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 			{
 				bImpactFait = true;
 				const EVespArme Type = ArmeEnMain();
-				FVespCoup C = CoupDeBase();
+				FVespCoup C = CoupDeBase(bLourde ? VespMaitres::Lourde : VespMaitres::Attaque);
 				C.Origine = Aylis->GetActorLocation();
 				C.Direction = DirectionGeste;
 				C.Portee = bLourde ? 240.0f : 205.0f;
@@ -2868,6 +3214,19 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 				{
 					C.Puissance *= 3.0f;
 					bRiposte = false;
+				}
+				// Isaure : la lourde gele toujours, et frappe plus fort
+				if (bLourde && RareteDon(TEXT("i_lourde")) >= 0)
+				{
+					C.Effet = VespEffetCoup::Gel;
+					C.ChanceEffet = 1.0f;
+					C.Puissance *= 1.0f + ValeurDon(TEXT("i_lourde")) / 100.0f;
+				}
+				// Aurel : le presage d'une esquive
+				if (PresageAube > 0.0f)
+				{
+					C.BonusCritique += FMath::RoundToInt(BonusPresage);
+					PresageAube = 0.0f;
 				}
 				int32 Touches = 0;
 				if (Type == EVespArme::Baton)
@@ -2900,7 +3259,7 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 				if (Touches > 0)
 				{
 					Rage = FMath::Min(100, Rage + Touches * (bFureur ? 6 : 3) * (bLourde ? 2 : 1));
-					int32 Vol = bSangsue ? 1 : 0;
+					int32 Vol = (bSangsue ? 1 : 0) + (bLourde ? 0 : FMath::RoundToInt(ValeurDon(TEXT("o_attaque")) * MultSoins()));
 					for (int32 e = 0; e < (int32)EVespEmplacement::Nombre; e++)
 					{
 						Vol += bEquipe[e] ? Equipement[e].VolDeVie : 0;
@@ -2908,6 +3267,30 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 					if (Vol > 0)
 					{
 						Aylis->Soigner(Touches * Vol);
+					}
+				}
+				// Les dons des maitres, apres l'impact
+				const FVector Devant = Aylis->GetActorLocation() + DirectionGeste * 180.0f;
+				if (bLourde)
+				{
+					if (const float Forge = ValeurDon(TEXT("b_lourde")))
+					{
+						Gerbe(Devant, 300.0f, Forge / 100.0f, VespEffetCoup::Brulure, VespMaitres::Couleur(VespMaitres::Brann));
+					}
+					if (const float Racines = ValeurDon(TEXT("o_lourde")))
+					{
+						Aylis->Soigner(FMath::RoundToInt(Aylis->Stats.PvMax * Racines / 100.0f * FMath::Min(Touches, 3) * MultSoins()));
+					}
+					if (const float Chaine = ValeurDon(TEXT("v_lourde")))
+					{
+						FoudreSurProches(3, 700.0f, Chaine / 100.0f);
+					}
+				}
+				else if (Combo == 2)
+				{
+					if (const float Eclair = ValeurDon(TEXT("v_attaque")))
+					{
+						Foudre(Devant, 280.0f, Eclair / 100.0f);
 					}
 				}
 				if (bLourde)
@@ -2932,7 +3315,7 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 		{
 			// Rapide au debut, puis elle freine (la rune du Vent porte plus loin)
 			const float T = FMath::Clamp(TempsGeste / DureeGeste, 0.0f, 1.0f);
-			const float Distance = 470.0f * (1.0f + BonusVitesse);
+			const float Distance = 470.0f * (1.0f + BonusVitesse) * (RareteDon(TEXT("v_esquive")) >= 0 ? 1.2f : 1.0f);
 			const float Vmax = 2.0f * Distance / DureeGeste;
 			Aylis->Deplacer(DirectionGeste * Vmax * (1.0f - T), Secondes, false);
 			if (TempsGeste >= DureeGeste)
@@ -2945,7 +3328,7 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 			if (!bPotionBue && TempsGeste >= DureeGeste * 0.45f)
 			{
 				bPotionBue = true;
-				Aylis->Soigner(Aylis->Stats.PvMax * 40 / 100);
+				Aylis->Soigner(FMath::RoundToInt(Aylis->Stats.PvMax * 0.4f * MultSoins()));
 				Aylis->Poison = 0.0f;
 				Aylis->Brulure = 0.0f;
 				UVespSons::Jouer(this, EVespSon::Potion, Aylis->GetActorLocation(), 0.9f);
@@ -2971,7 +3354,41 @@ void AVespPlayerController::AvancerGeste(float Secondes)
 				C.bLourd = !bTourbillon;
 				C.Poussee = 800.0f;
 				C.Couleur = bTourbillon ? FLinearColor(1.0f, 0.65f, 0.35f) : FLinearColor(0.7f, 0.5f, 1.0f);
+				// Les dons de la speciale (pas le Tourbillon du Seuil)
+				if (!bTourbillon)
+				{
+					if (const float Nova = ValeurDon(TEXT("b_speciale")))
+					{
+						C.Puissance *= 1.0f + Nova / 100.0f;
+						C.Effet = VespEffetCoup::Brulure;
+						C.ChanceEffet = 1.0f;
+						C.Couleur = VespMaitres::Couleur(VespMaitres::Brann);
+					}
+					if (const float Tempete = ValeurDon(TEXT("i_speciale")))
+					{
+						C.Puissance *= 1.0f + Tempete / 100.0f;
+						C.Effet = VespEffetCoup::Gel;
+						C.ChanceEffet = 1.0f;
+						C.Couleur = VespMaitres::Couleur(VespMaitres::Isaure);
+					}
+					if (const float Jour = ValeurDon(TEXT("a_speciale")))
+					{
+						C.Portee *= 1.0f + Jour / 100.0f;
+						C.BonusCritique += 100;
+					}
+				}
 				Combat->FrappeDAylis(C);
+				if (!bTourbillon)
+				{
+					if (const float Floraison = ValeurDon(TEXT("o_speciale")))
+					{
+						Aylis->Soigner(FMath::RoundToInt(Aylis->Stats.PvMax * Floraison / 100.0f * MultSoins()));
+					}
+					if (const float Pluie = ValeurDon(TEXT("v_speciale")))
+					{
+						FoudreSurProches(6, 900.0f, Pluie / 100.0f);
+					}
+				}
 				Trembler(bTourbillon ? 0.4f : 0.9f);
 				AVespEffet::JouerMagie(GetWorld(), TEXT("NS_Free_Magic_Circle2"), Aylis->GetActorLocation() + FVector(0, 0, 5), FRotator::ZeroRotator, bNova ? 1.6f : (bTourbillon ? 0.7f : 1.0f));
 				if (bNova)
@@ -3314,6 +3731,30 @@ void AVespPlayerController::PlayerTick(float Secondes)
 		else if (Phase == EVespPhase::Dialogue && TempsPhase > 3.0f && LigneDialogue < 2) { UE_LOG(LogTemp, Display, TEXT("VESPERANCE test : %s / %s"), *Orateurs[LigneDialogue], *Repliques[LigneDialogue]); Photographier(FString::Printf(TEXT("Ouverture%d"), LigneDialogue), true); Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
 		else if (Phase == EVespPhase::Dialogue && LigneDialogue >= 2) { Quitter(); return; }
 	}
+	if (EtapeTestMaitres >= 0)
+	{
+		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(1);
+		else if (Phase == EVespPhase::NouvelActe && TempsPhase > 3.0f) ContinuerApresLActe();
+		else if (Phase == EVespPhase::Dialogue && TempsPhase > 0.5f) { Ecriture = 9999.0f; AvancerDialogue(); TempsPhase = 0.0f; }
+		else if (Phase == EVespPhase::Exploration && TempsPhase > 1.5f)
+		{
+			switch (EtapeTestMaitres++)
+			{
+				case 0: ProposerDons(VespMaitres::Brann, false); break;
+				case 1: PrendreDon(VespMaitres::Index(TEXT("i_attaque")), 1); ProposerDons(VespMaitres::Brann, true); break;
+				case 2: ProposerPactes(); break;
+				case 3: bCarteOuverte = true; TempsPhase = 0.0f; break;
+				default: Photographier(TEXT("Maitres_Carte"), true); Quitter(); return;
+			}
+		}
+		else if (Phase == EVespPhase::ChoixRune && TempsPhase > 1.5f)
+		{
+			Photographier(FString::Printf(TEXT("Maitres_%d"), EtapeTestMaitres), true);
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE test maitres : %s / %s / %s"), *TitreOffre(0), *TitreOffre(1), *TitreOffre(2));
+			ChoisirRune(0);
+			UE_LOG(LogTemp, Display, TEXT("VESPERANCE test maitres : %s ; %d dons"), *MessageRoute, DonsPris.Num());
+		}
+	}
 	if (bTestRecompenses)
 	{
 		if (Phase == EVespPhase::Titre && TempsPhase > 25.0f) NouvellePartie(1);
@@ -3330,7 +3771,7 @@ void AVespPlayerController::PlayerTick(float Secondes)
 			FString Liste;
 			for (const FVespNoeud& N : Noeuds)
 			{
-				Liste += FString::Printf(TEXT("%s%s "), *LettreSalle(N.Type), N.Recompense != EVespRecompense::Aucune ? *(TEXT(":") + NomRecompense(N.Recompense)) : TEXT(""));
+				Liste += FString::Printf(TEXT("%s%s "), *LettreSalle(N.Type), N.Recompense != EVespRecompense::Aucune ? *(TEXT(":") + EtiquetteRecompense(N)) : TEXT(""));
 			}
 			UE_LOG(LogTemp, Display, TEXT("VESPERANCE test recompenses : %s"), *Liste);
 		}
@@ -3349,7 +3790,7 @@ void AVespPlayerController::PlayerTick(float Secondes)
 			Monde->MarquerZoneFaite(1);
 			Combat->LibererSansCombat(1);
 			Eclats = 123;
-			AppliquerRune(1);
+			PrendreDon(0, 1);
 			Aylis->Teleporter(Noeuds[1].Centre);
 			bCaleCamera = true;
 			SauverPartie();
@@ -3608,7 +4049,7 @@ bool AVespPlayerController::DirectionPressee(FIntPoint& Direction, float Seconde
 
 void AVespPlayerController::CommandesDeMenu(float Secondes)
 {
-	const int32 Nombre = Phase == EVespPhase::ChoixRune ? RunesProposees.Num() : (Phase == EVespPhase::Marchand ? Offres.Num() : 2);
+	const int32 Nombre = Phase == EVespPhase::ChoixRune ? OffresDons.Num() : (Phase == EVespPhase::Marchand ? Offres.Num() : 2);
 	const FKey Touches[4] = {EKeys::One, EKeys::Two, EKeys::Three, EKeys::Four};
 	auto Choisir = [this](int32 i) {
 		if (Phase == EVespPhase::ChoixRune) ChoisirRune(i);

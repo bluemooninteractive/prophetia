@@ -82,6 +82,7 @@ enum class EVespRecompense : uint8
 	Fiole,			// une potion, et un grand soin
 	Etoile,			// un point du Seuil
 	Souvenirs,		// des Souvenirs pour le Veilleur
+	Felure,			// Liss, la Felure : un pacte (une malediction, puis un gros bonus)
 };
 
 // Une salle sur la carte de la route
@@ -89,6 +90,7 @@ struct FVespNoeud
 {
 	EVespSalle Type = EVespSalle::Combat;
 	EVespRecompense Recompense = EVespRecompense::Aucune;
+	int32 Maitre = -1;					// la recompense "Rune" : le maitre qui y apparaitra
 	int32 Etage = 0;
 	FVector Centre = FVector::ZeroVector;	// sa place dans le monde
 	TArray<int32> Suivants;			// les clairieres reliees par un sentier
@@ -103,7 +105,8 @@ struct FVespOffre
 	FString Aide;
 	int32 Prix = 0;
 	int32 Genre = 0;				// 0 potion, 1 rune, 2 soin, 3 attaque, 4 pv max, 5 defense
-	int32 Rune = 0;					// pour une rune : laquelle
+	int32 Rune = 0;					// pour un don : lequel (VespMaitres)
+	int32 Rarete = 0;
 	bool bVendue = false;
 };
 
@@ -146,8 +149,8 @@ public:
 	static FLinearColor CouleurSalle(EVespSalle Salle);
 	static FString NomRecompense(EVespRecompense R);
 	static FLinearColor CouleurRecompense(EVespRecompense R);
-	static FString NomRune(int32 Rune);
-	static FString AideRune(int32 Rune);
+	static FString EtiquetteRecompense(const FVespNoeud& N);		// "BRANN", "OBJET"... (balise, carte)
+	static FLinearColor CouleurDeLaRecompense(const FVespNoeud& N);
 	static FString Romain(int32 Nombre);
 	FString NomDuLieu() const;
 	FString NomDeLActe() const;
@@ -194,10 +197,26 @@ private:
 	void RouvrirMarchand(int32 Zone);
 	bool DirectionPressee(FIntPoint& Direction, float Secondes);	// les menus : fleches, croix ou stick (avec repetition)
 	void CommandesDeMenu(float Secondes);
-	void ProposerRunes();
-	void AppliquerRune(int32 Rune);
-	int32 RuneAuHasard() const;
-	bool RunePossible(int32 Rune) const;
+	// Les maitres des elements (VespMaitres) : les dons d'AYLIS, et les pactes de Liss
+	void ProposerDons(int32 Maitre, bool bElite);
+	void ProposerPactes();
+	void PrendreDon(int32 Don, int32 Rarete);
+	void TenirPacte();
+	int32 RareteDon(const TCHAR* Id) const;		// -1 : AYLIS ne l'a pas
+	float ValeurDon(const TCHAR* Id) const;			// 0 : AYLIS ne l'a pas
+	void RecalculerDons();							// ce que les dons et le pacte changent au combat
+	int32 TirerRarete(bool bElite) const;
+	void DonAuHasard(int32& Don, int32& Rarete) const;
+	int32 Foudre(const FVector& Centre, float Rayon, float Puissance);
+	void FoudreSurProches(int32 Nombre, float Portee, float Puissance);
+	int32 Gerbe(const FVector& Centre, float Rayon, float Puissance, int32 Effet, const FLinearColor& Couleur);
+	int32 EclatsAvecBonus(int32 Quantite) const;
+	float MultSoins() const { return Malediction == 1 ? 0.5f : 1.0f; }
+	FString EnteteOffre() const;
+	FString TitreOffre(int32 i) const;
+	FString TexteOffre(int32 i) const;
+	FString PiedOffre(int32 i) const;
+	FLinearColor CouleurOffre(int32 i) const;
 	void OuvrirMarchand();
 	void OuvrirEvenement();
 	void DialogueDuBoss();
@@ -218,7 +237,7 @@ private:
 	void AppliquerObjet(const FVespObjet& O, int32 Signe);	// ajoute (+1) ou retire (-1) ce qu'un objet donne
 	void HabillerAylis();						// l'arme, le bouclier et la tenue se voient
 	void CommandesDuMenu(float Secondes);
-	FVespCoup CoupDeBase() const;				// ce que tous les coups d'AYLIS ont en commun (effets de l'arme et des runes)
+	FVespCoup CoupDeBase(int32 GesteDuCoup = -1) const;	// ce que tous les coups d'AYLIS ont en commun (l'arme, les dons de ce geste)
 	EVespArme ArmeEnMain() const { return bEquipe[(int32)EVespEmplacement::Arme] ? Equipement[(int32)EVespEmplacement::Arme].TypeArme : EVespArme::Poings; }
 	FVector Deplacement = FVector::ZeroVector;	// l'envie de marcher (clavier ou stick), dans le monde
 
@@ -326,8 +345,18 @@ private:
 	float Repetition = 0.0f;				// une direction tenue se repete
 	int32 SelectionMenu = 0;				// la carte choisie au clavier ou a la manette
 	bool bSelectionVisible = false;
-	TArray<int32> RunesProposees;
-	TArray<int32> Runes;
+	TArray<int32> DonsPris;			// les dons des maitres (VespMaitres), et leur rarete
+	TArray<int32> RaretesDons;
+	TArray<int32> OffresDons;		// ce qu'on propose (3 dons ; pour Liss : 3 pactes, malediction x 10 + bonus)
+	TArray<int32> OffresRaretes;
+	int32 MaitreOffrant = 0;		// VespMaitres::Liss (-1) : des pactes
+	FString RepliqueOffre;
+	int32 Malediction = -1;			// le pacte en cours : sa malediction, les clairieres qui restent, le bonus promis
+	int32 ClairieresMaudites = 0;
+	int32 BonusPromis = -1;
+	FString PacteTenu;				// le message du pacte tenu (ajoute a celui de la clairiere)
+	float PresageAube = 0.0f;		// Presage d'aube : le prochain coup, plus de chances de critique
+	float BonusPresage = 0.0f;
 	TArray<FVespOffre> Offres;		// le marchand
 	int32 EvenementActuel = 0;
 	bool bFlamme = false;			// les coups d'AYLIS peuvent bruler
@@ -372,7 +401,8 @@ private:
 	int32 GraineCarteImposee = 0;		// a la reprise : la carte a refaire a l'identique
 	FRandomStream HasardCarte;
 	int32 TestReprise = 0;
-	bool bTestRecompenses = false;		// -VespRecompenses : photographie les balises et la carte, puis on quitte				// -VespReprise=1 (met une vision de cote) puis =2 (la reprend) ; un emplacement a part
+	bool bTestRecompenses = false;
+	int32 EtapeTestMaitres = -1;		// -VespMaitres : photographie un maitre, une amelioration, un pacte, la carte, puis on quitte		// -VespRecompenses : photographie les balises et la carte, puis on quitte				// -VespReprise=1 (met une vision de cote) puis =2 (la reprend) ; un emplacement a part
 	const TCHAR* EmplacementPartie() const { return TestReprise > 0 ? TEXT("VesperancePartieTest") : TEXT("VesperancePartie"); }
 	void SauverPartie();
 	void EffacerPartie();

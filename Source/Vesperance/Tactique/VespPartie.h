@@ -84,7 +84,12 @@ public:
 	UPROPERTY() int32 PointsDeCompetence = 0;
 	UPROPERTY() int32 HaschenVaincus = 0;
 	UPROPERTY() float BonusVitesse = 0.0f;
-	UPROPERTY() TArray<int32> Runes;
+	UPROPERTY() TArray<int32> Runes;			// (l'ancien systeme)
+	UPROPERTY() TArray<int32> DonsPris;			// les dons des maitres, et leur rarete
+	UPROPERTY() TArray<int32> RaretesDons;
+	UPROPERTY() int32 Malediction = -1;			// le pacte de Liss en cours
+	UPROPERTY() int32 ClairieresMaudites = 0;
+	UPROPERTY() int32 BonusPromis = -1;
 	UPROPERTY() int32 EffetsDesRunes = 0;		// flamme, seve, fureur, sangsue, fortune, givre, pied sur, epines (un bit chacun)
 	UPROPERTY() float BonusParade = 0.0f;
 	UPROPERTY() TArray<bool> Seuil;

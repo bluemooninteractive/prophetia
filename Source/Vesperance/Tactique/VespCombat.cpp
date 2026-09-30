@@ -655,6 +655,24 @@ void AVespCombat::AppliquerEffet(AVespUnite* Cible, int32 Effet)
 			break;
 		default: break;
 	}
+	// Le don double de Brann et Isaure : un Haschen qui brule et gele a la fois explose
+	if (PuissanceVapeur > 0.0f && Cible != Aylis && Cible->Brulure > 0.0f && Cible->Gel > 0.0f && Aylis)
+	{
+		Cible->Brulure = 0.0f;
+		Cible->Gel = 0.0f;
+		const int32 Degats = FMath::Max(1, FMath::RoundToInt(Aylis->Stats.Attaque * PuissanceVapeur));
+		AVespEffet::Jouer(GetWorld(), EVespEffet::Onde, Pied + FVector(0, 0, 10), FVector::UpVector, FLinearColor(0.9f, 0.9f, 1.0f));
+		AVespEffet::Jouer(GetWorld(), EVespEffet::Critique, Pied + FVector(0, 0, 80), FVector::UpVector, FLinearColor(0.9f, 0.9f, 1.0f), 0.05f);
+		UVespSons::Jouer(this, EVespSon::Explosion, Pied, 0.8f);
+		for (FVespHaschen& H : Haschen)
+		{
+			AVespUnite* U = H.U.Get();
+			if (U && U->EstDebout() && !U->IsHidden() && FVector::Dist2D(U->GetActorLocation(), Pied) < 260.0f)
+			{
+				Blesser(U, Degats, false, (U->GetActorLocation() - Pied).GetSafeNormal2D(), 350.0f, false, 0, FLinearColor(0.9f, 0.9f, 1.0f));
+			}
+		}
+	}
 }
 
 void AVespCombat::Blesser(AVespUnite* Cible, int32 Degats, bool bCritique, const FVector& Direction, float Poussee, bool bLourd, int32 Effet, const FLinearColor& Couleur)
@@ -748,16 +766,20 @@ int32 AVespCombat::FrappeDAylis(const FVespCoup& Coup)
 			continue;
 		}
 		int32 Degats = FMath::RoundToInt(Aylis->Stats.Attaque * Coup.Puissance - U->Stats.Defense * 0.5f + FMath::FRandRange(-1.0f, 1.0f));
-		const bool bCritique = Coup.bPeutCritiquer && FMath::RandRange(1, 100) <= Aylis->Stats.ChanceCritique;
+		const bool bCritique = !bSansCritique && Coup.bPeutCritiquer && FMath::RandRange(1, 100) <= Aylis->Stats.ChanceCritique + Coup.BonusCritique;
 		if (bCritique)
 		{
-			Degats = FMath::RoundToInt(Degats * MultCritique);
+			Degats = FMath::RoundToInt(Degats * (MultCritique + BonusCritiques));
+		}
+		if (BonusContreBrules > 0.0f && U->Brulure > 0.0f)
+		{
+			Degats = FMath::RoundToInt(Degats * (1.0f + BonusContreBrules));
 		}
 		if (bExecution && U->Stats.Pv * 3 < U->Stats.PvMax)
 		{
 			Degats = FMath::RoundToInt(Degats * 1.6f);
 		}
-		const int32 Effet = (Coup.Effet != 0 && FMath::FRand() < Coup.ChanceEffet) ? Coup.Effet : 0;
+		const int32 Effet = bCritique && bCritiquesBrulent ? VespEffetCoup::Brulure : ((Coup.Effet != 0 && FMath::FRand() < Coup.ChanceEffet) ? Coup.Effet : 0);
 		Blesser(U, FMath::Max(1, Degats), bCritique, N.IsNearlyZero() ? Coup.Direction : N, Coup.Poussee, Coup.bLourd, Effet, Coup.Couleur);
 		Touches++;
 	}
@@ -782,7 +804,7 @@ void AVespCombat::ToucherAylis(int32 Degats, int32 Effet, AVespUnite* Source, co
 	const bool bFace = FVector::DotProduct(Aylis->Avant(), VersSource) > 0.2f;
 	if (bGarde && bParable && bFace)
 	{
-		if (TempsGarde < FenetreParade)
+		if (TempsGarde < FenetreParade + BonusFenetreParade)
 		{
 			// La parade parfaite : rien ne passe, et l'attaquant est desequilibre
 			Aylis->AfficherMessage(TEXT("PARADE !"), FColor(255, 220, 130), 44.0f);
@@ -803,7 +825,7 @@ void AVespCombat::ToucherAylis(int32 Degats, int32 Effet, AVespUnite* Source, co
 		Degats = FMath::Max(1, FMath::RoundToInt(Degats * (0.35f - BonusParade * 0.2f)));
 		Aylis->Jouer(EVespGeste::GardeTouchee, 1.2f, true);
 		UVespSons::Jouer(this, EVespSon::Parade, Ici, 0.7f, 0.85f);
-		const int32 Final = FMath::Max(1, Degats - Aylis->Stats.Defense / 2);
+		const int32 Final = FMath::Max(1, FMath::RoundToInt((Degats - Aylis->Stats.Defense / 2) * MultDegatsAylis));
 		Aylis->Encaisser(Final, false, Direction, Poussee * 0.4f, true);
 		if (SurBlessure) SurBlessure(Final, false, Source);
 		return;
@@ -814,7 +836,7 @@ void AVespCombat::ToucherAylis(int32 Degats, int32 Effet, AVespUnite* Source, co
 	{
 		Final = Final * 3 / 2;
 	}
-	Final = FMath::Max(1, FMath::RoundToInt(Final * Aylis->ReductionDegats));
+	Final = FMath::Max(1, FMath::RoundToInt(Final * Aylis->ReductionDegats * MultDegatsAylis));
 	Aylis->Encaisser(Final, bCritique, Direction, Poussee, false);
 	UVespSons::Jouer(this, Son, Ici, 0.8f);
 	UVespSons::Jouer(this, EVespSon::Blessure, Ici, 0.7f);
@@ -1093,7 +1115,7 @@ void AVespCombat::AvancerProjectiles(float Secondes)
 			const FVector Coeur = Aylis->GetActorLocation() + FVector(0, 0, 100);
 			if (FVector::Dist2D(P.Position, Coeur) < P.Rayon + Aylis->Rayon())
 			{
-				const bool bParfaite = bGarde && TempsGarde < FenetreParade &&FVector::DotProduct(Aylis->Avant(), -P.Vitesse.GetSafeNormal2D()) > 0.2f;
+				const bool bParfaite = bGarde && TempsGarde < FenetreParade + BonusFenetreParade &&FVector::DotProduct(Aylis->Avant(), -P.Vitesse.GetSafeNormal2D()) > 0.2f;
 				if (bParfaite)
 				{
 					// Une parade parfaite renvoie le projectile vers son tireur

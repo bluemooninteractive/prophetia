@@ -50,6 +50,7 @@ struct FVespCoup
 	int32 Effet = 0;				// VespEffetCoup
 	float ChanceEffet = 0.0f;
 	bool bPeutCritiquer = true;
+	int32 BonusCritique = 0;		// en points de % (les dons d'Aurel)
 	FLinearColor Couleur = FLinearColor(0.55f, 0.7f, 1.0f);
 };
 
@@ -237,6 +238,14 @@ public:
 	// Le mode photo : la barriere tombe et ses Haschen s'effacent (AYLIS change de clairiere d'un coup)
 	void LeverLaBarriere();
 	float BonusParade = 0.0f;		// la garde encaisse davantage (0 a 1)
+	// Les dons des maitres (VespMaitres) et les pactes de Liss qui touchent au combat
+	float BonusContreBrules = 0.0f;		// Foyer : +x de degats contre les Haschen qui brulent
+	float BonusFenetreParade = 0.0f;	// Patience : secondes de plus pour la parade parfaite
+	float PuissanceVapeur = 0.0f;		// Vapeur : un Haschen qui brule et gele explose (0 : non)
+	bool bCritiquesBrulent = false;		// Aube radieuse
+	float BonusCritiques = 0.0f;		// Aube radieuse : les critiques font plus mal
+	bool bSansCritique = false;			// pacte : aveuglement
+	float MultDegatsAylis = 1.0f;		// pacte : sang fragile
 	int32 DefenseAylis() const;
 
 private:
