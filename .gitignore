@@ -11,3 +11,34 @@ Saved/
 *.opensdf
 *.sdf
 *.VC.db
+
+# Les packs du marche (Fab) : trop lourds (~5 Go) et leur licence interdit de les publier.
+# Ils restent sur le disque ; la liste pour les reinstaller est dans le README.
+Content/DarkFantasyPack_01/
+Content/DungeonAndCemetery/
+Content/Fantastic_Village_Pack/
+Content/Fantasy_Forest/
+Content/Free_Magic/
+Content/GanzSe_Accessories/
+Content/Magma_Material/
+Content/Pack_Bonus/
+Content/Planet385CY/
+Content/RPG-FlameAttackVFX/
+Content/RPG_Magic_Staff_Pack/
+Content/Spell_Mix/
+Content/StyleHex_Studio/
+Content/StylizedCharacter/
+Content/Stylized_EnvirPack/
+Content/StylizedProvencal/
+Content/UltimateUIMenusSFX/
+Content/Vol01_Potions/
+Content/WaterMaterials/
+Content/__ExternalActors__/Free_Magic/
+Content/__ExternalObjects__/Free_Magic/
+Content/__ExternalActors__/ThirdPerson/
+
+# Des telechargements poses dans le dossier, etrangers au jeu
+CropoutSampleProject/
+FantasyRPGSkillIc/
+FreeVFXSamplerVol193DMe/
+/SylizedProvencal.png
