@@ -1,0 +1,7 @@
+# Les fichiers d'Unreal sont binaires : git ne doit ni les comparer ligne a ligne, ni tenter de les fusionner
+*.uasset binary
+*.umap binary
+*.png binary
+*.jpg binary
+*.wav binary
+*.ttf binary

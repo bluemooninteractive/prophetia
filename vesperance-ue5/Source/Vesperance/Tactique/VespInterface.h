@@ -34,13 +34,11 @@ private:
 
 	// Les morceaux de l'interface
 	TSharedRef<SWidget> CoucheTitre();
-	TSharedRef<SWidget> CoucheCombat();
 	TSharedRef<SWidget> CoucheExploration();
-	TSharedRef<SWidget> CarteDuLieu();
-	TSharedRef<SWidget> PastilleDuTour();
 	TSharedRef<SWidget> FicheAylis();
-	TSharedRef<SWidget> BarreDActions();
-	TSharedRef<SWidget> BoutonAction(int32 Numero);
+	TSharedRef<SWidget> BarreDuBoss();
+	TSharedRef<SWidget> CasePouvoir(int32 N);
+	TSharedRef<SWidget> BandeauClairiere();
 	TSharedRef<SWidget> CoucheRoute();
 	TSharedRef<SWidget> CoucheRunes();
 	TSharedRef<SWidget> CoucheMarchand();
@@ -59,7 +57,6 @@ private:
 
 	// Les petites questions sur l'etat du jeu
 	bool EnPhase(uint8 Phase) const;
-	bool EnCombat() const;
 	EVisibility VisibleSi(bool bCondition) const { return bCondition ? EVisibility::Visible : EVisibility::Collapsed; }
 	bool bCommandes = false;		// l'ecran titre montre les commandes
 	bool bActes = false;			// l'ecran titre montre les 7 actes (pour commencer plus loin)
@@ -79,6 +76,5 @@ private:
 	FSlateBrush Rien;				// transparent
 	FButtonStyle StyleBouton;		// des boutons sans decor (leur contenu fait le dessin)
 
-	TArray<TSharedPtr<SButton>> BoutonsActions;
 	TSharedPtr<SVespCarteRoute> CarteRoute;
 };
